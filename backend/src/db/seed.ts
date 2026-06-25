@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import bcrypt from 'bcryptjs';
+import { randomBytes } from 'node:crypto';
 import { db } from '../config/database.js';
 import {
   users,
@@ -102,7 +103,8 @@ async function seed() {
   await db.insert(shootingRanges).values(rangeData);
   console.log(`Created ${rangeData.length} shooting ranges in Cebu`);
 
-  // Create 20 match officers (Filipino names)
+  // Create 20 match officers (Filipino names) with random emails; they all log
+  // in with the password "password".
   const officerNames = [
     { display_name: 'Ricardo Dela Cruz', email: 'ricardo.delacruz@hitfactor.com' },
     { display_name: 'Maria Santos', email: 'maria.santos@hitfactor.com' },
@@ -126,15 +128,21 @@ async function seed() {
     { display_name: 'Gloria Espiritu', email: 'gloria.espiritu@hitfactor.com' },
   ];
 
-  await db.insert(users).values(
-    officerNames.map((o) => ({
-      ...o,
-      password_hash: passwordHash,
-      roles: ['officer', 'shooter'],
-    })),
-  );
+  const officerUsers = await db
+    .insert(users)
+    .values(
+      officerNames.map((o) => ({
+        display_name: o.display_name,
+        // random unique email; password is "password"
+        email: `officer-${randomBytes(4).toString('hex')}@hitfactor.com`,
+        password_hash: adminPasswordHash,
+        roles: ['officer', 'shooter'],
+      })),
+    )
+    .returning({ email: users.email, display_name: users.display_name });
 
-  console.log(`Created ${officerNames.length} match officers`);
+  console.log(`Created ${officerUsers.length} officers (random emails, password "password"):`);
+  officerUsers.forEach((o) => console.log(`  ${o.display_name} <${o.email}>`));
 
   // Create a sample match
   const [sampleMatch] = await db

@@ -110,6 +110,10 @@ accounts use **`password123`**.
 | `officer@hitfactor.com` | `password123` | officer, shooter | A | Carry Optics |
 | `shooter@hitfactor.com` | `password123` | shooter | B | Production |
 
+The seed also creates 20 officer accounts with **random** `officer-<hex>@hitfactor.com`
+emails, all with password **`password`** (roles: officer, shooter). The seed prints
+each generated email when it runs.
+
 The admin account is also set up as the match admin for the seeded sample match "Spring Classic 2026".
 
 ## Sample Data
