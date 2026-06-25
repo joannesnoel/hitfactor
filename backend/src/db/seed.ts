@@ -15,14 +15,17 @@ async function seed() {
   console.log('Seeding database...');
 
   const passwordHash = await bcrypt.hash('password123', 10);
+  // The owner admin account uses its own password (the other test users below
+  // keep password123). Recreated on every reset/seed.
+  const adminPasswordHash = await bcrypt.hash('password', 10);
 
-  // Create admin user
+  // Create admin user (owner)
   const [adminUser] = await db
     .insert(users)
     .values({
       email: 'admin@hitfactor.com',
-      password_hash: passwordHash,
-      display_name: 'Admin User',
+      password_hash: adminPasswordHash,
+      display_name: 'Admin',
       roles: ['admin', 'officer', 'shooter'],
       default_division: 'standard',
     })

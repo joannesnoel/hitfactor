@@ -101,11 +101,12 @@ The Quasar dev server starts on `http://localhost:9000`.
 
 ## Test Accounts
 
-All test accounts use the password **`password123`**.
+The owner admin account uses the password **`password`**; the other test
+accounts use **`password123`**.
 
 | Email | Password | Roles | Classification | Division |
 |---|---|---|---|---|
-| `admin@hitfactor.com` | `password123` | admin, officer, shooter | Master | Limited |
+| `admin@hitfactor.com` | `password` | admin, officer, shooter | Master | Limited |
 | `officer@hitfactor.com` | `password123` | officer, shooter | A | Carry Optics |
 | `shooter@hitfactor.com` | `password123` | shooter | B | Production |
 
