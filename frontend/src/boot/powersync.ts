@@ -38,7 +38,7 @@ export async function connectPowerSync() {
   if (!available || db) return;
 
   try {
-    const { PowerSyncDatabase } = await import('@powersync/web');
+    const { PowerSyncDatabase, SyncStreamConnectionMethod } = await import('@powersync/web');
     const { powerSyncSchema } = await import('src/db/powersync-schema');
     const { PowerSyncConnector } = await import('src/db/connector');
 
@@ -49,7 +49,12 @@ export async function connectPowerSync() {
 
     const connector = new PowerSyncConnector();
     await db.init();
-    await db.connect(connector);
+    // Force HTTP streaming. The default (WebSocket) does not establish through
+    // the Cloudflare proxy in front of the sync service, leaving clients stuck
+    // in API-only mode (nothing syncs). HTTP streaming works through the proxy.
+    await db.connect(connector, {
+      connectionMethod: SyncStreamConnectionMethod.HTTP,
+    });
     console.log('[PowerSync] Connected');
     const syncStore = useSyncStore();
     syncStore.updateStatus('connected');
