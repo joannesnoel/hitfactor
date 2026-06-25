@@ -115,32 +115,20 @@
         />
       </div>
 
-      <!-- Zone Counters -->
-      <div class="score-entry-grid q-mb-md" :class="{ 'disabled-section': form.dqed || form.dnf }">
-        <ZoneCounter
-          label="A"
-          :count="form.alpha_count"
-          color="#4caf50"
-          @update:count="form.alpha_count = $event"
-        />
-        <ZoneCounter
-          label="C"
-          :count="form.charlie_count"
-          color="#ff9800"
-          @update:count="form.charlie_count = $event"
-        />
-        <ZoneCounter
-          label="D"
-          :count="form.delta_count"
-          color="#f44336"
-          @update:count="form.delta_count = $event"
-        />
-        <ZoneCounter
-          label="M"
-          :count="form.miss_count"
-          color="#9c27b0"
-          @update:count="form.miss_count = $event"
-        />
+      <!-- Per-target paper scoring -->
+      <div class="q-mb-md" :class="{ 'disabled-section': form.dqed || form.dnf }">
+        <div class="row items-center justify-between q-mb-xs">
+          <div class="text-subtitle2">Targets ({{ targetCount }})</div>
+          <div class="text-caption text-grey">Paper: {{ paperSummary }}</div>
+        </div>
+        <TargetGrid v-model="targetHits" :rounds="paperRounds" />
+      </div>
+
+      <!-- No-shoots / Procedurals -->
+      <div
+        class="row justify-center q-gutter-md q-mb-md"
+        :class="{ 'disabled-section': form.dqed || form.dnf }"
+      >
         <ZoneCounter
           label="NS"
           :count="form.no_shoot_count"
@@ -222,6 +210,7 @@ import type { Stage, Registration, Score, ScoreInput, ScoringType, PowerFactor, 
 import { computeScore, getDivisionLabel, DEFAULT_ORGANIZATION } from '@hitfactor/shared';
 import { useAuthStore } from 'src/stores/auth.store';
 import ZoneCounter from 'src/components/scoring/ZoneCounter.vue';
+import TargetGrid from 'src/components/scoring/TargetGrid.vue';
 import TimeInput from 'src/components/scoring/TimeInput.vue';
 import SyncStatusIndicator from 'src/components/common/SyncStatusIndicator.vue';
 
@@ -245,11 +234,10 @@ const selectedRegistrationId = ref<string | null>(null);
 const currentShooterIndex = ref(0);
 const shooterSearchOptions = ref<{ label: string; value: string; caption: string; scored: boolean }[]>([]);
 
+// Per-target paper hits: one ordered array of zones ('a'|'c'|'d'|'m') per target.
+const targetHits = ref<string[][]>([]);
+
 const form = reactive({
-  alpha_count: 0,
-  charlie_count: 0,
-  delta_count: 0,
-  miss_count: 0,
   no_shoot_count: 0,
   procedural_count: 0,
   steel_hits: 0,
@@ -258,6 +246,61 @@ const form = reactive({
   dqed: false,
   dnf: false,
 });
+
+const targetCount = computed(() => stage.value?.number_of_targets ?? 0);
+const paperRounds = computed<number[] | null>(
+  () => (stage.value?.paper_target_rounds as number[] | null) ?? null,
+);
+
+// Aggregate paper zone counts derived from the per-target grid.
+const paperCounts = computed(() => {
+  const c = { a: 0, c: 0, d: 0, m: 0 };
+  for (const t of targetHits.value) {
+    for (const h of t) {
+      if (h in c) c[h as keyof typeof c]++;
+    }
+  }
+  return c;
+});
+
+const paperSummary = computed(() => {
+  const c = paperCounts.value;
+  const parts = (['a', 'c', 'd', 'm'] as const)
+    .filter((z) => c[z])
+    .map((z) => `${c[z]}${z.toUpperCase()}`);
+  return parts.length ? parts.join('  ') : 'No hits';
+});
+
+function freshGrid(): string[][] {
+  return Array.from({ length: targetCount.value }, () => [] as string[]);
+}
+
+// Rebuild a valid per-target grid from saved aggregate counts (for re-opening an
+// existing score — the exact arrangement isn't stored, but the totals, and thus
+// the hit factor, are preserved).
+function gridFromCounts(counts: {
+  alpha_count: number;
+  charlie_count: number;
+  delta_count: number;
+  miss_count: number;
+}): string[][] {
+  const pool: string[] = [
+    ...Array<string>(counts.alpha_count).fill('a'),
+    ...Array<string>(counts.charlie_count).fill('c'),
+    ...Array<string>(counts.delta_count).fill('d'),
+    ...Array<string>(counts.miss_count).fill('m'),
+  ];
+  const grid = freshGrid();
+  let p = 0;
+  for (let i = 0; i < grid.length && p < pool.length; i++) {
+    const cap = paperRounds.value?.[i] ?? 2;
+    while (grid[i].length < cap && p < pool.length) grid[i].push(pool[p++]);
+  }
+  if (grid.length > 0) {
+    while (p < pool.length) grid[grid.length - 1].push(pool[p++]);
+  }
+  return grid;
+}
 
 const hasSteel = computed(() => {
   if (!stage.value) return false;
@@ -296,10 +339,10 @@ const currentPowerFactor = computed<PowerFactor>(() => {
 });
 
 const scoreInput = computed<ScoreInput>(() => ({
-  alpha_count: form.alpha_count,
-  charlie_count: form.charlie_count,
-  delta_count: form.delta_count,
-  miss_count: form.miss_count,
+  alpha_count: paperCounts.value.a,
+  charlie_count: paperCounts.value.c,
+  delta_count: paperCounts.value.d,
+  miss_count: paperCounts.value.m,
   no_shoot_count: form.no_shoot_count,
   procedural_count: form.procedural_count,
   steel_hits: form.steel_hits,
@@ -362,10 +405,7 @@ watch(currentRegistration, (reg) => {
     (s) => s.registration_id === reg.id && s.stage_id === stageId,
   );
   if (existing) {
-    form.alpha_count = existing.alpha_count;
-    form.charlie_count = existing.charlie_count;
-    form.delta_count = existing.delta_count;
-    form.miss_count = existing.miss_count;
+    targetHits.value = gridFromCounts(existing);
     form.no_shoot_count = existing.no_shoot_count;
     form.procedural_count = existing.procedural_count;
     form.steel_hits = existing.steel_hits;
@@ -379,10 +419,7 @@ watch(currentRegistration, (reg) => {
 });
 
 function resetForm() {
-  form.alpha_count = 0;
-  form.charlie_count = 0;
-  form.delta_count = 0;
-  form.miss_count = 0;
+  targetHits.value = freshGrid();
   form.no_shoot_count = 0;
   form.procedural_count = 0;
   form.steel_hits = 0;
@@ -423,7 +460,7 @@ async function handleSave() {
           hit_factor = ?, dqed = ?, dnf = ?, modified_at = ?, modified_by = ?
         WHERE id = ?`,
         [
-          form.alpha_count, form.charlie_count, form.delta_count, form.miss_count,
+          paperCounts.value.a, paperCounts.value.c, paperCounts.value.d, paperCounts.value.m,
           form.no_shoot_count, form.procedural_count, form.steel_hits, form.steel_misses,
           form.time, computed.raw_points, computed.penalty_points, computed.total_points,
           computed.hit_factor, form.dqed ? 1 : 0, form.dnf ? 1 : 0, now, authStore.user.id,
@@ -445,7 +482,7 @@ async function handleSave() {
           id, matchId, stageId, currentRegistration.value.id,
           currentRegistration.value.shooter_name, currentRegistration.value.division,
           currentRegistration.value.power_factor,
-          form.alpha_count, form.charlie_count, form.delta_count, form.miss_count,
+          paperCounts.value.a, paperCounts.value.c, paperCounts.value.d, paperCounts.value.m,
           form.no_shoot_count, form.procedural_count, form.steel_hits, form.steel_misses,
           form.time, computed.raw_points, computed.penalty_points, computed.total_points,
           computed.hit_factor, authStore.user.id, now, 0, form.dqed ? 1 : 0, form.dnf ? 1 : 0,
@@ -500,6 +537,9 @@ onMounted(async () => {
       fixed_time: stageRow.fixed_time != null ? Number(stageRow.fixed_time) : null,
       is_classifier: Boolean(stageRow.is_classifier),
     } as Stage;
+
+    // Initialise an empty per-target grid for the loaded stage.
+    targetHits.value = freshGrid();
 
     // Load match organization (for division labels)
     try {
