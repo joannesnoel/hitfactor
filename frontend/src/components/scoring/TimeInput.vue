@@ -5,10 +5,10 @@
       :model-value="displayValue"
       outlined
       dense
+      placeholder="0.00"
       input-class="text-center text-h5 text-weight-bold"
       style="max-width: 200px"
-      inputmode="decimal"
-      pattern="[0-9]*\.?[0-9]*"
+      inputmode="numeric"
       @update:model-value="handleInput"
       @blur="handleBlur"
     >
@@ -16,6 +16,9 @@
         <q-icon name="timer" />
       </template>
     </q-input>
+    <div class="text-caption text-grey q-mt-xs">
+      Type digits — last two are hundredths (1234 → 12.34)
+    </div>
   </div>
 </template>
 
@@ -40,26 +43,25 @@ watch(
 );
 
 function formatTime(val: number): string {
-  if (val === 0) return '';
+  if (!val) return '';
   return val.toFixed(2);
 }
 
+// Treat the input as a stream of digits where the last two are hundredths of a
+// second (timer/Practiscore style): "1234" → 12.34, backspace drops a digit.
 function handleInput(val: string | number | null) {
-  if (val === null || val === '') {
+  const digits = (val == null ? '' : String(val)).replace(/\D/g, '').slice(-5);
+  if (digits === '') {
     displayValue.value = '';
+    emit('update:modelValue', 0);
     return;
   }
-  displayValue.value = String(val);
+  const value = parseInt(digits, 10) / 100;
+  displayValue.value = value.toFixed(2);
+  emit('update:modelValue', value);
 }
 
 function handleBlur() {
-  const parsed = parseFloat(displayValue.value);
-  if (!isNaN(parsed) && parsed >= 0 && parsed <= 999.99) {
-    const rounded = Math.round(parsed * 100) / 100;
-    emit('update:modelValue', rounded);
-    displayValue.value = formatTime(rounded);
-  } else {
-    displayValue.value = formatTime(props.modelValue);
-  }
+  displayValue.value = formatTime(props.modelValue);
 }
 </script>
