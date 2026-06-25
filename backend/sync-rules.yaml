@@ -21,6 +21,7 @@ bucket_definitions:
       - SELECT * FROM registrations WHERE match_id = bucket.match_id
       - SELECT * FROM squads WHERE match_id = bucket.match_id
       - SELECT * FROM scores WHERE match_id = bucket.match_id
+      - SELECT * FROM match_officers WHERE match_id = bucket.match_id
       - SELECT * FROM stage_officers WHERE match_id = bucket.match_id
 
   admin_match_data:
