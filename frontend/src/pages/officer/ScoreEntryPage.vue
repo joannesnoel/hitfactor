@@ -65,33 +65,53 @@
         class="q-mb-md"
       />
 
-      <!-- Shooter Navigation -->
-      <div class="row items-center justify-between q-mb-md">
+      <!-- Current Shooter -->
+      <div class="row items-center no-wrap q-mb-md">
         <q-btn
+          round
           flat
           icon="chevron_left"
-          label="Prev"
           :disable="currentShooterIndex <= 0"
           @click="prevShooter"
         />
-        <div class="text-center">
-          <div class="text-subtitle2 text-grey">
-            Shooter {{ currentShooterIndex + 1 }} of {{ filteredRegistrations.length }}
-            <span v-if="scoredCount > 0" class="text-green">
-              ({{ scoredCount }} scored)
-            </span>
-          </div>
-          <div v-if="currentRegistration" class="text-weight-bold">
-            {{ currentRegistration.shooter_name }}
-          </div>
-          <div v-if="currentRegistration" class="text-caption text-grey">
-            {{ getDivisionLabel(organization, currentRegistration.division) }} | {{ currentRegistration.power_factor }}
-          </div>
-        </div>
-        <q-btn
+        <q-card
           flat
-          icon-right="chevron_right"
-          label="Next"
+          class="current-shooter-card col q-mx-sm text-white text-center"
+          :class="existingScore ? 'bg-green-7' : 'bg-primary'"
+        >
+          <q-card-section class="q-py-sm">
+            <div class="row items-center justify-center q-gutter-xs text-caption text-uppercase">
+              <q-icon name="my_location" size="14px" />
+              <span>Now scoring</span>
+              <q-badge
+                v-if="existingScore"
+                color="white"
+                text-color="green-8"
+                label="scored"
+                class="q-ml-xs"
+              />
+            </div>
+            <div v-if="currentRegistration" class="text-h6 text-weight-bold ellipsis">
+              {{ currentRegistration.shooter_name }}
+            </div>
+            <div v-else class="text-subtitle1 q-py-xs">No shooters registered</div>
+            <div v-if="currentRegistration" class="text-caption">
+              {{ getDivisionLabel(organization, currentRegistration.division) }}
+              · {{ currentRegistration.power_factor }}
+              <template v-if="currentRegistration.classification">
+                · {{ currentRegistration.classification }}
+              </template>
+            </div>
+            <div class="text-caption current-shooter-meta">
+              Shooter {{ currentShooterIndex + 1 }} of {{ filteredRegistrations.length }}
+              <span v-if="scoredCount > 0"> · {{ scoredCount }} scored</span>
+            </div>
+          </q-card-section>
+        </q-card>
+        <q-btn
+          round
+          flat
+          icon="chevron_right"
           :disable="currentShooterIndex >= filteredRegistrations.length - 1"
           @click="nextShooter"
         />
@@ -604,5 +624,14 @@ onMounted(async () => {
 .disabled-section {
   opacity: 0.4;
   pointer-events: none;
+}
+
+.current-shooter-card {
+  border-radius: 12px;
+  min-width: 0;
+}
+
+.current-shooter-meta {
+  opacity: 0.8;
 }
 </style>
