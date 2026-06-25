@@ -1,0 +1,115 @@
+name: Production Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'k8s/**'
+      - '**.md'
+      - '.gitignore'
+      - '.claude/**'
+      - 'LICENSE'
+
+jobs:
+  deploy:
+    name: Build and Deploy to Production
+    runs-on: [self-hosted, k3s, hitfactor]
+    environment: production
+
+    env:
+      REGISTRY: 192.168.0.20:30500
+      BACKEND_IMAGE: hitfactor-backend
+      FRONTEND_IMAGE: hitfactor-frontend
+      NAMESPACE: hitfactor
+      VITE_API_URL: https://api-hitfactor.creativelogik.net
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+          kubectl version --client
+
+      - name: Configure kubectl
+        run: |
+          # In-cluster ServiceAccount credentials (runner pod SA)
+          kubectl config set-cluster k3s --server=https://kubernetes.default.svc --certificate-authority=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+          kubectl config set-credentials github-runner --token=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+          kubectl config set-context default --cluster=k3s --user=github-runner
+          kubectl config use-context default
+          kubectl get pods -n ${{ env.NAMESPACE }} --no-headers | head -1
+
+      - name: Generate image tag
+        id: tag
+        run: |
+          TAG="$(date +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "Generated image tag: ${TAG}"
+
+      - name: Build and push backend image
+        run: |
+          docker build -f backend/Dockerfile \
+            -t ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.tag }} .
+          docker push ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.tag }}
+
+      - name: Build and push frontend image
+        run: |
+          # VITE_API_URL is baked at build time (see frontend/Dockerfile)
+          docker build -f frontend/Dockerfile \
+            --build-arg VITE_API_URL=${{ env.VITE_API_URL }} \
+            -t ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ steps.tag.outputs.tag }} .
+          docker push ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ steps.tag.outputs.tag }}
+
+      - name: Run database migrations
+        run: |
+          kubectl delete job hitfactor-migrate -n ${{ env.NAMESPACE }} --ignore-not-found=true
+          kubectl apply -f - <<EOF
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: hitfactor-migrate
+            namespace: ${{ env.NAMESPACE }}
+            labels: { app.kubernetes.io/name: migrate, app.kubernetes.io/part-of: hitfactor }
+          spec:
+            backoffLimit: 2
+            ttlSecondsAfterFinished: 300
+            template:
+              spec:
+                restartPolicy: Never
+                containers:
+                  - name: migrate
+                    image: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.tag }}
+                    imagePullPolicy: Always
+                    workingDir: /app/backend
+                    command: ["node", "dist/db/migrate.js"]
+                    env:
+                      - name: DATABASE_URL
+                        valueFrom: { secretKeyRef: { name: hitfactor-db, key: DATABASE_URL } }
+          EOF
+          echo "Waiting for migration job..."
+          kubectl wait --for=condition=complete job/hitfactor-migrate -n ${{ env.NAMESPACE }} --timeout=300s
+
+      - name: Deploy to k3s
+        run: |
+          kubectl set image deployment/backend  backend=${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.tag }}   -n ${{ env.NAMESPACE }}
+          kubectl set image deployment/frontend frontend=${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ steps.tag.outputs.tag }} -n ${{ env.NAMESPACE }}
+          kubectl rollout status deployment/backend  -n ${{ env.NAMESPACE }} --timeout=300s
+          kubectl rollout status deployment/frontend -n ${{ env.NAMESPACE }} --timeout=300s
+
+      - name: Verify health check
+        run: |
+          # Use the in-cluster ClusterIP so this works regardless of public DNS/TLS
+          IP=$(kubectl get svc hitfactor-backend -n ${{ env.NAMESPACE }} -o jsonpath='{.spec.clusterIP}')
+          echo "Health-checking http://${IP}:3000/api/health"
+          for i in $(seq 1 30); do
+            if curl -sf "http://${IP}:3000/api/health" >/dev/null 2>&1; then
+              echo "Health check passed!"; exit 0
+            fi
+            echo "Attempt $i/30 failed, retrying in 5s..."; sleep 5
+          done
+          echo "Health check failed after 30 attempts"; exit 1

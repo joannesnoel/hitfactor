@@ -114,5 +114,26 @@ kubectl -n hitfactor rollout restart deploy/backend  # or deploy/frontend
   the docker-compose image pin) are **not** used here — in-cluster traffic is plain
   HTTP and ingress terminates TLS, so they're unnecessary.
 - Backend `replicas: 1` is safe with the shared JWT Secret; it can be scaled up.
-- For repeatable builds, wire steps 1+3 into a GitHub Actions workflow on the
-  existing self-hosted runners (the `github-actions` namespace).
+- Steps 1+3 are automated by CI for ongoing deploys — see below.
+
+## CI/CD (GitHub Actions) — same pattern as nvyt / gopickle
+
+`.github/workflows/production-deploy.yml` runs on push to `main` on a self-hosted
+in-cluster runner (labels `self-hosted, k3s, hitfactor`). It: generates a
+`TIMESTAMP-SHA` tag, builds+pushes the backend and frontend images to
+`192.168.0.20:30500`, runs the migrate Job, `kubectl set image` on both
+deployments, waits for rollout, and health-checks the backend ClusterIP.
+
+The base manifests in this folder are applied **once** (the steps above); CI only
+bumps images — it never re-applies them. Schema changes: re-run the migrate Job
+(CI does this automatically each deploy).
+
+**One-time activation:**
+1. Push the repo to `https://github.com/joannesnoel/hitfactor` (a `main` branch).
+2. RBAC is already applied (`ServiceAccount github-runner-hitfactor` + Role/RoleBinding).
+3. Start the runner (it registers against the repo using the shared PAT secret
+   `github-actions/github-runner-secret`):
+   ```bash
+   kubectl apply -f github-runner/runner-deployment.yaml
+   ```
+4. Push to `main` → the workflow builds, deploys, and verifies automatically.
