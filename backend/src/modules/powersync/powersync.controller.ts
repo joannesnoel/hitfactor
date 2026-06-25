@@ -1,6 +1,10 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { eq, and } from 'drizzle-orm';
-import { computeScore, isValidDivisionForOrg } from '@hitfactor/shared';
+import {
+  computeScore,
+  isValidDivisionForOrg,
+  MATCH_LEVEL_OFFICIAL_ROLES,
+} from '@hitfactor/shared';
 import type {
   ScoringType,
   PowerFactor,
@@ -18,11 +22,18 @@ import {
   matchAdmins,
 } from '../../db/schema.js';
 
-async function canUserScoreMatch(
+/**
+ * Whether a user may score a specific stage:
+ *  - match admins                         → any stage in the match
+ *  - match-level officials (MM, CSPO, …)  → any stage in the match
+ *  - everyone else (stage officers)       → only stages they are assigned to
+ */
+async function canUserScoreStage(
   matchId: string,
+  stageId: string,
   userId: string
 ): Promise<boolean> {
-  // Check match admin
+  // Match admins can score any stage in the match.
   const [admin] = await db
     .select({ id: matchAdmins.id })
     .from(matchAdmins)
@@ -32,9 +43,9 @@ async function canUserScoreMatch(
     .limit(1);
   if (admin) return true;
 
-  // Check match officer
+  // Match-level officials manage/process the whole match.
   const [officer] = await db
-    .select({ id: matchOfficers.id })
+    .select({ role: matchOfficers.role })
     .from(matchOfficers)
     .where(
       and(
@@ -43,9 +54,39 @@ async function canUserScoreMatch(
       )
     )
     .limit(1);
-  if (officer) return true;
+  if (
+    officer &&
+    (MATCH_LEVEL_OFFICIAL_ROLES as readonly string[]).includes(officer.role)
+  ) {
+    return true;
+  }
 
-  return false;
+  // Otherwise the user must be assigned to this specific stage.
+  const [stageOfficer] = await db
+    .select({ id: stageOfficers.id })
+    .from(stageOfficers)
+    .where(
+      and(
+        eq(stageOfficers.stage_id, stageId),
+        eq(stageOfficers.user_id, userId)
+      )
+    )
+    .limit(1);
+  return !!stageOfficer;
+}
+
+/** Authorize a PATCH/DELETE on an existing score (resolves its stage first). */
+async function canUserModifyScore(
+  scoreId: string,
+  userId: string
+): Promise<boolean> {
+  const [s] = await db
+    .select({ match_id: scores.match_id, stage_id: scores.stage_id })
+    .from(scores)
+    .where(eq(scores.id, scoreId))
+    .limit(1);
+  if (!s) return true; // missing row — the handler reports "not found"
+  return canUserScoreStage(s.match_id, s.stage_id, userId);
 }
 
 /**
@@ -276,25 +317,36 @@ export async function handleUploadData(
   for (const op of body.operations) {
     try {
       if (op.type === 'scores') {
-        // Check authorization for score operations
+        // System admins bypass; otherwise scoring is enforced per-stage.
+        const isSystemAdmin = request.user.roles.includes('admin');
         if (op.op === 'PUT' && op.data) {
           const matchId = op.data.match_id as string;
-          if (matchId) {
-            const hasAccess =
-              request.user.roles.includes('admin') ||
-              (await canUserScoreMatch(matchId, request.user.id));
-            if (!hasAccess) {
-              errors.push({
-                op,
-                error: 'Not authorized to score this match',
-              });
-              continue;
-            }
+          const stageId = op.data.stage_id as string;
+          if (
+            !isSystemAdmin &&
+            !(await canUserScoreStage(matchId, stageId, request.user.id))
+          ) {
+            errors.push({ op, error: 'Not authorized to score this stage' });
+            continue;
           }
           await handleScorePut(op.data, op.id, request.user.id);
         } else if (op.op === 'PATCH' && op.data) {
+          if (
+            !isSystemAdmin &&
+            !(await canUserModifyScore(op.id, request.user.id))
+          ) {
+            errors.push({ op, error: 'Not authorized to edit this score' });
+            continue;
+          }
           await handleScorePatch(op.data, op.id, request.user.id);
         } else if (op.op === 'DELETE') {
+          if (
+            !isSystemAdmin &&
+            !(await canUserModifyScore(op.id, request.user.id))
+          ) {
+            errors.push({ op, error: 'Not authorized to delete this score' });
+            continue;
+          }
           await handleScoreDelete(op.id);
         }
       } else if (op.type === 'registrations') {
