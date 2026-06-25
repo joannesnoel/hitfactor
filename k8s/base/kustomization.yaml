@@ -1,0 +1,11 @@
+# Base workloads (as-written: prod hostnames). Overlays in ../overlays/<env>/
+# retarget the namespace + hostnames. Namespace and the dev seed Job are applied
+# per-overlay / separately, so they are not part of the base.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - 10-postgres.yaml
+  - 20-backend.yaml
+  - 30-frontend.yaml
+  - 40-powersync.yaml
+  - 50-migrate-job.yaml

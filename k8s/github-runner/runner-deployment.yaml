@@ -41,6 +41,37 @@ roleRef:
   name: github-runner-role
   apiGroup: rbac.authorization.k8s.io
 ---
+# Same grants in the staging namespace (the one runner handles both envs).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: github-runner-role
+  namespace: hitfactor-staging
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps", "secrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "delete", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: github-runner-binding
+  namespace: hitfactor-staging
+subjects:
+  - kind: ServiceAccount
+    name: github-runner-hitfactor
+    namespace: github-actions
+roleRef:
+  kind: Role
+  name: github-runner-role
+  apiGroup: rbac.authorization.k8s.io
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:

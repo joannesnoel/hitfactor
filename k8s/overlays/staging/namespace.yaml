@@ -1,6 +1,7 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: hitfactor
+  name: hitfactor-staging
   labels:
     app.kubernetes.io/part-of: hitfactor
+    environment: staging

@@ -1,0 +1,16 @@
+# Production overlay: base workloads as-is (prod hostnames) in the hitfactor
+# namespace.  kubectl apply -k k8s/overlays/production
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: hitfactor
+
+resources:
+  - namespace.yaml
+  - ../../base
+
+images:
+  - name: 192.168.0.20:30500/hitfactor-backend
+    newTag: latest
+  - name: 192.168.0.20:30500/hitfactor-frontend
+    newTag: latest

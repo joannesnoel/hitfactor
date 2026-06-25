@@ -1,0 +1,57 @@
+# Staging overlay: reuses the production base manifests in ../../ but retargets
+# them to the hitfactor-staging namespace with staging hostnames.
+#   kubectl apply -k k8s/overlays/staging
+# (Secrets — hitfactor-db, hitfactor-jwt, hitfactor-powersync-config — and the
+#  powersync-sync-rules ConfigMap must be created in hitfactor-staging first,
+#  same as production; see ../../README.md, using the staging sync audience.)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: hitfactor-staging
+
+resources:
+  - namespace.yaml
+  - ../../base
+
+# CI overrides these via `kubectl set image`; the tag here is the bootstrap value.
+images:
+  - name: 192.168.0.20:30500/hitfactor-backend
+    newTag: latest
+  - name: 192.168.0.20:30500/hitfactor-frontend
+    newTag: latest
+
+patches:
+  # backend env → staging hostnames
+  - target: { kind: ConfigMap, name: backend-env }
+    patch: |
+      - op: replace
+        path: /data/POWERSYNC_URL
+        value: https://sync-hitfactor-staging.creativelogik.net
+      - op: replace
+        path: /data/CORS_ORIGIN
+        value: https://hitfactor-staging.creativelogik.net
+  # ingress hosts (+ TLS SAN) per service
+  - target: { kind: Ingress, name: backend }
+    patch: |
+      - op: replace
+        path: /spec/rules/0/host
+        value: api-hitfactor-staging.creativelogik.net
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: api-hitfactor-staging.creativelogik.net
+  - target: { kind: Ingress, name: frontend }
+    patch: |
+      - op: replace
+        path: /spec/rules/0/host
+        value: hitfactor-staging.creativelogik.net
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: hitfactor-staging.creativelogik.net
+  - target: { kind: Ingress, name: powersync }
+    patch: |
+      - op: replace
+        path: /spec/rules/0/host
+        value: sync-hitfactor-staging.creativelogik.net
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: sync-hitfactor-staging.creativelogik.net

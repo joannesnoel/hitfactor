@@ -43,7 +43,7 @@ docker push $REG/hitfactor-frontend:latest
 ## 2. Create secrets (not committed)
 
 ```bash
-kubectl create namespace hitfactor   # or: kubectl apply -f 00-namespace.yaml
+kubectl apply -f overlays/production/namespace.yaml   # or overlays/staging/namespace.yaml
 
 # DB password + connection string
 PW='<choose-a-strong-password>'
@@ -73,18 +73,31 @@ openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out private.pem
 openssl pkey -in private.pem -pubout -out public.pem   # SPKI, matches jose importSPKI
 ```
 
-## 3. Apply manifests
+## 3. Apply manifests (Kustomize)
+
+Layout: `base/` holds the workloads; `overlays/production` and `overlays/staging`
+retarget the namespace + hostnames. Apply the whole stack with one command:
 
 ```bash
-kubectl apply -f 00-namespace.yaml -f 10-postgres.yaml
-kubectl -n hitfactor rollout status statefulset/postgres
-kubectl apply -f 50-migrate-job.yaml        # runs drizzle migrations
-kubectl -n hitfactor wait --for=condition=complete job/hitfactor-migrate --timeout=120s
-kubectl apply -f 20-backend.yaml -f 30-frontend.yaml -f 40-powersync.yaml
+kubectl apply -k overlays/production      # → hitfactor namespace, prod hostnames
+kubectl -n hitfactor rollout status statefulset/postgres deployment/backend deployment/frontend deployment/powersync
 ```
 
-(Optional dev data: `kubectl -n hitfactor create job seed --from=... ` running
-`node dist/db/seed.js` — skip for real production.)
+The migrate Job is part of the base, so it runs on apply. (Optional dev data:
+`kubectl apply -f 51-seed-job.yaml` — skip for real production.)
+
+### Staging
+
+Same flow in the `hitfactor-staging` namespace with staging hostnames
+(`hitfactor-staging` / `api-hitfactor-staging` / `sync-hitfactor-staging`
+.creativelogik.net). Create the staging secrets first (step 2, but
+`-n hitfactor-staging`, and set the **staging** sync audience
+`https://sync-hitfactor-staging.creativelogik.net` in `powersync.prod.yaml`),
+then:
+
+```bash
+kubectl apply -k overlays/staging
+```
 
 ## 4. Verify
 
