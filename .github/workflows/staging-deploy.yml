@@ -52,21 +52,21 @@ jobs:
 
       - name: Build and push backend image
         run: |
-          # staging also pushes :latest (production pushes only the immutable tag)
+          # staging also pushes the floating :staging tag (immutable tag for rollouts)
           docker build -f backend/Dockerfile \
             -t ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.tag }} \
-            -t ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:latest .
+            -t ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:staging .
           docker push ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.tag }}
-          docker push ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:latest
+          docker push ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:staging
 
       - name: Build and push frontend image
         run: |
           docker build -f frontend/Dockerfile \
             --build-arg VITE_API_URL=${{ env.VITE_API_URL }} \
             -t ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ steps.tag.outputs.tag }} \
-            -t ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:latest .
+            -t ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:staging .
           docker push ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ steps.tag.outputs.tag }}
-          docker push ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:latest
+          docker push ${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:staging
 
       - name: Run database migrations
         run: |

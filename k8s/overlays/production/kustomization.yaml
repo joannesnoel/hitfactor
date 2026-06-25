@@ -11,6 +11,8 @@ resources:
 
 images:
   - name: 192.168.0.20:30500/hitfactor-backend
-    newTag: latest
+    newTag: prod # env-specific floating tag (CI keeps it current); never :latest,
+    # which is shared with staging and would bake the wrong API URL into the SPA
   - name: 192.168.0.20:30500/hitfactor-frontend
-    newTag: latest
+    newTag: prod # env-specific floating tag (CI keeps it current); never :latest,
+    # which is shared with staging and would bake the wrong API URL into the SPA
