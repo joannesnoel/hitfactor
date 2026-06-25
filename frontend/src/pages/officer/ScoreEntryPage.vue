@@ -213,10 +213,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch, inject } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
 import type { PowerSyncDatabase } from '@powersync/web';
+import { whenPowerSyncReady } from 'src/boot/powersync';
 import type { Stage, Registration, Score, ScoreInput, ScoringType, PowerFactor, Organization } from '@hitfactor/shared';
 import { computeScore, getDivisionLabel, DEFAULT_ORGANIZATION } from '@hitfactor/shared';
 import { useAuthStore } from 'src/stores/auth.store';
@@ -226,7 +227,7 @@ import SyncStatusIndicator from 'src/components/common/SyncStatusIndicator.vue';
 
 const route = useRoute();
 const $q = useQuasar();
-const db = inject<PowerSyncDatabase>('powerSyncDb');
+let db: PowerSyncDatabase | null = null;
 const authStore = useAuthStore();
 
 const matchId = route.params.matchId as string;
@@ -474,6 +475,9 @@ async function handleSave() {
 }
 
 onMounted(async () => {
+  // PowerSync connects asynchronously after login; inject('powerSyncDb') only
+  // ever yields the boot-time null, so wait for the real connected db here.
+  db = await whenPowerSyncReady();
   if (!db) {
     loading.value = false;
     return;
