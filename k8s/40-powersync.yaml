@@ -1,0 +1,107 @@
+# PowerSync sync service.
+# - powersync.yaml config is a Secret (contains the DB password) created from
+#   k8s/powersync.prod.yaml — see k8s/README.md.
+# - sync-rules.yaml is a ConfigMap created from backend/sync-rules.yaml.
+# In-cluster everything is plain HTTP, so none of the local-dev TLS hacks
+# (host.docker.internal, NODE_TLS_REJECT_UNAUTHORIZED) are needed.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: powersync
+  namespace: hitfactor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: powersync
+      app.kubernetes.io/part-of: hitfactor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: powersync
+        app.kubernetes.io/part-of: hitfactor
+    spec:
+      containers:
+        - name: powersync
+          image: journeyapps/powersync-service:1.13.4
+          # args (not command) — `start` is an argument to the image entrypoint
+          args: ["start", "-c", "/powersync.yaml"]
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - name: config
+              mountPath: /powersync.yaml
+              subPath: powersync.yaml
+              readOnly: true
+            - name: sync-rules
+              mountPath: /sync-rules.yaml
+              subPath: sync-rules.yaml
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /probes/readiness
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /probes/startup
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 768Mi
+      volumes:
+        - name: config
+          secret:
+            secretName: hitfactor-powersync-config
+        - name: sync-rules
+          configMap:
+            name: powersync-sync-rules
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hitfactor-powersync
+  namespace: hitfactor
+spec:
+  selector:
+    app.kubernetes.io/name: powersync
+    app.kubernetes.io/part-of: hitfactor
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: powersync
+  namespace: hitfactor
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # PowerSync uses long-lived HTTP streaming for sync
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [sync-hitfactor.creativelogik.net]
+      secretName: hitfactor-sync-tls
+  rules:
+    - host: sync-hitfactor.creativelogik.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hitfactor-powersync
+                port:
+                  number: 8080

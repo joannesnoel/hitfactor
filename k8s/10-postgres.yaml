@@ -1,0 +1,100 @@
+# PostgreSQL 16 for HitFactor.
+# wal_level=logical + the `powersync` publication + `powersync_storage` DB are
+# required for PowerSync CDC. The init SQL runs only on first (empty) volume init.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: hitfactor
+data:
+  01-powersync.sql: |
+    CREATE DATABASE powersync_storage;
+    CREATE PUBLICATION powersync FOR ALL TABLES;
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hitfactor-postgres
+  namespace: hitfactor
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: postgres
+    app.kubernetes.io/part-of: hitfactor
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: hitfactor
+spec:
+  serviceName: hitfactor-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+      app.kubernetes.io/part-of: hitfactor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: postgres
+        app.kubernetes.io/part-of: hitfactor
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          args:
+            - postgres
+            - -c
+            - wal_level=logical
+            - -c
+            - max_wal_senders=10
+            - -c
+            - max_replication_slots=10
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: hitfactor
+            - name: POSTGRES_USER
+              value: hitfactor
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hitfactor-db
+                  key: POSTGRES_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "hitfactor"]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: init
+          configMap:
+            name: postgres-init
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 5Gi

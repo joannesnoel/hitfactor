@@ -1,0 +1,48 @@
+bucket_definitions:
+  # Each user syncs their own division profiles
+  user_data:
+    parameters:
+      SELECT request.user_id() AS user_id
+    data:
+      - SELECT * FROM user_divisions WHERE user_id = bucket.user_id
+
+  global_matches:
+    data:
+      - SELECT id, name, start_date, end_date, location, status, level,
+               organization, registration_open, max_shooters, created_at, updated_at
+        FROM matches WHERE status != 'archived'
+
+  officer_match_data:
+    parameters:
+      SELECT match_id FROM match_officers WHERE user_id = request.user_id()
+    data:
+      - SELECT * FROM matches WHERE id = bucket.match_id
+      - SELECT * FROM stages WHERE match_id = bucket.match_id
+      - SELECT * FROM registrations WHERE match_id = bucket.match_id
+      - SELECT * FROM squads WHERE match_id = bucket.match_id
+      - SELECT * FROM scores WHERE match_id = bucket.match_id
+      - SELECT * FROM stage_officers WHERE match_id = bucket.match_id
+
+  admin_match_data:
+    parameters:
+      SELECT match_id FROM match_admins WHERE user_id = request.user_id()
+    data:
+      - SELECT * FROM matches WHERE id = bucket.match_id
+      - SELECT * FROM stages WHERE match_id = bucket.match_id
+      - SELECT * FROM registrations WHERE match_id = bucket.match_id
+      - SELECT * FROM squads WHERE match_id = bucket.match_id
+      - SELECT * FROM scores WHERE match_id = bucket.match_id
+      - SELECT * FROM match_admins WHERE match_id = bucket.match_id
+      - SELECT * FROM match_officers WHERE match_id = bucket.match_id
+      - SELECT * FROM stage_officers WHERE match_id = bucket.match_id
+
+  shooter_match_data:
+    parameters:
+      SELECT match_id FROM registrations WHERE user_id = request.user_id()
+    data:
+      - SELECT * FROM matches WHERE id = bucket.match_id
+      - SELECT * FROM stages WHERE match_id = bucket.match_id
+      - SELECT * FROM registrations WHERE match_id = bucket.match_id
+      - SELECT * FROM scores WHERE match_id = bucket.match_id
+      - SELECT * FROM stage_results WHERE match_id = bucket.match_id
+      - SELECT * FROM match_results WHERE match_id = bucket.match_id

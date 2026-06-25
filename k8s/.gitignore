@@ -1,0 +1,4 @@
+# Real secret material — never commit
+powersync.prod.yaml
+secrets.yaml
+*.secret.yaml

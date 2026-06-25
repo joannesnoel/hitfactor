@@ -1,0 +1,22 @@
+replication:
+  # replication needs a `connections` ARRAY (storage is flat). The flat form is
+  # silently ignored — replication never connects and sync rules never deploy.
+  connections:
+    - type: postgresql
+      uri: postgresql://hitfactor:hitfactor_dev_password@postgres:5432/hitfactor
+      sslmode: disable
+
+storage:
+  type: postgresql
+  uri: postgresql://hitfactor:hitfactor_dev_password@postgres:5432/powersync_storage
+  sslmode: disable
+
+client_auth:
+  jwks_uri: https://host.docker.internal:3000/api/auth/keys
+  audience:
+    - http://localhost:8080
+    - hitfactor-app
+
+port: 8080
+sync_rules:
+  path: /sync-rules.yaml

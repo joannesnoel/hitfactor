@@ -1,0 +1,27 @@
+# Template for the PowerSync config that becomes the `hitfactor-powersync-config`
+# Secret. Copy to powersync.prod.yaml, set the DB password, then create the secret
+# (see README). powersync.prod.yaml is gitignored because it holds the password.
+replication:
+  # NOTE: replication takes a `connections` ARRAY (storage is flat). The flat
+  # form is silently ignored — replication never connects and sync rules never
+  # deploy ("No sync rules available").
+  connections:
+    - type: postgresql
+      uri: postgresql://hitfactor:CHANGE_ME@hitfactor-postgres:5432/hitfactor
+      sslmode: disable # in-cluster Postgres has no TLS; pgwire requires this
+
+storage:
+  type: postgresql
+  uri: postgresql://hitfactor:CHANGE_ME@hitfactor-postgres:5432/powersync_storage
+  sslmode: disable
+
+client_auth:
+  # plain in-cluster HTTP to the backend Service — no cert hacks needed
+  jwks_uri: http://hitfactor-backend:3000/api/auth/keys
+  audience:
+    - https://sync-hitfactor.creativelogik.net # must equal backend POWERSYNC_URL
+    - hitfactor-app
+
+port: 8080
+sync_rules:
+  path: /sync-rules.yaml

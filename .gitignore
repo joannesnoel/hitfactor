@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+*.local
+.DS_Store
+.quasar/
+*.log
+coverage/
+.turbo/
+
+# Generated keys
+backend/src/config/keys/
+
+# Self-signed HTTPS certs for local dev
+certs/

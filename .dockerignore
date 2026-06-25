@@ -1,0 +1,17 @@
+# Build context is the repo root for both backend/Dockerfile and frontend/Dockerfile.
+# Docker only honors the .dockerignore at the context root, so excludes for both
+# images live here.
+.git
+node_modules
+**/node_modules
+**/dist
+**/.quasar
+# Never bake local dev env files (they hold dev hostnames) — config comes from
+# build-args (frontend) and k8s env (backend).
+**/.env
+**/.env.*
+certs
+**/keys/*.pem
+# local-only k8s secret material
+k8s/powersync.prod.yaml
+k8s/secrets.yaml

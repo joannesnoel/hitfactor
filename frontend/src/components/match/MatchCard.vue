@@ -1,0 +1,81 @@
+<template>
+  <q-card class="match-card cursor-pointer" @click="$emit('click')">
+    <q-card-section>
+      <div class="row items-center justify-between q-mb-sm">
+        <div class="text-h6 text-weight-bold">{{ match.name }}</div>
+        <q-badge
+          :color="statusColor(match.status)"
+          :label="match.status"
+          class="match-status-badge"
+        />
+      </div>
+      <div class="row items-center q-gutter-sm text-grey-7">
+        <q-icon name="event" size="16px" />
+        <span>{{ formatDateRange(match.start_date, match.end_date) }}</span>
+      </div>
+      <div class="row items-center q-gutter-sm text-grey-7 q-mt-xs">
+        <q-icon name="location_on" size="16px" />
+        <span>{{ match.location }}</span>
+      </div>
+      <div class="row items-center q-gutter-md q-mt-sm">
+        <q-chip dense size="sm" icon="star" :label="`Level ${match.level}`" />
+      </div>
+    </q-card-section>
+  </q-card>
+</template>
+
+<script setup lang="ts">
+import type { Match } from '@hitfactor/shared';
+
+defineProps<{
+  match: Match;
+}>();
+
+defineEmits<{
+  click: [];
+}>();
+
+function formatDateRange(start: string, end: string | null): string {
+  const startDate = new Date(start).toLocaleDateString('en-US', {
+    weekday: 'short',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
+  if (!end || end === start) return startDate;
+  const endDate = new Date(end).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+  return `${startDate} – ${endDate}`;
+}
+
+function statusColor(status: string): string {
+  switch (status) {
+    case 'draft':
+      return 'grey';
+    case 'registration':
+      return 'blue';
+    case 'active':
+      return 'green';
+    case 'scoring':
+      return 'orange';
+    case 'final':
+      return 'purple';
+    case 'archived':
+      return 'grey-7';
+    default:
+      return 'grey';
+  }
+}
+</script>
+
+<style scoped>
+.match-card {
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.match-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+</style>

@@ -1,0 +1,113 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-env
+  namespace: hitfactor
+data:
+  NODE_ENV: production
+  PORT: "3000"
+  HOST: 0.0.0.0
+  LOG_LEVEL: info
+  JWT_ISSUER: hitfactor
+  JWT_AUDIENCE: hitfactor-app
+  # Public hostnames — must match the Ingress hosts below.
+  POWERSYNC_URL: https://sync-hitfactor.creativelogik.net
+  CORS_ORIGIN: https://hitfactor.creativelogik.net
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: hitfactor
+spec:
+  replicas: 1 # keep at 1 unless JWT keys are a shared Secret (they are, below)
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: backend
+      app.kubernetes.io/part-of: hitfactor
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: backend
+        app.kubernetes.io/part-of: hitfactor
+    spec:
+      containers:
+        - name: backend
+          image: 192.168.0.20:30500/hitfactor-backend:latest
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: backend-env
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: hitfactor-db
+                  key: DATABASE_URL
+          volumeMounts:
+            # jwt.ts loads keys from <dist>/config/keys at runtime
+            - name: jwt-keys
+              mountPath: /app/backend/dist/config/keys
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+      volumes:
+        - name: jwt-keys
+          secret:
+            secretName: hitfactor-jwt
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hitfactor-backend
+  namespace: hitfactor
+spec:
+  selector:
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/part-of: hitfactor
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backend
+  namespace: hitfactor
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [api-hitfactor.creativelogik.net]
+      secretName: hitfactor-api-tls
+  rules:
+    - host: api-hitfactor.creativelogik.net
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hitfactor-backend
+                port:
+                  number: 3000

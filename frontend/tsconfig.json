@@ -1,0 +1,13 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": ".",
+    "types": ["quasar", "vite/client"],
+    "paths": {
+      "src/*": ["src/*"]
+    },
+    "jsx": "preserve"
+  },
+  "include": ["src/**/*", "env.d.ts"]
+}
