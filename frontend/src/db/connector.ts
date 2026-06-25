@@ -1,7 +1,6 @@
 import {
   type AbstractPowerSyncDatabase,
   type PowerSyncBackendConnector,
-  type CrudEntry,
 } from '@powersync/web';
 import { api } from 'src/boot/axios';
 
@@ -16,48 +15,34 @@ export class PowerSyncConnector implements PowerSyncBackendConnector {
     };
   }
 
+  // Upload locally-queued writes to the API. The backend (PUT /api/powersync/data)
+  // expects a single body of the form `{ operations: [{ op, type, id, data }] }`.
+  // The previous per-entry shape (`{ table, id, data }`) made every upload 400, so
+  // no client write — scores included — ever persisted; PowerSync just retried forever.
   async uploadData(database: AbstractPowerSyncDatabase): Promise<void> {
     const transaction = await database.getNextCrudTransaction();
     if (!transaction) return;
 
     try {
-      for (const op of transaction.crud) {
-        await this.uploadCrudEntry(op);
+      const operations = transaction.crud.map((entry) => ({
+        op: entry.op, // 'PUT' | 'PATCH' | 'DELETE'
+        type: entry.table,
+        id: entry.id,
+        data: entry.opData ?? undefined,
+      }));
+
+      const res = await api.put('/api/powersync/data', { operations });
+
+      // 207 (partial success): surface rejected ops but still clear the queue so a
+      // single permanently-rejected op can't wedge sync forever.
+      if (res.data?.errors?.length) {
+        console.error('[PowerSync] Some operations were rejected:', res.data.errors);
       }
+
       await transaction.complete();
     } catch (error) {
       console.error('Upload data error:', error);
       throw error;
     }
-  }
-
-  private async uploadCrudEntry(entry: CrudEntry): Promise<void> {
-    const { op, type: table, id } = entry;
-    const data = entry.opData;
-
-    let method: 'PUT' | 'PATCH' | 'DELETE';
-    switch (op) {
-      case 'PUT':
-        method = 'PUT';
-        break;
-      case 'PATCH':
-        method = 'PATCH';
-        break;
-      case 'DELETE':
-        method = 'DELETE';
-        break;
-      default:
-        method = 'PUT';
-    }
-
-    await api({
-      method: method === 'DELETE' ? 'delete' : method === 'PUT' ? 'put' : 'patch',
-      url: '/api/powersync/data',
-      data: {
-        table,
-        id,
-        data,
-      },
-    });
   }
 }

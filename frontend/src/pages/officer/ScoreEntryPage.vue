@@ -268,9 +268,22 @@ const form = reactive({
 });
 
 const targetCount = computed(() => stage.value?.number_of_targets ?? 0);
-const paperRounds = computed<number[] | null>(
-  () => (stage.value?.paper_target_rounds as number[] | null) ?? null,
-);
+const paperRounds = computed<number[] | null>(() => {
+  // PowerSync stores jsonb columns as JSON strings in local SQLite, so this can
+  // be a string like "[2, 2, 2]" rather than a parsed array — parse defensively.
+  const raw = stage.value?.paper_target_rounds as unknown;
+  if (raw == null) return null;
+  if (Array.isArray(raw)) return raw as number[];
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? (parsed as number[]) : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+});
 
 // Aggregate paper zone counts derived from the per-target grid.
 const paperCounts = computed(() => {
