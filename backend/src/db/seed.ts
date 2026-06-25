@@ -1,6 +1,5 @@
 import 'dotenv/config';
 import bcrypt from 'bcryptjs';
-import { randomBytes } from 'node:crypto';
 import { db } from '../config/database.js';
 import {
   users,
@@ -15,17 +14,15 @@ import {
 async function seed() {
   console.log('Seeding database...');
 
-  const passwordHash = await bcrypt.hash('password123', 10);
-  // The owner admin account uses its own password (the other test users below
-  // keep password123). Recreated on every reset/seed.
-  const adminPasswordHash = await bcrypt.hash('password', 10);
+  // Every seeded account uses the password "password" (for testing).
+  const passwordHash = await bcrypt.hash('password', 10);
 
   // Create admin user (owner)
   const [adminUser] = await db
     .insert(users)
     .values({
       email: 'admin@hitfactor.com',
-      password_hash: adminPasswordHash,
+      password_hash: passwordHash,
       display_name: 'Admin',
       roles: ['admin', 'officer', 'shooter'],
       default_division: 'standard',
@@ -39,46 +36,6 @@ async function seed() {
   ]);
 
   console.log('Created admin user:', adminUser.email);
-
-  // Create officer user
-  const [officerUser] = await db
-    .insert(users)
-    .values({
-      email: 'officer@hitfactor.com',
-      password_hash: passwordHash,
-      display_name: 'Range Officer',
-      roles: ['officer', 'shooter'],
-      default_division: 'production_optics',
-    })
-    .returning();
-
-  await db.insert(userDivisions).values([
-    { user_id: officerUser.id, division: 'production_optics', classification: 'A' },
-    { user_id: officerUser.id, division: 'production', classification: 'B' },
-  ]);
-
-  console.log('Created officer user:', officerUser.email);
-
-  // Create shooter user
-  const [shooterUser] = await db
-    .insert(users)
-    .values({
-      email: 'shooter@hitfactor.com',
-      password_hash: passwordHash,
-      display_name: 'Test Shooter',
-      roles: ['shooter'],
-      default_division: 'production',
-      member_number: 'TY12345',
-    })
-    .returning();
-
-  await db.insert(userDivisions).values([
-    { user_id: shooterUser.id, division: 'production', classification: 'B' },
-    { user_id: shooterUser.id, division: 'standard', classification: 'C' },
-    { user_id: shooterUser.id, division: 'classic', classification: 'D' },
-  ]);
-
-  console.log('Created shooter user:', shooterUser.email);
 
   // Create shooting ranges in Cebu, Philippines
   const rangeData = [
@@ -103,46 +60,39 @@ async function seed() {
   await db.insert(shootingRanges).values(rangeData);
   console.log(`Created ${rangeData.length} shooting ranges in Cebu`);
 
-  // Create 20 match officers (Filipino names) with random emails; they all log
-  // in with the password "password".
-  const officerNames = [
-    { display_name: 'Ricardo Dela Cruz', email: 'ricardo.delacruz@hitfactor.com' },
-    { display_name: 'Maria Santos', email: 'maria.santos@hitfactor.com' },
-    { display_name: 'Jose Reyes', email: 'jose.reyes@hitfactor.com' },
-    { display_name: 'Ana Garcia', email: 'ana.garcia@hitfactor.com' },
-    { display_name: 'Miguel Ramos', email: 'miguel.ramos@hitfactor.com' },
-    { display_name: 'Carmen Villanueva', email: 'carmen.villanueva@hitfactor.com' },
-    { display_name: 'Roberto Tan', email: 'roberto.tan@hitfactor.com' },
-    { display_name: 'Elena Fernandez', email: 'elena.fernandez@hitfactor.com' },
-    { display_name: 'Marco Aquino', email: 'marco.aquino@hitfactor.com' },
-    { display_name: 'Patricia Lim', email: 'patricia.lim@hitfactor.com' },
-    { display_name: 'Antonio Mendoza', email: 'antonio.mendoza@hitfactor.com' },
-    { display_name: 'Rosa Bautista', email: 'rosa.bautista@hitfactor.com' },
-    { display_name: 'Fernando Cruz', email: 'fernando.cruz@hitfactor.com' },
-    { display_name: 'Lucia Navarro', email: 'lucia.navarro@hitfactor.com' },
-    { display_name: 'Daniel Ocampo', email: 'daniel.ocampo@hitfactor.com' },
-    { display_name: 'Isabel Soriano', email: 'isabel.soriano@hitfactor.com' },
-    { display_name: 'Carlos Dizon', email: 'carlos.dizon@hitfactor.com' },
-    { display_name: 'Teresa Pangilinan', email: 'teresa.pangilinan@hitfactor.com' },
-    { display_name: 'Ramon Gutierrez', email: 'ramon.gutierrez@hitfactor.com' },
-    { display_name: 'Gloria Espiritu', email: 'gloria.espiritu@hitfactor.com' },
-  ];
-
+  // 10 officers: officer1..officer10@hitfactor.com (password "password")
   const officerUsers = await db
     .insert(users)
     .values(
-      officerNames.map((o) => ({
-        display_name: o.display_name,
-        // random unique email; password is "password"
-        email: `officer-${randomBytes(4).toString('hex')}@hitfactor.com`,
-        password_hash: adminPasswordHash,
+      Array.from({ length: 10 }, (_, i) => ({
+        email: `officer${i + 1}@hitfactor.com`,
+        display_name: `Officer ${i + 1}`,
+        password_hash: passwordHash,
         roles: ['officer', 'shooter'],
       })),
     )
-    .returning({ email: users.email, display_name: users.display_name });
+    .returning({ email: users.email });
+  console.log(`Created ${officerUsers.length} officers: officer1..officer10@hitfactor.com`);
 
-  console.log(`Created ${officerUsers.length} officers (random emails, password "password"):`);
-  officerUsers.forEach((o) => console.log(`  ${o.display_name} <${o.email}>`));
+  // 20 shooters: shooter1..shooter20@hitfactor.com (password "password")
+  const shooterNames = [
+    'Ricardo Dela Cruz', 'Maria Santos', 'Jose Reyes', 'Ana Garcia', 'Miguel Ramos',
+    'Carmen Villanueva', 'Roberto Tan', 'Elena Fernandez', 'Marco Aquino', 'Patricia Lim',
+    'Antonio Mendoza', 'Rosa Bautista', 'Fernando Cruz', 'Lucia Navarro', 'Daniel Ocampo',
+    'Isabel Soriano', 'Carlos Dizon', 'Teresa Pangilinan', 'Ramon Gutierrez', 'Gloria Espiritu',
+  ];
+  const shooterUsers = await db
+    .insert(users)
+    .values(
+      shooterNames.map((name, i) => ({
+        email: `shooter${i + 1}@hitfactor.com`,
+        display_name: name,
+        password_hash: passwordHash,
+        roles: ['shooter'],
+      })),
+    )
+    .returning({ email: users.email });
+  console.log(`Created ${shooterUsers.length} shooters: shooter1..shooter20@hitfactor.com`);
 
   // Create a sample match
   const [sampleMatch] = await db

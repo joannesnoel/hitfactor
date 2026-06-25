@@ -101,18 +101,13 @@ The Quasar dev server starts on `http://localhost:9000`.
 
 ## Test Accounts
 
-The owner admin account uses the password **`password`**; the other test
-accounts use **`password123`**.
+Every seeded account uses the password **`password`**, with simple numbered emails:
 
-| Email | Password | Roles | Classification | Division |
-|---|---|---|---|---|
-| `admin@hitfactor.com` | `password` | admin, officer, shooter | Master | Limited |
-| `officer@hitfactor.com` | `password123` | officer, shooter | A | Carry Optics |
-| `shooter@hitfactor.com` | `password123` | shooter | B | Production |
-
-The seed also creates 20 officer accounts with **random** `officer-<hex>@hitfactor.com`
-emails, all with password **`password`** (roles: officer, shooter). The seed prints
-each generated email when it runs.
+| Account(s) | Email | Roles |
+|---|---|---|
+| Owner admin | `admin@hitfactor.com` | admin, officer, shooter |
+| 10 officers | `officer1@`…`officer10@hitfactor.com` | officer, shooter |
+| 20 shooters | `shooter1@`…`shooter20@hitfactor.com` | shooter |
 
 The admin account is also set up as the match admin for the seeded sample match "Spring Classic 2026".
 
