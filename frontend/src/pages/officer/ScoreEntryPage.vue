@@ -139,7 +139,7 @@
       <div class="q-mb-md" :class="{ 'disabled-section': form.dqed || form.dnf }">
         <div class="row items-center justify-between q-mb-xs">
           <div class="text-subtitle2">Targets ({{ targetCount }})</div>
-          <div class="text-caption text-grey">Paper: {{ paperSummary }}</div>
+          <div class="text-caption text-grey">{{ paperSummary }} · {{ enteredPaper }}/{{ requiredPaper }}</div>
         </div>
         <TargetGrid v-model="targetHits" :rounds="paperRounds" />
       </div>
@@ -200,13 +200,19 @@
       </div>
 
       <!-- Save Button -->
+      <div
+        v-if="currentRegistration && !isComplete"
+        class="text-center text-orange-9 text-caption q-mb-xs"
+      >
+        <q-icon name="warning" size="14px" /> Incomplete — {{ incompleteReason }}
+      </div>
       <q-btn
         color="primary"
         label="Save Score"
         class="full-width q-mb-md"
         size="xl"
         unelevated
-        :disable="!currentRegistration"
+        :disable="!currentRegistration || !isComplete"
         :loading="saving"
         icon="save"
         @click="handleSave"
@@ -303,6 +309,34 @@ const paperSummary = computed(() => {
     .map((z) => `${c[z]}${z.toUpperCase()}`);
   return parts.length ? parts.join('  ') : 'No hits';
 });
+
+// ── Completeness: every required round (paper + steel) must be accounted for,
+// and timed stages need a time. DQ/DNF are exempt. ───────────────────────────
+const requiredPaper = computed(() =>
+  paperRounds.value
+    ? paperRounds.value.reduce((a, b) => a + b, 0)
+    : targetCount.value * 2,
+);
+const enteredPaper = computed(() =>
+  targetHits.value.reduce((sum, t) => sum + t.length, 0),
+);
+const steelRequired = computed(() => stage.value?.number_of_steel ?? 0);
+const enteredSteel = computed(() => form.steel_hits + form.steel_misses);
+const needsTime = computed(() => stage.value?.scoring_type !== 'fixed_time');
+
+const incompleteReason = computed<string>(() => {
+  if (form.dqed || form.dnf) return '';
+  if (enteredPaper.value < requiredPaper.value) {
+    return `${enteredPaper.value}/${requiredPaper.value} paper rounds scored`;
+  }
+  if (enteredSteel.value < steelRequired.value) {
+    return `${enteredSteel.value}/${steelRequired.value} steel scored`;
+  }
+  if (needsTime.value && form.time <= 0) return 'enter a time';
+  return '';
+});
+
+const isComplete = computed(() => incompleteReason.value === '');
 
 function freshGrid(): string[][] {
   return Array.from({ length: targetCount.value }, () => [] as string[]);
@@ -475,7 +509,7 @@ function nextShooter() {
 }
 
 async function handleSave() {
-  if (!db || !currentRegistration.value || !stage.value || !authStore.user) return;
+  if (!db || !currentRegistration.value || !stage.value || !authStore.user || !isComplete.value) return;
 
   saving.value = true;
   try {
