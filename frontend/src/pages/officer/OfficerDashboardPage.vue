@@ -68,29 +68,41 @@ const authStore = useAuthStore();
 const loading = ref(true);
 const assignedMatches = ref<AssignedMatch[]>([]);
 
-onMounted(async () => {
+onMounted(() => {
   if (!db || !authStore.user) {
     loading.value = false;
     return;
   }
+  const userId = authStore.user.id;
+  // Reactive: (re)load whenever this officer's match_officers rows change — e.g.
+  // when an assignment syncs in shortly after the page mounts. A one-shot query
+  // here would race the initial sync and show "no matches" until a manual reload.
+  db.watch(
+    'SELECT match_id FROM match_officers WHERE user_id = ?',
+    [userId],
+    { onResult: () => { void loadAssignedMatches(userId); } },
+  );
+});
 
+async function loadAssignedMatches(userId: string): Promise<void> {
+  if (!db) return;
   try {
-    // Get matches where user is an officer
     const officerAssignments = await db.getAll<{ match_id: string }>(
       'SELECT DISTINCT match_id FROM match_officers WHERE user_id = ?',
-      [authStore.user.id],
+      [userId],
     );
 
+    const result: AssignedMatch[] = [];
     for (const assignment of officerAssignments) {
       const matchRow = await db.get<Match>(
         'SELECT * FROM matches WHERE id = ?',
         [assignment.match_id],
       );
 
-      // Get stages assigned to this officer
+      // Stages this officer is assigned to (fallback: all stages of the match)
       const stageAssignments = await db.getAll<{ stage_id: string }>(
         'SELECT stage_id FROM stage_officers WHERE user_id = ? AND match_id = ?',
-        [authStore.user.id, assignment.match_id],
+        [userId, assignment.match_id],
       );
 
       let stageRows: Stage[];
@@ -102,21 +114,17 @@ onMounted(async () => {
           stageIds,
         );
       } else {
-        // If no specific stage assignments, show all stages
         stageRows = await db.getAll<Stage>(
           'SELECT * FROM stages WHERE match_id = ? ORDER BY stage_number',
           [assignment.match_id],
         );
       }
 
-      assignedMatches.value.push({
-        match: matchRow as Match,
-        stages: stageRows,
-      });
+      result.push({ match: matchRow as Match, stages: stageRows });
     }
 
-    // If no officer assignments found, try showing all active/scoring matches
-    if (assignedMatches.value.length === 0) {
+    // Fallback: if no officer assignments, show active/scoring matches
+    if (result.length === 0) {
       const activeMatches = await db.getAll<Match>(
         'SELECT * FROM matches WHERE status IN (?, ?) ORDER BY start_date DESC',
         ['active', 'scoring'],
@@ -126,13 +134,15 @@ onMounted(async () => {
           'SELECT * FROM stages WHERE match_id = ? ORDER BY stage_number',
           [m.id],
         );
-        assignedMatches.value.push({ match: m as Match, stages: stageRows });
+        result.push({ match: m as Match, stages: stageRows });
       }
     }
+
+    assignedMatches.value = result;
   } finally {
     loading.value = false;
   }
-});
+}
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('en-US', {
