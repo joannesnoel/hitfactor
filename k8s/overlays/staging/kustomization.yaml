@@ -21,6 +21,13 @@ images:
     newTag: latest
 
 patches:
+  # staging Postgres uses local-path (Longhorn replica scheduling was failing
+  # for new volumes; staging needs no HA storage).
+  - target: { kind: StatefulSet, name: postgres }
+    patch: |
+      - op: replace
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+        value: local-path
   # backend env → staging hostnames
   - target: { kind: ConfigMap, name: backend-env }
     patch: |
