@@ -53,39 +53,45 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, inject } from 'vue';
+import { ref, onMounted } from 'vue';
 import type { PowerSyncDatabase } from '@powersync/web';
 import type { Match, Stage } from '@hitfactor/shared';
 import { useAuthStore } from 'src/stores/auth.store';
+import { whenPowerSyncReady } from 'src/boot/powersync';
 
 interface AssignedMatch {
   match: Match;
   stages: Stage[];
 }
 
-const db = inject<PowerSyncDatabase>('powerSyncDb');
 const authStore = useAuthStore();
 const loading = ref(true);
 const assignedMatches = ref<AssignedMatch[]>([]);
 
-onMounted(() => {
-  if (!db || !authStore.user) {
+onMounted(async () => {
+  if (!authStore.user) {
     loading.value = false;
     return;
   }
   const userId = authStore.user.id;
+  // Wait for the real connected db (PowerSync connects asynchronously after
+  // login). inject('powerSyncDb') only ever yields the boot-time null.
+  const db = await whenPowerSyncReady();
+  if (!db) {
+    loading.value = false;
+    return;
+  }
   // Reactive: (re)load whenever this officer's match_officers rows change — e.g.
   // when an assignment syncs in shortly after the page mounts. A one-shot query
   // here would race the initial sync and show "no matches" until a manual reload.
   db.watch(
     'SELECT match_id FROM match_officers WHERE user_id = ?',
     [userId],
-    { onResult: () => { void loadAssignedMatches(userId); } },
+    { onResult: () => { void loadAssignedMatches(db, userId); } },
   );
 });
 
-async function loadAssignedMatches(userId: string): Promise<void> {
-  if (!db) return;
+async function loadAssignedMatches(db: PowerSyncDatabase, userId: string): Promise<void> {
   try {
     const officerAssignments = await db.getAll<{ match_id: string }>(
       'SELECT DISTINCT match_id FROM match_officers WHERE user_id = ?',

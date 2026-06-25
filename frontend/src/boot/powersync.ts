@@ -1,8 +1,12 @@
 import { boot } from 'quasar/wrappers';
 import { useSyncStore } from 'src/stores/sync.store';
 
-let db: import('@powersync/web').PowerSyncDatabase | null = null;
+type PSDb = import('@powersync/web').PowerSyncDatabase;
+
+let db: PSDb | null = null;
 let available = false;
+let connectSettled = false;
+let readyResolvers: Array<(db: PSDb | null) => void> = [];
 
 export function getPowerSyncDb() {
   return db;
@@ -10,6 +14,26 @@ export function getPowerSyncDb() {
 
 export function isPowerSyncAvailable() {
   return available;
+}
+
+/**
+ * Resolves with the connected PowerSync db once it finishes connecting, or
+ * `null` if PowerSync is unavailable / fell back to API-only. Lets pages await
+ * readiness instead of racing the asynchronous connect (which starts after
+ * login). This is the correct way to obtain the db — `inject('powerSyncDb')`
+ * only ever yields the boot-time `null`.
+ */
+export function whenPowerSyncReady(): Promise<PSDb | null> {
+  if (db) return Promise.resolve(db);
+  if (connectSettled || !available) return Promise.resolve(null);
+  return new Promise((resolve) => readyResolvers.push(resolve));
+}
+
+function settleReady(value: PSDb | null) {
+  connectSettled = true;
+  const resolvers = readyResolvers;
+  readyResolvers = [];
+  resolvers.forEach((r) => r(value));
 }
 
 export default boot(({ app }) => {
@@ -58,11 +82,13 @@ export async function connectPowerSync() {
     console.log('[PowerSync] Connected');
     const syncStore = useSyncStore();
     syncStore.updateStatus('connected');
+    settleReady(db);
   } catch (err) {
     console.warn('[PowerSync] Connect failed, falling back to API-only:', err);
     db = null;
     const syncStore = useSyncStore();
     syncStore.updateStatus('api-only');
+    settleReady(null);
   }
 }
 
@@ -77,4 +103,5 @@ export async function disconnectPowerSync() {
     // ignore
   }
   db = null;
+  connectSettled = false;
 }
