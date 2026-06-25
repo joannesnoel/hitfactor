@@ -32,6 +32,30 @@ export default configure(() => {
         viteConf.worker = viteConf.worker || {};
         viteConf.worker.format = 'es';
         viteConf.worker.plugins = () => [wasm(), topLevelAwait()];
+        // Bundle all PowerSync packages (shipped as unbundled ESM) into ONE chunk.
+        // Default chunk-splitting scatters `PowerSyncDatabase extends
+        // AbstractPowerSyncDatabase` and its base class across chunks whose init
+        // order is circular, so the base is `undefined` at class-definition time in
+        // the production build ("Class extends value undefined"). Dev works because
+        // it serves raw ESM. One chunk = correct intra-chunk ordering.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        viteConf.build = (viteConf.build || {}) as any;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rollupOptions: any = (viteConf.build.rollupOptions =
+          viteConf.build.rollupOptions || {});
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const addPowerSyncChunk = (o: any) => {
+          o.manualChunks = (id: string): string | undefined =>
+            /[\\/]node_modules[\\/](@powersync|@journeyapps)[\\/]/.test(id)
+              ? 'powersync'
+              : undefined;
+        };
+        rollupOptions.output = rollupOptions.output || {};
+        if (Array.isArray(rollupOptions.output)) {
+          rollupOptions.output.forEach(addPowerSyncChunk);
+        } else {
+          addPowerSyncChunk(rollupOptions.output);
+        }
         // Inline the API base URL at build time when provided via the environment
         // (e.g. the Docker image build). Guarded so local dev keeps using .env.
         if (process.env.VITE_API_URL) {
