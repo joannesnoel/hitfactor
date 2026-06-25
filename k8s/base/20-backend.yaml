@@ -94,7 +94,11 @@ metadata:
   namespace: hitfactor
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # Cloudflare proxies in Flexible mode (edge HTTPS -> origin HTTP); the origin
+    # must NOT redirect to HTTPS or it loops. cert-manager still issues the origin
+    # LE cert (used for direct access / a future Full-strict switch).
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
 spec:
   ingressClassName: nginx
   tls:
