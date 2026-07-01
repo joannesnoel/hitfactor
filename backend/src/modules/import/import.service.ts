@@ -208,7 +208,15 @@ export async function importMatch(
         return created.id;
       };
 
-      for (const entry of parsed.entries) {
+      // Number a shooter's entries within the match (a 2nd/3rd gun or re-entry),
+      // ordered by member number, so repeated names in the standings get a
+      // "(2)"/"(3)" marker.
+      const orderedEntries = [...parsed.entries].sort(
+        (a, b) => Number(a.member_number ?? 0) - Number(b.member_number ?? 0)
+      );
+      const entryCountByUser = new Map<string, number>();
+
+      for (const entry of orderedEntries) {
         const division = divisionFromPractiscore(entry.division);
         if (!division || !isValidDivisionForOrg(org, division)) {
           summary.warnings.push(
@@ -218,7 +226,11 @@ export async function importMatch(
         }
         const pf = normalizePowerFactor(entry.power_factor);
         const userId = await resolveShooter(entry);
-        const shooterName = cleanDisplayName(entry.name);
+        const entryNumber = (entryCountByUser.get(userId) ?? 0) + 1;
+        entryCountByUser.set(userId, entryNumber);
+        const baseName = cleanDisplayName(entry.name);
+        const shooterName =
+          entryNumber > 1 ? `${baseName} (${entryNumber})` : baseName;
 
         // Registration — one per entry. A shooter may have several in the same
         // division (distinct member numbers), so dedupe includes member_number.
@@ -241,6 +253,11 @@ export async function importMatch(
         let registrationId: string;
         if (existingReg) {
           registrationId = existingReg.id;
+          // Keep the marked name current on re-import.
+          await tx
+            .update(registrations)
+            .set({ shooter_name: shooterName, power_factor: pf })
+            .where(eq(registrations.id, existingReg.id));
         } else {
           const [reg] = await tx
             .insert(registrations)
@@ -321,7 +338,12 @@ export async function importMatch(
             })
             .onConflictDoUpdate({
               target: [scores.stage_id, scores.registration_id],
-              set: { ...row, modified_at: new Date(), modified_by: adminUserId },
+              set: {
+                ...row,
+                shooter_name: shooterName,
+                modified_at: new Date(),
+                modified_by: adminUserId,
+              },
             });
           summary.scores++;
           if (hasTime) summary.scored++;
