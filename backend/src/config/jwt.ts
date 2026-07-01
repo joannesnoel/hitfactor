@@ -15,8 +15,8 @@ let jwkPublic: jose.JWK;
 
 const JWT_ISSUER = process.env.JWT_ISSUER ?? 'hitfactor';
 const JWT_AUDIENCE = process.env.JWT_AUDIENCE ?? 'hitfactor-app';
-const JWT_ACCESS_EXPIRY = process.env.JWT_ACCESS_EXPIRY ?? '15m';
-const JWT_REFRESH_EXPIRY = process.env.JWT_REFRESH_EXPIRY ?? '7d';
+const JWT_ACCESS_EXPIRY = process.env.JWT_ACCESS_EXPIRY ?? '1h';
+const JWT_REFRESH_EXPIRY = process.env.JWT_REFRESH_EXPIRY ?? '30d';
 const POWERSYNC_TOKEN_EXPIRY = process.env.POWERSYNC_TOKEN_EXPIRY ?? '5m';
 
 async function loadOrGenerateKeys(): Promise<void> {
