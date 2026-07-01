@@ -1,23 +1,5 @@
 <template>
   <div>
-    <!-- Division Tabs -->
-    <q-tabs
-      v-model="selectedDivision"
-      dense
-      class="text-grey q-mb-md"
-      active-color="primary"
-      indicator-color="primary"
-      narrow-indicator
-      align="left"
-    >
-      <q-tab
-        v-for="div in availableDivisions"
-        :key="div"
-        :name="div"
-        :label="getDivisionLabel(organization, div)"
-      />
-    </q-tabs>
-
     <!-- Mobile: one tappable card per shooter, expand for per-stage detail -->
     <div v-if="$q.screen.lt.sm" class="column q-gutter-y-sm">
       <q-expansion-item
@@ -105,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { computed } from 'vue';
 import { useQuasar } from 'quasar';
 import type { MatchResultEntry, Stage, Organization } from '@hitfactor/shared';
 import { getDivisionLabel, DEFAULT_ORGANIZATION } from '@hitfactor/shared';
@@ -117,27 +99,16 @@ const props = withDefaults(
   defineProps<{
     results: MatchResultEntry[];
     stages: Stage[];
+    // The single division to show — chosen by the parent MatchResultsViewer.
+    division: string;
     organization?: Organization;
   }>(),
   { organization: DEFAULT_ORGANIZATION }
 );
 
-const availableDivisions = computed(() => {
-  const divs = new Set(props.results.map((r) => r.division));
-  return Array.from(divs).sort();
-});
-
-const selectedDivision = ref<string>(availableDivisions.value[0] ?? '');
-
-watch(availableDivisions, (divs) => {
-  if (!selectedDivision.value && divs.length > 0) {
-    selectedDivision.value = divs[0];
-  }
-});
-
-const filteredResults = computed(() => {
-  return props.results.filter((r) => r.division === selectedDivision.value);
-});
+const filteredResults = computed(() =>
+  props.results.filter((r) => r.division === props.division)
+);
 
 const stageColumns = computed<QTableColumn[]>(() => {
   return props.stages

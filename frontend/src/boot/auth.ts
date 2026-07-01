@@ -1,7 +1,7 @@
 import { boot } from 'quasar/wrappers';
 import { useAuthStore } from 'src/stores/auth.store';
 
-const PUBLIC_ROUTES = ['/auth/login', '/auth/register'];
+const AUTH_PAGES = ['/auth/login', '/auth/register'];
 
 export default boot(({ router }) => {
   const authStore = useAuthStore();
@@ -9,14 +9,19 @@ export default boot(({ router }) => {
   // Load persisted auth state on app start
   authStore.loadFromStorage();
 
-  // Navigation guard for protected routes
+  // Navigation guard. Public routes (meta.public) render for everyone;
+  // auth pages bounce signed-in users to their dashboard; everything else
+  // requires a session.
   router.beforeEach((to, _from, next) => {
-    const isPublicRoute = PUBLIC_ROUTES.includes(to.path);
+    const isPublic = to.matched.some((r) => r.meta?.public);
+    const isAuthPage = AUTH_PAGES.includes(to.path);
 
-    if (!authStore.isAuthenticated && !isPublicRoute) {
+    if (isPublic) {
+      next();
+    } else if (isAuthPage) {
+      next(authStore.isAuthenticated ? '/shooter/dashboard' : undefined);
+    } else if (!authStore.isAuthenticated) {
       next('/auth/login');
-    } else if (authStore.isAuthenticated && isPublicRoute) {
-      next('/shooter/dashboard');
     } else {
       next();
     }

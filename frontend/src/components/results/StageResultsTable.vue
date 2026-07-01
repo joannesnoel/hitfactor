@@ -1,16 +1,16 @@
 <template>
   <div>
-    <!-- Division Filter -->
+    <!-- Division selector — only when this table isn't already division-scoped
+         by the parent. Always exactly one division, never combined. -->
     <q-select
-      v-if="availableDivisions.length > 1"
-      v-model="selectedDivision"
+      v-if="!division && availableDivisions.length > 1"
+      v-model="internalDivision"
       :options="divisionOptions"
-      label="Filter by Division"
+      label="Division"
       emit-value
       map-options
       outlined
       dense
-      clearable
       class="q-mb-md"
       style="max-width: 300px"
     />
@@ -123,7 +123,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watchEffect } from 'vue';
 import { useQuasar } from 'quasar';
 import type { StageResultEntry, Organization } from '@hitfactor/shared';
 import { getDivisionLabel, DEFAULT_ORGANIZATION } from '@hitfactor/shared';
@@ -134,17 +134,32 @@ const $q = useQuasar();
 const props = withDefaults(
   defineProps<{
     results: StageResultEntry[];
+    // When set, the parent controls the (single) division and the local
+    // selector is hidden. When absent, we default to the first division.
+    division?: string;
     organization?: Organization;
   }>(),
   { organization: DEFAULT_ORGANIZATION }
 );
 
-const selectedDivision = ref<string | null>(null);
-
 const availableDivisions = computed(() => {
   const divs = new Set(props.results.map((r) => r.division));
   return Array.from(divs).sort();
 });
+
+// Local selection used only when the parent doesn't pass a division. Always
+// resolves to a real division — never null/combined.
+const internalDivision = ref<string>('');
+watchEffect(() => {
+  if (
+    !props.division &&
+    !availableDivisions.value.includes(internalDivision.value)
+  ) {
+    internalDivision.value = availableDivisions.value[0] ?? '';
+  }
+});
+
+const activeDivision = computed(() => props.division ?? internalDivision.value);
 
 const divisionOptions = computed(() => {
   return availableDivisions.value.map((d) => ({
@@ -153,10 +168,9 @@ const divisionOptions = computed(() => {
   }));
 });
 
-const filteredResults = computed(() => {
-  if (!selectedDivision.value) return props.results;
-  return props.results.filter((r) => r.division === selectedDivision.value);
-});
+const filteredResults = computed(() =>
+  props.results.filter((r) => r.division === activeDivision.value)
+);
 
 const columns = computed<QTableColumn[]>(() => [
   { name: 'place', label: 'Place', field: 'place', align: 'center', sortable: true },

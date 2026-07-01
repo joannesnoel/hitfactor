@@ -1,5 +1,20 @@
 <template>
   <div>
+    <!-- Division — always exactly one selected, never combined. Applies to
+         both the overall standings and the per-stage results below. -->
+    <q-select
+      v-if="availableDivisions.length > 1"
+      v-model="selectedDivision"
+      :options="divisionOptions"
+      label="Division"
+      emit-value
+      map-options
+      outlined
+      dense
+      class="q-mb-md"
+      style="max-width: 320px"
+    />
+
     <!-- Overall vs per-stage selector -->
     <q-tabs
       v-model="selected"
@@ -25,6 +40,7 @@
       v-if="selected === 'overall'"
       :results="matchResults"
       :stages="stages"
+      :division="selectedDivision"
       :organization="organization"
     />
 
@@ -36,6 +52,7 @@
       <StageResultsTable
         v-else-if="currentStageResults.length > 0"
         :results="currentStageResults"
+        :division="selectedDivision"
         :organization="organization"
       />
       <div v-else class="text-center text-grey q-pa-lg">
@@ -46,14 +63,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, watchEffect } from 'vue';
 import type {
   MatchResultEntry,
   StageResultEntry,
   Stage,
   Organization,
 } from '@hitfactor/shared';
-import { DEFAULT_ORGANIZATION } from '@hitfactor/shared';
+import { DEFAULT_ORGANIZATION, getDivisionLabel } from '@hitfactor/shared';
 import MatchStandings from 'src/components/results/MatchStandings.vue';
 import StageResultsTable from 'src/components/results/StageResultsTable.vue';
 
@@ -73,6 +90,24 @@ const selected = ref<string>('overall');
 const loadingStage = ref(false);
 const currentStageResults = ref<StageResultEntry[]>([]);
 const cache = new Map<string, StageResultEntry[]>();
+
+// One division for the whole results view; defaults to the first, never empty.
+const availableDivisions = computed(() => {
+  const divs = new Set(props.matchResults.map((r) => r.division));
+  return Array.from(divs).sort();
+});
+const divisionOptions = computed(() =>
+  availableDivisions.value.map((d) => ({
+    label: getDivisionLabel(props.organization, d),
+    value: d,
+  }))
+);
+const selectedDivision = ref<string>('');
+watchEffect(() => {
+  if (!availableDivisions.value.includes(selectedDivision.value)) {
+    selectedDivision.value = availableDivisions.value[0] ?? '';
+  }
+});
 
 const sortedStages = computed(() =>
   props.stages.slice().sort((a, b) => a.stage_number - b.stage_number)

@@ -55,6 +55,11 @@
         <router-link to="/auth/register" class="text-primary">
           Don't have an account? Register
         </router-link>
+        <div class="q-mt-sm">
+          <router-link to="/public/matches" class="text-grey-7">
+            Browse public results →
+          </router-link>
+        </div>
       </q-card-section>
 
       <q-banner v-if="error" class="text-white bg-red q-mt-sm" rounded>

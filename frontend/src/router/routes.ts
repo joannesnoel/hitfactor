@@ -1,4 +1,5 @@
 import type { RouteRecordRaw } from 'vue-router';
+import { useAuthStore } from 'src/stores/auth.store';
 
 const routes: RouteRecordRaw[] = [
   // Auth routes (no layout)
@@ -115,10 +116,33 @@ const routes: RouteRecordRaw[] = [
     ],
   },
 
-  // Root redirect
+  // Public (unauthenticated) browsing of matches + results
+  {
+    path: '/public',
+    component: () => import('src/layouts/PublicLayout.vue'),
+    meta: { public: true },
+    children: [
+      {
+        path: 'matches',
+        component: () => import('src/pages/public/PublicMatchesPage.vue'),
+        meta: { public: true },
+      },
+      {
+        path: 'matches/:id',
+        component: () => import('src/pages/public/PublicMatchViewPage.vue'),
+        props: true,
+        meta: { public: true },
+      },
+    ],
+  },
+
+  // Root — public-first for guests, dashboard for signed-in users
   {
     path: '/',
-    redirect: '/shooter/dashboard',
+    redirect: () =>
+      useAuthStore().isAuthenticated
+        ? '/shooter/dashboard'
+        : '/public/matches',
   },
 
   // Catch-all 404
