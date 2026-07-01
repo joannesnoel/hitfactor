@@ -64,6 +64,13 @@
       "when": 1782890630839,
       "tag": "0008_registration_multi_division",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1782901849993,
+      "tag": "0009_registration_per_entry",
+      "breakpoints": true
     }
   ]
 }

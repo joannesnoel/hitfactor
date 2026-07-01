@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, isNull } from 'drizzle-orm';
 import {
   computeScore,
   divisionFromPractiscore,
@@ -220,7 +220,9 @@ export async function importMatch(
         const userId = await resolveShooter(entry);
         const shooterName = cleanDisplayName(entry.name);
 
-        // Registration (one per division per match).
+        // Registration — one per entry. A shooter may have several in the same
+        // division (distinct member numbers), so dedupe includes member_number.
+        const memberNumber = entry.member_number ?? null;
         const [existingReg] = await tx
           .select({ id: registrations.id })
           .from(registrations)
@@ -228,7 +230,10 @@ export async function importMatch(
             and(
               eq(registrations.match_id, matchId),
               eq(registrations.user_id, userId),
-              eq(registrations.division, division)
+              eq(registrations.division, division),
+              memberNumber === null
+                ? isNull(registrations.member_number)
+                : eq(registrations.member_number, memberNumber)
             )
           )
           .limit(1);

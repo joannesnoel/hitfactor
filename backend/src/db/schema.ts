@@ -227,12 +227,15 @@ export const registrations = pgTable(
     registered_at: timestamp('registered_at').defaultNow().notNull(),
   },
   (table) => [
-    // A shooter may enter multiple divisions in one match (each is its own
-    // registration + score set), so uniqueness includes division.
-    unique('registrations_match_user_division_unique').on(
+    // A shooter can enter a match more than once — different divisions, or even
+    // the same division twice (a second gun / re-entry, distinct PractiScore
+    // line items). Each entry is its own registration, distinguished by
+    // member_number, so uniqueness includes it.
+    unique('registrations_match_user_division_member_unique').on(
       table.match_id,
       table.user_id,
-      table.division
+      table.division,
+      table.member_number
     ),
   ]
 );
