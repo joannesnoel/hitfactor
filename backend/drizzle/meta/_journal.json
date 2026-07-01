@@ -50,6 +50,20 @@
       "when": 1782314623804,
       "tag": "0006_foamy_vampiro",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1782890183820,
+      "tag": "0007_claimable_accounts_prr",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1782890630839,
+      "tag": "0008_registration_multi_division",
+      "breakpoints": true
     }
   ]
 }

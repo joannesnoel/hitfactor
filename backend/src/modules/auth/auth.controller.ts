@@ -58,7 +58,7 @@ export async function register(
 
   const tokenPayload = {
     sub: user.id,
-    email: user.email,
+    email,
     roles: user.roles as string[],
   };
 
@@ -99,7 +99,9 @@ export async function login(
     .where(eq(users.email, email))
     .limit(1);
 
-  if (!user) {
+  // Unknown email, or an unclaimed account (imported shooter) with no password
+  // set — either way, cannot log in.
+  if (!user || !user.password_hash) {
     return reply.status(401).send({
       statusCode: 401,
       error: 'Unauthorized',
@@ -118,7 +120,7 @@ export async function login(
 
   const tokenPayload = {
     sub: user.id,
-    email: user.email,
+    email,
     roles: user.roles as string[],
   };
 
@@ -171,7 +173,7 @@ export async function refresh(
       .where(eq(users.id, userId))
       .limit(1);
 
-    if (!user) {
+    if (!user || !user.email) {
       return reply.status(401).send({
         statusCode: 401,
         error: 'Unauthorized',

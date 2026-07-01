@@ -10,21 +10,34 @@ import {
   numeric,
   jsonb,
   unique,
+  index,
 } from 'drizzle-orm/pg-core';
 
 // ─── Users ──────────────────────────────────────
 
-export const users = pgTable('users', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  email: varchar('email', { length: 255 }).unique().notNull(),
-  password_hash: text('password_hash').notNull(),
-  display_name: varchar('display_name', { length: 100 }).notNull(),
-  member_number: varchar('member_number', { length: 20 }),
-  roles: text('roles').array().notNull().$default(() => ['shooter']),
-  default_division: varchar('default_division', { length: 50 }),
-  created_at: timestamp('created_at').defaultNow().notNull(),
-  updated_at: timestamp('updated_at').defaultNow().notNull(),
-});
+export const users = pgTable(
+  'users',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // Nullable for unclaimed shooter accounts imported from match results — they
+    // have no email/password until the shooter claims the account. UNIQUE still
+    // holds (Postgres allows multiple NULLs).
+    email: varchar('email', { length: 255 }).unique(),
+    password_hash: text('password_hash'),
+    display_name: varchar('display_name', { length: 100 }).notNull(),
+    member_number: varchar('member_number', { length: 20 }),
+    // Normalized "LAST, FIRST" identity key for cross-match shooter dedupe.
+    normalized_name: varchar('normalized_name', { length: 120 }),
+    phone: varchar('phone', { length: 30 }),
+    claimed: boolean('claimed').notNull().default(false),
+    claimed_at: timestamp('claimed_at'),
+    roles: text('roles').array().notNull().$default(() => ['shooter']),
+    default_division: varchar('default_division', { length: 50 }),
+    created_at: timestamp('created_at').defaultNow().notNull(),
+    updated_at: timestamp('updated_at').defaultNow().notNull(),
+  },
+  (table) => [index('users_normalized_name_idx').on(table.normalized_name)]
+);
 
 // ─── User Divisions (classification per division) ─
 
@@ -214,9 +227,12 @@ export const registrations = pgTable(
     registered_at: timestamp('registered_at').defaultNow().notNull(),
   },
   (table) => [
-    unique('registrations_match_user_unique').on(
+    // A shooter may enter multiple divisions in one match (each is its own
+    // registration + score set), so uniqueness includes division.
+    unique('registrations_match_user_division_unique').on(
       table.match_id,
-      table.user_id
+      table.user_id,
+      table.division
     ),
   ]
 );

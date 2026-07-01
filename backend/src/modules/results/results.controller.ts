@@ -52,6 +52,22 @@ export async function computeResultsForMatch(
     });
   }
 
+  const { stagesComputed, divisions } = await recomputeMatchResults(matchId);
+
+  return reply.send({
+    message: 'Results computed successfully',
+    stages_computed: stagesComputed,
+    divisions_computed: divisions,
+  });
+}
+
+/**
+ * Recompute and upsert stage_results + match_results for a match from its
+ * scores. Reusable by the compute endpoint and the match importer.
+ */
+export async function recomputeMatchResults(
+  matchId: string
+): Promise<{ stagesComputed: number; divisions: string[] }> {
   // Get all stages for this match
   const matchStages = await db
     .select()
@@ -187,11 +203,7 @@ export async function computeResultsForMatch(
     }
   }
 
-  return reply.send({
-    message: 'Results computed successfully',
-    stages_computed: matchStages.length,
-    divisions_computed: allDivisions,
-  });
+  return { stagesComputed: matchStages.length, divisions: allDivisions };
 }
 
 export async function getMatchResults(

@@ -1,0 +1,2 @@
+ALTER TABLE "registrations" DROP CONSTRAINT "registrations_match_user_unique";--> statement-breakpoint
+ALTER TABLE "registrations" ADD CONSTRAINT "registrations_match_user_division_unique" UNIQUE("match_id","user_id","division");

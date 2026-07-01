@@ -20,6 +20,8 @@ export const DIVISION_KEYS = [
   'classic_45',
   'pcc_optics',
   'pcc_iron',
+  'prr_limited',
+  'prr_unlimited',
 ] as const;
 export type DivisionKey = (typeof DIVISION_KEYS)[number];
 
@@ -44,6 +46,8 @@ export const DIVISION_CONFIG: Record<
     { key: 'revolver', label: 'Revolver' },
     { key: 'pcc_optics', label: 'Unlimited PCC' },
     { key: 'pcc_iron', label: 'Limited PCC' },
+    { key: 'prr_limited', label: 'Practical Rimfired Rifle Limited' },
+    { key: 'prr_unlimited', label: 'Practical Rimfired Rifle Unlimited' },
   ],
   PPSA: [
     { key: 'open', label: 'Open' },
@@ -80,6 +84,45 @@ export function isValidDivisionForOrg(
   key: DivisionKey | string
 ): boolean {
   return Boolean(DIVISION_CONFIG[org]?.some((d) => d.key === key));
+}
+
+// PSMOC PractiScore division abbreviations → canonical keys. PractiScore exports
+// may use an abbreviation (e.g. "DASF"), the canonical key, or the full label;
+// divisionFromPractiscore() resolves all three.
+const PRACTISCORE_DIVISION_ABBREV: Record<string, DivisionKey> = {
+  dasf: 'production',
+  shc: 'standard',
+  shco: 'optics',
+  co: 'production_optics',
+  ss: 'classic',
+  pccu: 'pcc_optics',
+  pccl: 'pcc_iron',
+  c45: 'classic_45',
+  u: 'open',
+  prrl: 'prr_limited',
+  prru: 'prr_unlimited',
+  // PractiScore full-name variants that don't exactly match a PSMOC label
+  // (e.g. plural "Optics" vs label "Optic").
+  stockhicapoptic: 'optics',
+  stockhicapoptics: 'optics',
+};
+
+/** Resolve a PractiScore division string (abbrev, key, or label) to a canonical
+ *  key, or null if unrecognized. */
+export function divisionFromPractiscore(raw: string): DivisionKey | null {
+  const norm = raw.trim().toLowerCase().replace(/[\s._/,-]+/g, '');
+  if (PRACTISCORE_DIVISION_ABBREV[norm]) {
+    return PRACTISCORE_DIVISION_ABBREV[norm];
+  }
+  const asKey = DIVISION_KEYS.find((k) => k.replace(/_/g, '') === norm);
+  if (asKey) return asKey;
+  for (const org of ORGANIZATIONS) {
+    const byLabel = DIVISION_CONFIG[org].find(
+      (d) => d.label.toLowerCase().replace(/[\s._/-]+/g, '') === norm
+    );
+    if (byLabel) return byLabel.key;
+  }
+  return null;
 }
 
 export const CLASSIFICATIONS = ['GM', 'M', 'A', 'B', 'C', 'D', 'U'] as const;

@@ -14,9 +14,12 @@ import type {
 // ─── User ────────────────────────────────────────
 export interface User {
   id: string;
-  email: string;
+  // Null for unclaimed shooter accounts imported from match results.
+  email: string | null;
   display_name: string;
   member_number: string | null;
+  phone: string | null;
+  claimed: boolean;
   roles: Role[];
   default_division: Division | null;
   divisions: UserDivision[];

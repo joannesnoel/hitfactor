@@ -372,8 +372,11 @@ export async function handleUploadData(
               power_factor: power_factor as string,
               ...(rest as Record<string, unknown>),
             })
+            // Idempotent by registration id (the client's stable local row id):
+            // editing a registration updates in place, while a genuinely different
+            // division is a distinct row (allowed by the wider unique constraint).
             .onConflictDoUpdate({
-              target: [registrations.match_id, registrations.user_id],
+              target: registrations.id,
               set: {
                 shooter_name: shooter_name as string,
                 division: division as string,
