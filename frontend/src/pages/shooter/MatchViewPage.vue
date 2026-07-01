@@ -106,11 +106,12 @@
 
         <!-- Results Tab -->
         <q-tab-panel name="results">
-          <MatchStandings
+          <MatchResultsViewer
             v-if="matchResults.length > 0"
-            :results="matchResults"
+            :match-results="matchResults"
             :stages="stages"
             :organization="match?.organization"
+            :load-stage-results="loadStageResults"
           />
           <div v-else class="text-center text-grey q-pa-lg">
             Results not yet available
@@ -170,11 +171,11 @@ import { useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
 import type { PowerSyncDatabase } from '@powersync/web';
 import { whenPowerSyncReady } from 'src/boot/powersync';
-import type { Match, Stage, Score, MatchResultEntry, Division, PowerFactor, Classification } from '@hitfactor/shared';
+import type { Match, Stage, Score, MatchResultEntry, StageResultEntry, Division, PowerFactor, Classification } from '@hitfactor/shared';
 import { POWER_FACTORS, CLASSIFICATIONS, getDivisionsForOrg, DEFAULT_ORGANIZATION } from '@hitfactor/shared';
 import { api } from 'src/boot/axios';
 import { useAuthStore } from 'src/stores/auth.store';
-import MatchStandings from 'src/components/results/MatchStandings.vue';
+import MatchResultsViewer from 'src/components/results/MatchResultsViewer.vue';
 
 const route = useRoute();
 const $q = useQuasar();
@@ -187,6 +188,17 @@ const match = ref<Match | null>(null);
 const stages = ref<Stage[]>([]);
 const myScores = ref<Score[]>([]);
 const matchResults = ref<MatchResultEntry[]>([]);
+
+async function loadStageResults(
+  stageId: string,
+): Promise<StageResultEntry[]> {
+  if (!db) return [];
+  const rows = await db.getAll<{ results: string }>(
+    'SELECT results FROM stage_results WHERE stage_id = ?',
+    [stageId],
+  );
+  return rows.flatMap((r) => JSON.parse(r.results) as StageResultEntry[]);
+}
 const activeTab = ref('stages');
 const showRegisterDialog = ref(false);
 const isRegistered = ref(false);

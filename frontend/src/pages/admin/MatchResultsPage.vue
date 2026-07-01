@@ -17,11 +17,12 @@
         />
       </div>
 
-      <MatchStandings
+      <MatchResultsViewer
         v-if="matchResults.length > 0"
-        :results="matchResults"
+        :match-results="matchResults"
         :stages="stages"
         :organization="match?.organization"
+        :load-stage-results="loadStageResults"
       />
       <div v-else class="text-center text-grey q-pa-xl">
         <q-icon name="leaderboard" size="4em" class="q-mb-md" />
@@ -36,8 +37,13 @@ import { ref, inject, onMounted } from 'vue';
 import type { Ref } from 'vue';
 import { useQuasar } from 'quasar';
 import { api } from 'src/boot/axios';
-import type { Stage, MatchResultEntry, Match } from '@hitfactor/shared';
-import MatchStandings from 'src/components/results/MatchStandings.vue';
+import type {
+  Stage,
+  MatchResultEntry,
+  StageResultEntry,
+  Match,
+} from '@hitfactor/shared';
+import MatchResultsViewer from 'src/components/results/MatchResultsViewer.vue';
 
 const $q = useQuasar();
 
@@ -59,6 +65,20 @@ async function loadMatchResults(): Promise<MatchResultEntry[]> {
     // flatten into a single list — MatchStandings filters by a division selector.
     const response = await api.get<Array<{ results: MatchResultEntry[] }>>(
       `/api/matches/${matchId}/results`,
+    );
+    const rows = Array.isArray(response.data) ? response.data : [];
+    return rows.flatMap((r) => r.results ?? []);
+  } catch {
+    return [];
+  }
+}
+
+async function loadStageResults(
+  stageId: string,
+): Promise<StageResultEntry[]> {
+  try {
+    const response = await api.get<Array<{ results: StageResultEntry[] }>>(
+      `/api/matches/${matchId}/stages/${stageId}/results`,
     );
     const rows = Array.isArray(response.data) ? response.data : [];
     return rows.flatMap((r) => r.results ?? []);
