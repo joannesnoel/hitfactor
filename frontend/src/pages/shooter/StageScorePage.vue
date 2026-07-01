@@ -21,7 +21,14 @@
       <!-- My Score -->
       <q-card v-if="myScore" class="q-mb-lg">
         <q-card-section>
-          <div class="text-h6 q-mb-md">Your Score</div>
+          <div class="row items-center q-mb-md">
+            <div class="text-h6">Your Score</div>
+            <q-space />
+            <q-badge
+              :color="myScore.power_factor === 'Major' ? 'deep-orange' : 'blue'"
+              :label="myScore.power_factor"
+            />
+          </div>
           <div class="row q-gutter-md">
             <div class="col-12 col-sm-6">
               <div class="text-center q-mb-md">
