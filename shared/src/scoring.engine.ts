@@ -180,6 +180,7 @@ export function computeStageResults(
       division: s.division as StageResultEntry['division'],
       classification:
         s.classification as StageResultEntry['classification'],
+      power_factor: s.power_factor,
       alpha_count: s.alpha_count,
       charlie_count: s.charlie_count,
       delta_count: s.delta_count,
@@ -243,6 +244,7 @@ export function computeMatchResults(
     {
       shooter_name: string;
       classification: string | null;
+      power_factor: PowerFactor;
       stagePercentages: Map<string, number>;
       matchPoints: number;
       dqed: boolean;
@@ -257,6 +259,7 @@ export function computeMatchResults(
         reg = {
           shooter_name: entry.shooter_name,
           classification: entry.classification,
+          power_factor: entry.power_factor,
           stagePercentages: new Map(),
           matchPoints: 0,
           dqed: false,
@@ -294,6 +297,7 @@ export function computeMatchResults(
       division: division as MatchResultEntry['division'],
       classification:
         reg.classification as MatchResultEntry['classification'],
+      power_factor: reg.power_factor,
       stage_percentages: stagePercentages,
       match_points: parseFloat(matchPoints.toFixed(STAGE_PERCENTAGE_DECIMALS)),
       total_percentage: parseFloat(

@@ -26,7 +26,8 @@
               row.shooter_name
             }}</q-item-label>
             <q-item-label caption>
-              {{ getDivisionLabel(organization, row.division)
+              {{ getDivisionLabel(organization, row.division) }} ·
+              {{ row.power_factor
               }}{{ row.classification ? ` · ${row.classification}` : '' }}
             </q-item-label>
           </q-item-section>
@@ -141,6 +142,7 @@ const columns = computed<QTableColumn[]>(() => [
   { name: 'shooter_name', label: 'Name', field: 'shooter_name', align: 'left', sortable: true },
   { name: 'division', label: 'Division', field: 'division', align: 'center', sortable: true, format: (val: string) => getDivisionLabel(props.organization, val) },
   { name: 'classification', label: 'Class', field: 'classification', align: 'center', sortable: true, format: (val: string | null) => val ?? '-' },
+  { name: 'power_factor', label: 'PF', field: 'power_factor', align: 'center', sortable: true },
   ...stageColumns.value,
   { name: 'match_points', label: 'Match Pts', field: 'match_points', align: 'center', sortable: true, format: (val: number) => (val ?? 0).toFixed(2) },
   { name: 'total_percentage', label: 'Match%', field: 'total_percentage', align: 'center', sortable: true },

@@ -40,9 +40,10 @@
             <q-item-label class="text-weight-medium">{{
               row.shooter_name
             }}</q-item-label>
-            <q-item-label caption>{{
-              getDivisionLabel(organization, row.division)
-            }}</q-item-label>
+            <q-item-label caption>
+              {{ getDivisionLabel(organization, row.division) }} ·
+              {{ row.power_factor }}
+            </q-item-label>
           </q-item-section>
           <q-item-section side class="text-right">
             <q-item-label class="text-weight-bold text-body1 text-grey-9">
@@ -176,6 +177,7 @@ const columns = computed<QTableColumn[]>(() => [
   { name: 'place', label: 'Place', field: 'place', align: 'center', sortable: true },
   { name: 'shooter_name', label: 'Name', field: 'shooter_name', align: 'left', sortable: true },
   { name: 'division', label: 'Div', field: 'division', align: 'center', sortable: true, format: (val: string) => getDivisionLabel(props.organization, val) },
+  { name: 'power_factor', label: 'PF', field: 'power_factor', align: 'center', sortable: true },
   { name: 'alpha_count', label: 'A', field: 'alpha_count', align: 'center', sortable: true },
   { name: 'charlie_count', label: 'C', field: 'charlie_count', align: 'center', sortable: true },
   { name: 'delta_count', label: 'D', field: 'delta_count', align: 'center', sortable: true },

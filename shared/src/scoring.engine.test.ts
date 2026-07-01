@@ -312,6 +312,7 @@ describe('computeMatchResults', () => {
     shooter_name,
     division: 'open',
     classification,
+    power_factor: 'Minor',
     alpha_count: 0, charlie_count: 0, delta_count: 0,
     miss_count: 0, no_shoot_count: 0, procedural_count: 0,
     steel_hits: 0, steel_misses: 0, time: 0,

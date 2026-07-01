@@ -158,6 +158,7 @@ export interface StageResultEntry {
   shooter_name: string;
   division: Division;
   classification: Classification | null;
+  power_factor: PowerFactor;
   alpha_count: number;
   charlie_count: number;
   delta_count: number;
@@ -196,6 +197,7 @@ export interface MatchResultEntry {
   shooter_name: string;
   division: Division;
   classification: Classification | null;
+  power_factor: PowerFactor;
   stage_percentages: Record<string, number>; // stage_id → stage%
   // Match points = sum of stage points across all stages (weighted by each
   // stage's size). total_percentage = match_points / winner's match_points * 100.
