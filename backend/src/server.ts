@@ -3,6 +3,7 @@ import { readFileSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import multipart from '@fastify/multipart';
 import type { RequestUser } from './middleware/auth.middleware.js';
 import { authRoutes } from './modules/auth/auth.routes.js';
 import { matchesRoutes } from './modules/matches/matches.routes.js';
@@ -13,6 +14,7 @@ import { resultsRoutes } from './modules/results/results.routes.js';
 import { usersRoutes } from './modules/users/users.routes.js';
 import { rangesRoutes } from './modules/ranges/ranges.routes.js';
 import { powersyncRoutes } from './modules/powersync/powersync.routes.js';
+import { importRoutes } from './modules/import/import.routes.js';
 
 const PORT = parseInt(process.env.PORT ?? '3000', 10);
 const HOST = process.env.HOST ?? '0.0.0.0';
@@ -44,6 +46,11 @@ async function buildApp() {
     credentials: true,
   });
 
+  // File uploads (PractiScore .psc import). .psc files are small (~100 KB).
+  await app.register(multipart, {
+    limits: { fileSize: 25 * 1024 * 1024, files: 1 },
+  });
+
   // Decorate request with user property
   app.decorateRequest('user', null as unknown as RequestUser);
 
@@ -62,6 +69,7 @@ async function buildApp() {
   await app.register(usersRoutes);
   await app.register(rangesRoutes);
   await app.register(powersyncRoutes);
+  await app.register(importRoutes);
 
   return app;
 }

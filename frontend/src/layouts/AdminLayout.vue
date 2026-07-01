@@ -72,6 +72,18 @@
         <q-item
           clickable
           v-ripple
+          :to="'/admin/import'"
+          active-class="text-primary"
+        >
+          <q-item-section avatar>
+            <q-icon name="upload_file" />
+          </q-item-section>
+          <q-item-section>Import Results</q-item-section>
+        </q-item>
+
+        <q-item
+          clickable
+          v-ripple
           :to="'/admin/officers'"
           active-class="text-primary"
         >

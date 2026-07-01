@@ -32,6 +32,10 @@ const routes: RouteRecordRaw[] = [
         path: 'matches/create',
         component: () => import('src/pages/admin/MatchCreatePage.vue'),
       },
+      {
+        path: 'import',
+        component: () => import('src/pages/admin/ImportMatchPage.vue'),
+      },
     ],
   },
 
