@@ -8,7 +8,11 @@ import {
   computeScore,
   computeStageResults,
 } from './scoring.engine.js';
-import type { ScoreInput, StageScoreData } from './types.js';
+import type {
+  ScoreInput,
+  StageScoreData,
+  StageResultEntry,
+} from './types.js';
 
 describe('calculateRawPoints', () => {
   it('calculates Major power factor correctly', () => {
@@ -240,16 +244,20 @@ describe('computeStageResults', () => {
     const { results, stageWinnerHF } = computeStageResults(
       scores,
       'comstock',
-      'Open'
+      'Open',
+      50
     );
     expect(stageWinnerHF).toBe(10.0); // 50/5
     expect(results[0].shooter_name).toBe('Fast');
     expect(results[0].stage_percentage).toBe(100.0);
+    expect(results[0].stage_points).toBe(50); // 100% of the 50-pt stage
     expect(results[0].place).toBe(1);
     expect(results[1].shooter_name).toBe('Medium');
     expect(results[1].stage_percentage).toBe(50.0);
+    expect(results[1].stage_points).toBe(25); // 50% of 50
     expect(results[1].place).toBe(2);
     expect(results[2].stage_percentage).toBe(25.0);
+    expect(results[2].stage_points).toBe(12.5);
     expect(results[2].place).toBe(3);
   });
 
@@ -263,11 +271,13 @@ describe('computeStageResults', () => {
         dqed: true,
       }),
     ];
-    const { results } = computeStageResults(scores, 'comstock', 'Open');
+    const { results } = computeStageResults(scores, 'comstock', 'Open', 50);
     expect(results[0].shooter_name).toBe('Normal');
     expect(results[0].stage_percentage).toBe(100.0);
+    expect(results[0].stage_points).toBe(50);
     expect(results[1].shooter_name).toBe('DQd');
     expect(results[1].stage_percentage).toBe(0);
+    expect(results[1].stage_points).toBe(0);
     expect(results[1].place).toBe(2);
   });
 
@@ -284,110 +294,77 @@ describe('computeStageResults', () => {
         time: 10,
       }),
     ];
-    const { results } = computeStageResults(scores, 'comstock', 'Open');
+    const { results } = computeStageResults(scores, 'comstock', 'Open', 50);
     expect(results).toHaveLength(1);
   });
 });
 
 describe('computeMatchResults', () => {
-  it('sums stage percentages and ranks', () => {
+  const mkEntry = (
+    registration_id: string,
+    shooter_name: string,
+    classification: 'A' | 'B',
+    stage_percentage: number,
+    stage_points: number,
+    dqed = false
+  ): StageResultEntry => ({
+    registration_id,
+    shooter_name,
+    division: 'open',
+    classification,
+    alpha_count: 0, charlie_count: 0, delta_count: 0,
+    miss_count: 0, no_shoot_count: 0, procedural_count: 0,
+    steel_hits: 0, steel_misses: 0, time: 0,
+    raw_points: 0, penalty_points: 0, total_points: 0,
+    hit_factor: 0, stage_percentage, stage_points, place: 0,
+    dqed, dnf: false,
+  });
+
+  it('weights stages by size: match points = sum of stage points', () => {
+    // s1 is a 100-pt stage, s2 a 50-pt stage.
     const stageResults = [
       {
         stage_id: 's1',
-        division: 'Open',
+        division: 'open',
         results: [
-          {
-            registration_id: 'r1',
-            shooter_name: 'A',
-            division: 'Open' as const,
-            classification: 'A' as const,
-            alpha_count: 0, charlie_count: 0, delta_count: 0,
-            miss_count: 0, no_shoot_count: 0, procedural_count: 0,
-            steel_hits: 0, steel_misses: 0, time: 0,
-            raw_points: 0, penalty_points: 0, total_points: 0,
-            hit_factor: 10, stage_percentage: 100, place: 1,
-            dqed: false, dnf: false,
-          },
-          {
-            registration_id: 'r2',
-            shooter_name: 'B',
-            division: 'Open' as const,
-            classification: 'B' as const,
-            alpha_count: 0, charlie_count: 0, delta_count: 0,
-            miss_count: 0, no_shoot_count: 0, procedural_count: 0,
-            steel_hits: 0, steel_misses: 0, time: 0,
-            raw_points: 0, penalty_points: 0, total_points: 0,
-            hit_factor: 5, stage_percentage: 50, place: 2,
-            dqed: false, dnf: false,
-          },
+          mkEntry('r1', 'A', 'A', 100, 100), // stage winner
+          mkEntry('r2', 'B', 'B', 50, 50),
         ],
       },
       {
         stage_id: 's2',
-        division: 'Open',
+        division: 'open',
         results: [
-          {
-            registration_id: 'r1',
-            shooter_name: 'A',
-            division: 'Open' as const,
-            classification: 'A' as const,
-            alpha_count: 0, charlie_count: 0, delta_count: 0,
-            miss_count: 0, no_shoot_count: 0, procedural_count: 0,
-            steel_hits: 0, steel_misses: 0, time: 0,
-            raw_points: 0, penalty_points: 0, total_points: 0,
-            hit_factor: 8, stage_percentage: 80, place: 1,
-            dqed: false, dnf: false,
-          },
-          {
-            registration_id: 'r2',
-            shooter_name: 'B',
-            division: 'Open' as const,
-            classification: 'B' as const,
-            alpha_count: 0, charlie_count: 0, delta_count: 0,
-            miss_count: 0, no_shoot_count: 0, procedural_count: 0,
-            steel_hits: 0, steel_misses: 0, time: 0,
-            raw_points: 0, penalty_points: 0, total_points: 0,
-            hit_factor: 10, stage_percentage: 100, place: 1,
-            dqed: false, dnf: false,
-          },
+          mkEntry('r1', 'A', 'A', 80, 40),
+          mkEntry('r2', 'B', 'B', 100, 50), // stage winner
         ],
       },
     ];
 
-    const results = computeMatchResults(stageResults, 'Open');
+    const results = computeMatchResults(stageResults, 'open');
     expect(results).toHaveLength(2);
-    // A: 100+80=180, B: 50+100=150
+    // A: 100+40=140 (match winner), B: 50+50=100
     expect(results[0].shooter_name).toBe('A');
-    expect(results[0].total_percentage).toBe(180);
+    expect(results[0].match_points).toBe(140);
+    expect(results[0].total_percentage).toBe(100);
     expect(results[0].place).toBe(1);
     expect(results[1].shooter_name).toBe('B');
-    expect(results[1].total_percentage).toBe(150);
+    expect(results[1].match_points).toBe(100);
+    expect(results[1].total_percentage).toBeCloseTo(71.4286, 3); // 100/140
     expect(results[1].place).toBe(2);
   });
 
-  it('DQ sets all stage percentages to 0', () => {
+  it('DQ zeroes match points and percentage', () => {
     const stageResults = [
       {
         stage_id: 's1',
-        division: 'Open',
-        results: [
-          {
-            registration_id: 'r1',
-            shooter_name: 'DQd',
-            division: 'Open' as const,
-            classification: 'A' as const,
-            alpha_count: 0, charlie_count: 0, delta_count: 0,
-            miss_count: 0, no_shoot_count: 0, procedural_count: 0,
-            steel_hits: 0, steel_misses: 0, time: 0,
-            raw_points: 0, penalty_points: 0, total_points: 0,
-            hit_factor: 10, stage_percentage: 100, place: 1,
-            dqed: true, dnf: false,
-          },
-        ],
+        division: 'open',
+        results: [mkEntry('r1', 'DQd', 'A', 100, 100, true)],
       },
     ];
 
-    const results = computeMatchResults(stageResults, 'Open');
+    const results = computeMatchResults(stageResults, 'open');
+    expect(results[0].match_points).toBe(0);
     expect(results[0].total_percentage).toBe(0);
     expect(results[0].dqed).toBe(true);
   });

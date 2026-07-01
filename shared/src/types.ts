@@ -172,6 +172,9 @@ export interface StageResultEntry {
   total_points: number;
   hit_factor: number;
   stage_percentage: number;
+  // Stage points awarded = (stage_percentage / 100) * the stage's max points
+  // (rounds * 5). The stage winner earns the full max; others earn pro-rata.
+  stage_points: number;
   place: number;
   dqed: boolean;
   dnf: boolean;
@@ -194,6 +197,9 @@ export interface MatchResultEntry {
   division: Division;
   classification: Classification | null;
   stage_percentages: Record<string, number>; // stage_id → stage%
+  // Match points = sum of stage points across all stages (weighted by each
+  // stage's size). total_percentage = match_points / winner's match_points * 100.
+  match_points: number;
   total_percentage: number;
   place: number;
   dqed: boolean;

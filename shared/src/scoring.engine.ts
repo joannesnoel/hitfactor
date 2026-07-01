@@ -140,7 +140,8 @@ export interface StageScoreData {
 export function computeStageResults(
   scores: StageScoreData[],
   scoringType: ScoringType,
-  division: string
+  division: string,
+  maxStagePoints: number
 ): { stageWinnerHF: number; results: StageResultEntry[] } {
   // Filter to division
   const divisionScores = scores.filter((s) => s.division === division);
@@ -195,6 +196,16 @@ export function computeStageResults(
       stage_percentage: s.dqed || s.dnf
         ? 0
         : calculateStagePercentage(s.hit_factor, stageWinnerHF),
+      // Points = stage% of the stage's max points; the winner (100%) earns it all.
+      stage_points:
+        s.dqed || s.dnf
+          ? 0
+          : parseFloat(
+              (
+                (calculateStagePercentage(s.hit_factor, stageWinnerHF) / 100) *
+                maxStagePoints
+              ).toFixed(4)
+            ),
       place: 0, // Assigned below
       dqed: s.dqed,
       dnf: s.dnf,
@@ -233,6 +244,7 @@ export function computeMatchResults(
       shooter_name: string;
       classification: string | null;
       stagePercentages: Map<string, number>;
+      matchPoints: number;
       dqed: boolean;
     }
   >();
@@ -246,29 +258,35 @@ export function computeMatchResults(
           shooter_name: entry.shooter_name,
           classification: entry.classification,
           stagePercentages: new Map(),
+          matchPoints: 0,
           dqed: false,
         };
         registrationMap.set(entry.registration_id, reg);
       }
-      reg.stagePercentages.set(
-        sr.stage_id,
-        entry.stage_percentage
-      );
-      // DQ in any stage = DQ for match (0% for remaining stages)
+      reg.stagePercentages.set(sr.stage_id, entry.stage_percentage);
+      // Match points = sum of stage points (each weighted by its stage's size).
+      reg.matchPoints += entry.stage_points;
+      // DQ in any stage = DQ for match (0 for remaining stages)
       if (entry.dqed) reg.dqed = true;
     }
+  }
+
+  // The match winner (most total stage points) anchors 100%.
+  let winnerPoints = 0;
+  for (const reg of registrationMap.values()) {
+    if (!reg.dqed) winnerPoints = Math.max(winnerPoints, reg.matchPoints);
   }
 
   const entries: MatchResultEntry[] = [];
 
   for (const [regId, reg] of registrationMap) {
     const stagePercentages: Record<string, number> = {};
-    let totalPercentage = 0;
-
     for (const [stageId, pct] of reg.stagePercentages) {
       stagePercentages[stageId] = reg.dqed ? 0 : pct;
-      if (!reg.dqed) totalPercentage += pct;
     }
+    const matchPoints = reg.dqed ? 0 : reg.matchPoints;
+    const totalPercentage =
+      winnerPoints > 0 && !reg.dqed ? (matchPoints / winnerPoints) * 100 : 0;
 
     entries.push({
       registration_id: regId,
@@ -277,6 +295,7 @@ export function computeMatchResults(
       classification:
         reg.classification as MatchResultEntry['classification'],
       stage_percentages: stagePercentages,
+      match_points: parseFloat(matchPoints.toFixed(STAGE_PERCENTAGE_DECIMALS)),
       total_percentage: parseFloat(
         totalPercentage.toFixed(STAGE_PERCENTAGE_DECIMALS)
       ),
@@ -285,10 +304,10 @@ export function computeMatchResults(
     });
   }
 
-  // Sort: DQ last, then by total percentage descending
+  // Sort: DQ last, then by match points descending
   entries.sort((a, b) => {
     if (a.dqed !== b.dqed) return a.dqed ? 1 : -1;
-    return b.total_percentage - a.total_percentage;
+    return b.match_points - a.match_points;
   });
 
   entries.forEach((e, i) => {

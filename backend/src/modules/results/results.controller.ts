@@ -115,7 +115,8 @@ export async function recomputeMatchResults(
       const { stageWinnerHF, results } = computeStageResults(
         stageScores,
         stage.scoring_type as ScoringType,
-        division
+        division,
+        stage.max_points
       );
 
       // Upsert stage result

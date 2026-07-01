@@ -99,7 +99,8 @@ const columns = computed<QTableColumn[]>(() => [
   { name: 'division', label: 'Division', field: 'division', align: 'center', sortable: true, format: (val: string) => getDivisionLabel(props.organization, val) },
   { name: 'classification', label: 'Class', field: 'classification', align: 'center', sortable: true, format: (val: string | null) => val ?? '-' },
   ...stageColumns.value,
-  { name: 'total_percentage', label: 'Total%', field: 'total_percentage', align: 'center', sortable: true },
+  { name: 'match_points', label: 'Match Pts', field: 'match_points', align: 'center', sortable: true, format: (val: number) => (val ?? 0).toFixed(2) },
+  { name: 'total_percentage', label: 'Match%', field: 'total_percentage', align: 'center', sortable: true },
 ]);
 </script>
 
