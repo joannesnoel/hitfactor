@@ -8,7 +8,15 @@
         >
           HitFactor
         </q-toolbar-title>
-        <q-btn flat no-caps icon="login" label="Login" to="/auth/login" />
+        <q-btn
+          v-if="auth.isAuthenticated"
+          flat
+          no-caps
+          icon="dashboard"
+          label="Dashboard"
+          to="/shooter/dashboard"
+        />
+        <q-btn v-else flat no-caps icon="login" label="Login" to="/auth/login" />
       </q-toolbar>
     </q-header>
 
@@ -19,5 +27,9 @@
 </template>
 
 <script setup lang="ts">
-// Public, unauthenticated layout — no auth store, no sync, no nav.
+// Public layout: usable by guests and signed-in users. The only auth touch is
+// swapping the Login button for a Dashboard link when a session exists.
+import { useAuthStore } from 'src/stores/auth.store';
+
+const auth = useAuthStore();
 </script>

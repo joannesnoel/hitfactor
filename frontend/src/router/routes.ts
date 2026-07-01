@@ -1,5 +1,4 @@
 import type { RouteRecordRaw } from 'vue-router';
-import { useAuthStore } from 'src/stores/auth.store';
 
 const routes: RouteRecordRaw[] = [
   // Auth routes (no layout)
@@ -136,13 +135,10 @@ const routes: RouteRecordRaw[] = [
     ],
   },
 
-  // Root — public-first for guests, dashboard for signed-in users
+  // Root shows the (public) matches list for everyone
   {
     path: '/',
-    redirect: () =>
-      useAuthStore().isAuthenticated
-        ? '/shooter/dashboard'
-        : '/public/matches',
+    redirect: '/public/matches',
   },
 
   // Catch-all 404
