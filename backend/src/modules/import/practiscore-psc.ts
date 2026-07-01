@@ -138,8 +138,17 @@ export function parsePsc(buf: Uint8Array): ParsedMatch {
       if (!ss) continue;
       const ts: number[] = Array.isArray(ss.ts) ? ss.ts : [];
       const dnf = Boolean(ss.dnf ?? ss.dnfs);
-      // Nothing scored and not a DNF → shooter didn't shoot this stage.
-      if (ts.length === 0 && !dnf) continue;
+      const poph = Number(ss.poph ?? 0);
+      const popm = Number(ss.popm ?? 0);
+      const time = (Array.isArray(ss.str) ? ss.str : []).reduce(
+        (sum: number, t: unknown) => sum + toNum(t),
+        0
+      );
+      // Skip only if the shooter didn't shoot this stage at all. Steel-only
+      // stages have an empty `ts` (hits live in poph/popm), so don't drop them.
+      if (ts.length === 0 && poph === 0 && popm === 0 && time <= 0 && !dnf) {
+        continue;
+      }
 
       let a = 0;
       let bc = 0;
@@ -154,10 +163,6 @@ export function parsePsc(buf: Uint8Array): ParsedMatch {
         m += h.m;
         ns += h.ns;
       }
-      const time = (Array.isArray(ss.str) ? ss.str : []).reduce(
-        (sum: number, t: unknown) => sum + toNum(t),
-        0
-      );
 
       scores.push({
         stage_number: stage.stage_number,
@@ -167,8 +172,8 @@ export function parsePsc(buf: Uint8Array): ParsedMatch {
         miss: m,
         no_shoot: ns,
         procedural: Number(ss.proc ?? 0),
-        steel_hits: Number(ss.poph ?? 0),
-        steel_misses: Number(ss.popm ?? 0),
+        steel_hits: poph,
+        steel_misses: popm,
         time: time > 0 ? time : null,
         dqed: info.dq || Boolean(ss.dqs ?? ss.stagedq_details),
         dnf,
