@@ -104,16 +104,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, inject } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import type { PowerSyncDatabase } from '@powersync/web';
+import { whenPowerSyncReady } from 'src/boot/powersync';
 import type { Stage, Score, StageResultEntry, Organization } from '@hitfactor/shared';
 import { DEFAULT_ORGANIZATION } from '@hitfactor/shared';
 import { useAuthStore } from 'src/stores/auth.store';
 import StageResultsTable from 'src/components/results/StageResultsTable.vue';
 
 const route = useRoute();
-const db = inject<PowerSyncDatabase>('powerSyncDb');
+let db: PowerSyncDatabase | null = null;
 const authStore = useAuthStore();
 
 const matchId = route.params.id as string;
@@ -150,6 +151,7 @@ function scoringLabel(type: string): string {
 }
 
 onMounted(async () => {
+  db = await whenPowerSyncReady();
   if (!db) {
     loading.value = false;
     return;

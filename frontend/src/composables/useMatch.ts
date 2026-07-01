@@ -1,6 +1,7 @@
-import { ref, onMounted, inject } from 'vue';
+import { ref, onMounted } from 'vue';
 import type { PowerSyncDatabase } from '@powersync/web';
 import { api } from 'src/boot/axios';
+import { whenPowerSyncReady } from 'src/boot/powersync';
 import type {
   Match,
   Stage,
@@ -11,7 +12,10 @@ import type {
 } from '@hitfactor/shared';
 
 export function useMatch(matchId?: string) {
-  const db = inject<PowerSyncDatabase | null>('powerSyncDb', null);
+  // Obtained in onMounted via whenPowerSyncReady(); inject('powerSyncDb') only
+  // ever yields the boot-time null, which silently forced the (incomplete) REST
+  // fallback and left registrations/scores empty.
+  let db: PowerSyncDatabase | null = null;
   const matches = ref<Match[]>([]);
   const match = ref<Match | null>(null);
   const stages = ref<Stage[]>([]);
@@ -180,6 +184,7 @@ export function useMatch(matchId?: string) {
   }
 
   onMounted(async () => {
+    db = await whenPowerSyncReady();
     if (matchId) {
       await Promise.all([
         loadMatch(matchId),

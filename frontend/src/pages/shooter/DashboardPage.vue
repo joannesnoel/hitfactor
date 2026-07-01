@@ -59,12 +59,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, inject } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import type { PowerSyncDatabase } from '@powersync/web';
+import { whenPowerSyncReady } from 'src/boot/powersync';
 import type { Match } from '@hitfactor/shared';
 import MatchCard from 'src/components/match/MatchCard.vue';
 
-const db = inject<PowerSyncDatabase>('powerSyncDb');
+let db: PowerSyncDatabase | null = null;
 const loading = ref(true);
 const allMatches = ref<Match[]>([]);
 
@@ -94,6 +95,7 @@ function formatDate(dateStr: string): string {
 }
 
 onMounted(async () => {
+  db = await whenPowerSyncReady();
   if (!db) {
     loading.value = false;
     return;

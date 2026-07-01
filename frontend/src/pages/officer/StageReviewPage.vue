@@ -109,10 +109,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, inject } from 'vue';
+import { ref, reactive, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
 import type { PowerSyncDatabase } from '@powersync/web';
+import { whenPowerSyncReady } from 'src/boot/powersync';
 import type { Stage, Score, ScoringType, PowerFactor, Organization } from '@hitfactor/shared';
 import { computeScore, getDivisionLabel, DEFAULT_ORGANIZATION } from '@hitfactor/shared';
 import { useAuthStore } from 'src/stores/auth.store';
@@ -120,7 +121,7 @@ import type { QTableColumn } from 'quasar';
 
 const route = useRoute();
 const $q = useQuasar();
-const db = inject<PowerSyncDatabase>('powerSyncDb');
+let db: PowerSyncDatabase | null = null;
 const authStore = useAuthStore();
 
 const matchId = route.params.matchId as string;
@@ -243,6 +244,7 @@ async function loadScores() {
 }
 
 onMounted(async () => {
+  db = await whenPowerSyncReady();
   if (!db) {
     loading.value = false;
     return;

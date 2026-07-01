@@ -1,6 +1,6 @@
-import { computed, onMounted, onUnmounted, inject } from 'vue';
+import { computed, onMounted, onUnmounted } from 'vue';
 import { useSyncStore } from 'src/stores/sync.store';
-import type { PowerSyncDatabase } from '@powersync/web';
+import { whenPowerSyncReady } from 'src/boot/powersync';
 
 export function useSync() {
   const syncStore = useSyncStore();
@@ -12,8 +12,8 @@ export function useSync() {
   const isOnline = computed(() => syncStore.syncStatus === 'connected');
   const isSyncing = computed(() => syncStore.syncStatus === 'syncing');
 
-  function startTracking() {
-    const db = inject<PowerSyncDatabase>('powerSyncDb');
+  async function startTracking() {
+    const db = await whenPowerSyncReady();
     if (!db) return;
 
     // Track connection status changes
@@ -41,7 +41,7 @@ export function useSync() {
   }
 
   onMounted(() => {
-    startTracking();
+    void startTracking();
   });
 
   onUnmounted(() => {

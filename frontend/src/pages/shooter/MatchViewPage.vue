@@ -165,10 +165,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, inject } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
 import type { PowerSyncDatabase } from '@powersync/web';
+import { whenPowerSyncReady } from 'src/boot/powersync';
 import type { Match, Stage, Score, MatchResultEntry, Division, PowerFactor, Classification } from '@hitfactor/shared';
 import { POWER_FACTORS, CLASSIFICATIONS, getDivisionsForOrg, DEFAULT_ORGANIZATION } from '@hitfactor/shared';
 import { api } from 'src/boot/axios';
@@ -177,7 +178,7 @@ import MatchStandings from 'src/components/results/MatchStandings.vue';
 
 const route = useRoute();
 const $q = useQuasar();
-const db = inject<PowerSyncDatabase>('powerSyncDb');
+let db: PowerSyncDatabase | null = null;
 const authStore = useAuthStore();
 const matchId = route.params.id as string;
 
@@ -262,6 +263,7 @@ async function handleRegister() {
 }
 
 onMounted(async () => {
+  db = await whenPowerSyncReady();
   if (!db) {
     loading.value = false;
     return;
