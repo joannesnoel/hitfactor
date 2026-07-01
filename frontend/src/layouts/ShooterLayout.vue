@@ -36,12 +36,6 @@
       >
         <q-route-tab
           name="dashboard"
-          icon="home"
-          label="Dashboard"
-          :to="'/shooter/dashboard'"
-        />
-        <q-route-tab
-          name="matches"
           icon="emoji_events"
           label="Matches"
           :to="'/shooter/dashboard'"

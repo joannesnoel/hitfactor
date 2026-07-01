@@ -18,8 +18,75 @@
     </div>
 
     <template v-else>
-      <!-- Scores Table -->
+      <!-- Mobile: card per shooter with full-size Edit / Verify actions -->
+      <div v-if="$q.screen.lt.sm" class="column q-gutter-y-sm">
+        <q-card v-for="score in scores" :key="score.id" flat bordered>
+          <q-card-section class="q-pb-none">
+            <div class="row items-center no-wrap">
+              <div class="col">
+                <div class="text-weight-medium">{{ score.shooter_name }}</div>
+                <div class="text-caption text-grey">
+                  {{ getDivisionLabel(organization, score.division) }}
+                </div>
+              </div>
+              <div class="col-auto text-right">
+                <div class="text-weight-bold text-body1">
+                  HF {{ score.hit_factor.toFixed(4) }}
+                </div>
+                <div class="row items-center justify-end q-gutter-xs q-mt-xs">
+                  <q-badge v-if="score.dqed" color="red" label="DQ" />
+                  <q-badge
+                    v-else-if="score.dnf"
+                    color="orange"
+                    label="DNF"
+                  />
+                  <q-badge v-else color="green" label="OK" />
+                  <q-icon
+                    :name="
+                      score.verified
+                        ? 'check_circle'
+                        : 'radio_button_unchecked'
+                    "
+                    :color="score.verified ? 'green' : 'grey'"
+                    size="20px"
+                  />
+                </div>
+              </div>
+            </div>
+            <div class="text-caption text-grey q-mt-sm">
+              A{{ score.alpha_count }} C{{ score.charlie_count }} D{{
+                score.delta_count
+              }}
+              · M{{ score.miss_count }} NS{{ score.no_shoot_count }} P{{
+                score.procedural_count
+              }}
+              · {{ score.time.toFixed(2) }}s
+            </div>
+          </q-card-section>
+          <q-card-actions>
+            <q-btn
+              flat
+              color="primary"
+              icon="edit"
+              label="Edit"
+              class="col"
+              @click="editScore(score)"
+            />
+            <q-btn
+              flat
+              :color="score.verified ? 'grey' : 'green'"
+              :icon="score.verified ? 'undo' : 'verified'"
+              :label="score.verified ? 'Unverify' : 'Verify'"
+              class="col"
+              @click="toggleVerify(score)"
+            />
+          </q-card-actions>
+        </q-card>
+      </div>
+
+      <!-- Scores Table (desktop) -->
       <q-table
+        v-else
         :rows="scores"
         :columns="columns"
         row-key="id"
@@ -71,7 +138,11 @@
     </template>
 
     <!-- Edit Score Dialog -->
-    <q-dialog v-model="showEditDialog" full-width>
+    <q-dialog
+      v-model="showEditDialog"
+      :full-width="!$q.screen.lt.sm"
+      :maximized="$q.screen.lt.sm"
+    >
       <q-card v-if="editingScore" style="max-width: 600px">
         <q-card-section class="text-h6">
           Edit Score: {{ editingScore.shooter_name }}

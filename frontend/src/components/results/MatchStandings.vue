@@ -18,7 +18,66 @@
       />
     </q-tabs>
 
+    <!-- Mobile: one tappable card per shooter, expand for per-stage detail -->
+    <div v-if="$q.screen.lt.sm" class="column q-gutter-y-sm">
+      <q-expansion-item
+        v-for="row in filteredResults"
+        :key="row.registration_id"
+        class="standings-card"
+        dense-toggle
+        expand-icon-toggle
+      >
+        <template #header>
+          <q-item-section avatar class="standings-place">
+            <span
+              :class="
+                row.place <= 3 && !row.dqed
+                  ? 'text-weight-bold text-primary text-h6'
+                  : 'text-subtitle1'
+              "
+            >
+              {{ row.dqed ? 'DQ' : row.place }}
+            </span>
+          </q-item-section>
+          <q-item-section>
+            <q-item-label class="text-weight-medium">{{
+              row.shooter_name
+            }}</q-item-label>
+            <q-item-label caption>
+              {{ getDivisionLabel(organization, row.division)
+              }}{{ row.classification ? ` · ${row.classification}` : '' }}
+            </q-item-label>
+          </q-item-section>
+          <q-item-section side class="text-right">
+            <q-item-label class="text-weight-bold text-body1 text-grey-9">
+              {{ row.total_percentage.toFixed(2) }}%
+            </q-item-label>
+            <q-item-label caption>
+              {{ (row.match_points ?? 0).toFixed(2) }} pts
+            </q-item-label>
+          </q-item-section>
+        </template>
+        <q-card flat bordered>
+          <q-card-section class="row items-center q-gutter-xs">
+            <q-chip
+              v-for="stage in sortedStages"
+              :key="stage.id"
+              dense
+              square
+              size="md"
+              color="grey-2"
+              text-color="grey-9"
+            >
+              <span class="text-weight-bold q-mr-xs">S{{ stage.stage_number }}</span>
+              {{ stagePercentage(row, stage.id) }}
+            </q-chip>
+          </q-card-section>
+        </q-card>
+      </q-expansion-item>
+    </div>
+
     <q-table
+      v-else
       :rows="filteredResults"
       :columns="columns"
       row-key="registration_id"
@@ -47,9 +106,12 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
+import { useQuasar } from 'quasar';
 import type { MatchResultEntry, Stage, Organization } from '@hitfactor/shared';
 import { getDivisionLabel, DEFAULT_ORGANIZATION } from '@hitfactor/shared';
 import type { QTableColumn } from 'quasar';
+
+const $q = useQuasar();
 
 const props = withDefaults(
   defineProps<{
@@ -93,6 +155,16 @@ const stageColumns = computed<QTableColumn[]>(() => {
     }));
 });
 
+// Mobile card view reuses the same data as the stage columns.
+const sortedStages = computed(() =>
+  props.stages.slice().sort((a, b) => a.stage_number - b.stage_number)
+);
+
+function stagePercentage(row: MatchResultEntry, stageId: string): string {
+  const pct = row.stage_percentages[stageId];
+  return pct !== undefined ? `${pct.toFixed(2)}%` : '-';
+}
+
 const columns = computed<QTableColumn[]>(() => [
   { name: 'place', label: 'Place', field: 'place', align: 'center', sortable: true },
   { name: 'shooter_name', label: 'Name', field: 'shooter_name', align: 'left', sortable: true },
@@ -108,5 +180,14 @@ const columns = computed<QTableColumn[]>(() => [
 .standings-table {
   max-width: 100%;
   overflow-x: auto;
+}
+.standings-card {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 6px;
+  background: #fff;
+}
+.standings-place {
+  min-width: 40px;
+  align-items: center;
 }
 </style>

@@ -4,6 +4,16 @@ body {
   font-family: 'Roboto', sans-serif;
 }
 
+// Respect iOS safe areas (notch / home indicator) — the viewport uses
+// viewport-fit=cover, so pad the fixed chrome. Keeps the ShooterLayout bottom
+// tab bar clear of the home indicator and headers below the notch.
+.q-header {
+  padding-top: env(safe-area-inset-top);
+}
+.q-footer {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 .score-zone-btn {
   min-width: 64px;
   min-height: 64px;

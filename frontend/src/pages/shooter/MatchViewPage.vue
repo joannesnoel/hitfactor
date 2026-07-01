@@ -120,7 +120,7 @@
     </template>
 
     <!-- Registration Dialog -->
-    <q-dialog v-model="showRegisterDialog">
+    <q-dialog v-model="showRegisterDialog" :maximized="$q.screen.lt.sm">
       <q-card style="min-width: 350px">
         <q-card-section class="text-h6">Register for Match</q-card-section>
         <q-card-section class="q-gutter-md">

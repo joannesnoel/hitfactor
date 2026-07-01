@@ -25,7 +25,7 @@
               label="Start Date"
               type="date"
               outlined
-              class="col"
+              class="col-12 col-sm"
               :rules="[(val: string) => !!val || 'Start date is required']"
             >
               <template #prepend>
@@ -38,7 +38,7 @@
               label="End Date (optional)"
               type="date"
               outlined
-              class="col"
+              class="col-12 col-sm"
               clearable
               hint="Leave empty for single-day events"
             >
@@ -123,7 +123,7 @@
               emit-value
               map-options
               outlined
-              class="col"
+              class="col-12 col-sm"
               hint="Determines division names for this match"
             />
 
@@ -134,7 +134,7 @@
               emit-value
               map-options
               outlined
-              class="col"
+              class="col-12 col-sm"
             />
           </div>
 
@@ -242,7 +242,7 @@
     </q-card>
 
     <!-- Create Shooting Range Dialog -->
-    <q-dialog v-model="showCreateRangeDialog">
+    <q-dialog v-model="showCreateRangeDialog" :maximized="$q.screen.lt.sm">
       <q-card style="min-width: 400px">
         <q-card-section class="text-h6">Add Shooting Range</q-card-section>
         <q-card-section class="q-gutter-md">
@@ -275,7 +275,7 @@
     </q-dialog>
 
     <!-- Create Officer Dialog -->
-    <q-dialog v-model="showCreateOfficerDialog">
+    <q-dialog v-model="showCreateOfficerDialog" :maximized="$q.screen.lt.sm">
       <q-card style="min-width: 400px">
         <q-card-section class="text-h6">Create New Officer</q-card-section>
         <q-card-section class="q-gutter-md">
