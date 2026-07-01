@@ -25,20 +25,30 @@ export function useMatch(matchId?: string) {
 
   async function loadMatches() {
     loading.value = true;
-    try {
-      if (db) {
-        const result = await db.getAll<Match>(
-          'SELECT * FROM matches ORDER BY start_date DESC',
-        );
-        matches.value = result.map(normalizeMatch);
-      } else {
+    if (db) {
+      // Reactive: a one-shot query here races the initial PowerSync sync (the
+      // match hasn't landed in the local DB yet on first load) and shows an
+      // empty list. db.watch re-emits as matches sync in.
+      db.watch('SELECT * FROM matches ORDER BY start_date DESC', [], {
+        onResult: (result) => {
+          matches.value = (
+            (result.rows?._array as Match[] | undefined) ?? []
+          ).map(normalizeMatch);
+          loading.value = false;
+        },
+        onError: () => {
+          loading.value = false;
+        },
+      });
+    } else {
+      try {
         const response = await api.get<Match[]>('/api/matches');
         matches.value = response.data;
+      } catch (err) {
+        console.error('Failed to load matches:', err);
+      } finally {
+        loading.value = false;
       }
-    } catch (err) {
-      console.error('Failed to load matches:', err);
-    } finally {
-      loading.value = false;
     }
   }
 
