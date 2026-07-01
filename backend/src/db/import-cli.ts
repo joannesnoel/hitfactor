@@ -14,7 +14,7 @@ async function main() {
   const adminEmail =
     args[args.indexOf('--admin') + 1] && args.includes('--admin')
       ? args[args.indexOf('--admin') + 1]
-      : 'admin@hitfactor.com';
+      : 'admin@hitfactor.net';
 
   if (!file) {
     console.error('usage: import-cli <file.psc> [--dry-run] [--admin <email>]');

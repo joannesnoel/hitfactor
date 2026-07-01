@@ -21,7 +21,7 @@ async function seed() {
   const [adminUser] = await db
     .insert(users)
     .values({
-      email: 'admin@hitfactor.com',
+      email: 'admin@hitfactor.net',
       password_hash: passwordHash,
       display_name: 'Admin',
       roles: ['admin', 'officer', 'shooter'],
