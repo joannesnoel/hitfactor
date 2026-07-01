@@ -55,8 +55,13 @@ const matchResults = ref<MatchResultEntry[]>([]);
 
 async function loadMatchResults(): Promise<MatchResultEntry[]> {
   try {
-    const response = await api.get(`/api/matches/${matchId}/results`);
-    return response.data?.results ?? [];
+    // The endpoint returns one row per division ({ division, results: [...] });
+    // flatten into a single list — MatchStandings filters by a division selector.
+    const response = await api.get<Array<{ results: MatchResultEntry[] }>>(
+      `/api/matches/${matchId}/results`,
+    );
+    const rows = Array.isArray(response.data) ? response.data : [];
+    return rows.flatMap((r) => r.results ?? []);
   } catch {
     return [];
   }
@@ -69,7 +74,7 @@ onMounted(async () => {
 async function computeResults() {
   computing.value = true;
   try {
-    await api.post(`/api/matches/${matchId}/compute-results`);
+    await api.post(`/api/matches/${matchId}/results/compute`);
     matchResults.value = await loadMatchResults();
     $q.notify({ type: 'positive', message: 'Results computed!' });
   } catch {
