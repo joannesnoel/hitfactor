@@ -19,7 +19,7 @@ client_auth:
   # plain in-cluster HTTP to the backend Service — no cert hacks needed
   jwks_uri: http://hitfactor-backend:3000/api/auth/keys
   audience:
-    - https://sync-hitfactor.creativelogik.net # must equal backend POWERSYNC_URL
+    - https://sync.hitfactor.net # must equal backend POWERSYNC_URL
     - hitfactor-app
 
 port: 8080

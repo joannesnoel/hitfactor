@@ -26,32 +26,32 @@ patches:
     patch: |
       - op: replace
         path: /data/POWERSYNC_URL
-        value: https://sync-hitfactor-staging.creativelogik.net
+        value: https://sync-staging.hitfactor.net
       - op: replace
         path: /data/CORS_ORIGIN
-        value: https://hitfactor-staging.creativelogik.net
+        value: https://staging.hitfactor.net
   # ingress hosts (+ TLS SAN) per service
   - target: { kind: Ingress, name: backend }
     patch: |
       - op: replace
         path: /spec/rules/0/host
-        value: api-hitfactor-staging.creativelogik.net
+        value: api-staging.hitfactor.net
       - op: replace
         path: /spec/tls/0/hosts/0
-        value: api-hitfactor-staging.creativelogik.net
+        value: api-staging.hitfactor.net
   - target: { kind: Ingress, name: frontend }
     patch: |
       - op: replace
         path: /spec/rules/0/host
-        value: hitfactor-staging.creativelogik.net
+        value: staging.hitfactor.net
       - op: replace
         path: /spec/tls/0/hosts/0
-        value: hitfactor-staging.creativelogik.net
+        value: staging.hitfactor.net
   - target: { kind: Ingress, name: powersync }
     patch: |
       - op: replace
         path: /spec/rules/0/host
-        value: sync-hitfactor-staging.creativelogik.net
+        value: sync-staging.hitfactor.net
       - op: replace
         path: /spec/tls/0/hosts/0
-        value: sync-hitfactor-staging.creativelogik.net
+        value: sync-staging.hitfactor.net

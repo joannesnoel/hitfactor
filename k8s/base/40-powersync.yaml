@@ -94,10 +94,10 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: [sync-hitfactor.creativelogik.net]
+    - hosts: [sync.hitfactor.net]
       secretName: hitfactor-sync-tls
   rules:
-    - host: sync-hitfactor.creativelogik.net
+    - host: sync.hitfactor.net
       http:
         paths:
           - path: /

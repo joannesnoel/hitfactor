@@ -11,8 +11,8 @@ data:
   JWT_ISSUER: hitfactor
   JWT_AUDIENCE: hitfactor-app
   # Public hostnames — must match the Ingress hosts below.
-  POWERSYNC_URL: https://sync-hitfactor.creativelogik.net
-  CORS_ORIGIN: https://hitfactor.creativelogik.net
+  POWERSYNC_URL: https://sync.hitfactor.net
+  CORS_ORIGIN: https://hitfactor.net
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -102,10 +102,10 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: [api-hitfactor.creativelogik.net]
+    - hosts: [api.hitfactor.net]
       secretName: hitfactor-api-tls
   rules:
-    - host: api-hitfactor.creativelogik.net
+    - host: api.hitfactor.net
       http:
         paths:
           - path: /

@@ -6,9 +6,9 @@ makes browser↔PowerSync sync work in prod (no mixed-content issue like local d
 
 | Component | Hostname | Service |
 |---|---|---|
-| Frontend (PWA) | `hitfactor.creativelogik.net` | `hitfactor-frontend:80` |
-| Backend API | `api-hitfactor.creativelogik.net` | `hitfactor-backend:3000` |
-| PowerSync | `sync-hitfactor.creativelogik.net` | `hitfactor-powersync:8080` |
+| Frontend (PWA) | `hitfactor.net` | `hitfactor-frontend:80` |
+| Backend API | `api.hitfactor.net` | `hitfactor-backend:3000` |
+| PowerSync | `sync.hitfactor.net` | `hitfactor-powersync:8080` |
 
 Registry: `192.168.0.20:30500`. Namespace: `hitfactor`.
 
@@ -30,7 +30,7 @@ TAG=$(git rev-parse --short HEAD)
 
 docker build -f backend/Dockerfile -t $REG/hitfactor-backend:$TAG -t $REG/hitfactor-backend:latest .
 docker build -f frontend/Dockerfile \
-  --build-arg VITE_API_URL=https://api-hitfactor.creativelogik.net \
+  --build-arg VITE_API_URL=https://api.hitfactor.net \
   -t $REG/hitfactor-frontend:$TAG -t $REG/hitfactor-frontend:latest .
 
 docker push $REG/hitfactor-backend:latest
@@ -89,10 +89,10 @@ The migrate Job is part of the base, so it runs on apply. (Optional dev data:
 ### Staging
 
 Same flow in the `hitfactor-staging` namespace with staging hostnames
-(`hitfactor-staging` / `api-hitfactor-staging` / `sync-hitfactor-staging`
-.creativelogik.net). Create the staging secrets first (step 2, but
+(`staging.hitfactor.net` / `api-staging.hitfactor.net` /
+`sync-staging.hitfactor.net`). Create the staging secrets first (step 2, but
 `-n hitfactor-staging`, and set the **staging** sync audience
-`https://sync-hitfactor-staging.creativelogik.net` in `powersync.prod.yaml`),
+`https://sync-staging.hitfactor.net` in `powersync.prod.yaml`),
 then:
 
 ```bash
@@ -104,14 +104,14 @@ kubectl apply -k overlays/staging
 ```bash
 kubectl -n hitfactor get pods,ingress,certificate
 kubectl -n hitfactor get certificate          # all → READY=True (needs DNS)
-curl https://api-hitfactor.creativelogik.net/api/health      # {"status":"ok"}
-curl https://sync-hitfactor.creativelogik.net/probes/liveness # 200
+curl https://api.hitfactor.net/api/health      # {"status":"ok"}
+curl https://sync.hitfactor.net/probes/liveness # 200
 # replication slot exists (PowerSync CDC is live):
 kubectl -n hitfactor exec sts/postgres -- psql -U hitfactor -d hitfactor \
   -c "SELECT slot_name, active FROM pg_replication_slots;"
 ```
 
-Then open `https://hitfactor.creativelogik.net`, log in, and confirm the match
+Then open `https://hitfactor.net`, log in, and confirm the match
 list populates (end-to-end sync) and PSMOC/PPSA division labels render.
 
 ## 5. Updating

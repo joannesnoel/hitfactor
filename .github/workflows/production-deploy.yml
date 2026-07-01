@@ -23,7 +23,7 @@ jobs:
       BACKEND_IMAGE: hitfactor-backend
       FRONTEND_IMAGE: hitfactor-frontend
       NAMESPACE: hitfactor
-      VITE_API_URL: https://api-hitfactor.creativelogik.net
+      VITE_API_URL: https://api.hitfactor.net
 
     steps:
       - name: Checkout code

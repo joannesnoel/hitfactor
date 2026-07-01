@@ -61,10 +61,10 @@ metadata:
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: [hitfactor.creativelogik.net]
+    - hosts: [hitfactor.net]
       secretName: hitfactor-web-tls
   rules:
-    - host: hitfactor.creativelogik.net
+    - host: hitfactor.net
       http:
         paths:
           - path: /
