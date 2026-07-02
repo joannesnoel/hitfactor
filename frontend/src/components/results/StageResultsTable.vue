@@ -15,12 +15,40 @@
       style="max-width: 300px"
     />
 
+    <!-- Find a shooter → scroll to + highlight their row -->
+    <q-select
+      v-if="filteredResults.length > 1"
+      v-model="pick"
+      :options="shooterOptions"
+      use-input
+      input-debounce="0"
+      clearable
+      dense
+      outlined
+      label="Find shooter"
+      emit-value
+      map-options
+      class="q-mb-md"
+      style="max-width: 320px"
+      @filter="filterShooters"
+      @update:model-value="onPick"
+    >
+      <template #prepend><q-icon name="search" /></template>
+      <template #no-option>
+        <q-item>
+          <q-item-section class="text-grey">No match</q-item-section>
+        </q-item>
+      </template>
+    </q-select>
+
     <!-- Mobile: one card per shooter, expand for zone/time/points detail -->
     <div v-if="$q.screen.lt.sm" class="column q-gutter-y-sm">
       <q-expansion-item
         v-for="row in filteredResults"
+        :id="`stage-${row.registration_id}`"
         :key="row.registration_id"
         class="stage-result-card"
+        :class="{ 'result-focus': focusId === row.registration_id }"
         dense-toggle
         expand-icon-toggle
       >
@@ -101,31 +129,62 @@
       hide-bottom
       class="stage-results-table"
     >
-      <template #body-cell-place="props">
-        <q-td :props="props">
-          <span :class="{ 'text-weight-bold text-primary': props.row.place <= 3 }">
-            {{ props.row.dqed ? 'DQ' : props.row.dnf ? 'DNF' : props.row.place }}
-          </span>
-        </q-td>
-      </template>
-
-      <template #body-cell-hit_factor="props">
-        <q-td :props="props">
-          <span class="text-weight-bold">{{ props.row.hit_factor.toFixed(4) }}</span>
-        </q-td>
-      </template>
-
-      <template #body-cell-stage_percentage="props">
-        <q-td :props="props">
-          <span class="text-weight-bold">{{ props.row.stage_percentage.toFixed(2) }}%</span>
-        </q-td>
+      <template #body="props">
+        <q-tr
+          :id="`stage-${props.row.registration_id}`"
+          :props="props"
+          :class="{ 'result-focus': focusId === props.row.registration_id }"
+        >
+          <q-td key="place" :props="props">
+            <span
+              :class="{
+                'text-weight-bold text-primary':
+                  props.row.place <= 3 && !props.row.dqed && !props.row.dnf,
+              }"
+            >
+              {{ props.row.dqed ? 'DQ' : props.row.dnf ? 'DNF' : props.row.place }}
+            </span>
+          </q-td>
+          <q-td key="shooter_name" :props="props" class="text-left">
+            {{ props.row.shooter_name }}
+          </q-td>
+          <q-td key="division" :props="props">
+            {{ getDivisionLabel(organization, props.row.division) }}
+          </q-td>
+          <q-td key="power_factor" :props="props">{{ props.row.power_factor }}</q-td>
+          <q-td key="alpha_count" :props="props">{{ props.row.alpha_count }}</q-td>
+          <q-td key="charlie_count" :props="props">{{ props.row.charlie_count }}</q-td>
+          <q-td key="delta_count" :props="props">{{ props.row.delta_count }}</q-td>
+          <q-td key="miss_count" :props="props">{{ props.row.miss_count }}</q-td>
+          <q-td key="no_shoot_count" :props="props">{{ props.row.no_shoot_count }}</q-td>
+          <q-td key="procedural_count" :props="props">
+            {{ props.row.procedural_count }}
+          </q-td>
+          <q-td key="steel" :props="props">
+            {{ props.row.steel_hits }}/{{
+              props.row.steel_hits + props.row.steel_misses
+            }}
+          </q-td>
+          <q-td key="time" :props="props">{{ props.row.time.toFixed(2) }}</q-td>
+          <q-td key="total_points" :props="props">{{ props.row.total_points }}</q-td>
+          <q-td key="hit_factor" :props="props">
+            <span class="text-weight-bold">{{
+              props.row.hit_factor.toFixed(4)
+            }}</span>
+          </q-td>
+          <q-td key="stage_percentage" :props="props">
+            <span class="text-weight-bold">{{
+              props.row.stage_percentage.toFixed(2)
+            }}%</span>
+          </q-td>
+        </q-tr>
       </template>
     </q-table>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watchEffect } from 'vue';
+import { ref, computed, watchEffect, nextTick } from 'vue';
 import { useQuasar } from 'quasar';
 import type { StageResultEntry, Organization } from '@hitfactor/shared';
 import { getDivisionLabel, DEFAULT_ORGANIZATION } from '@hitfactor/shared';
@@ -174,6 +233,43 @@ const filteredResults = computed(() =>
   props.results.filter((r) => r.division === activeDivision.value)
 );
 
+// ── Find-a-shooter search → scroll to + highlight their row ──
+const pick = ref<string | null>(null);
+const focusId = ref<string>('');
+const shooterOptions = ref<{ label: string; value: string }[]>([]);
+
+function allShooterOptions() {
+  return filteredResults.value.map((r) => ({
+    label: `${r.dqed ? 'DQ' : r.dnf ? 'DNF' : r.place}. ${r.shooter_name}`,
+    value: r.registration_id,
+  }));
+}
+
+function filterShooters(val: string, update: (fn: () => void) => void) {
+  update(() => {
+    const q = val.toLowerCase();
+    shooterOptions.value = q
+      ? allShooterOptions().filter((o) => o.label.toLowerCase().includes(q))
+      : allShooterOptions();
+  });
+}
+
+function onPick(registrationId: string | null) {
+  if (!registrationId) {
+    focusId.value = '';
+    return;
+  }
+  focusId.value = registrationId;
+  void nextTick(() => {
+    document
+      .getElementById(`stage-${registrationId}`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+  window.setTimeout(() => {
+    if (focusId.value === registrationId) focusId.value = '';
+  }, 3000);
+}
+
 const columns = computed<QTableColumn[]>(() => [
   { name: 'place', label: 'Place', field: 'place', align: 'center', sortable: true },
   { name: 'shooter_name', label: 'Name', field: 'shooter_name', align: 'left', sortable: true },
@@ -212,5 +308,14 @@ const columns = computed<QTableColumn[]>(() => [
 .result-place {
   min-width: 40px;
   align-items: center;
+}
+/* Flash the searched-for shooter's row/card */
+.result-focus {
+  background-color: #fff8e1 !important;
+  box-shadow: inset 3px 0 0 var(--q-primary);
+  transition: background-color 0.4s ease;
+}
+.result-focus :deep(td) {
+  background-color: #fff8e1;
 }
 </style>
