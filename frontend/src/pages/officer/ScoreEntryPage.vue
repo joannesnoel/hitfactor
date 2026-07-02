@@ -90,6 +90,17 @@
                 label="scored"
                 class="q-ml-xs"
               />
+              <q-badge
+                v-if="currentRegistration"
+                color="white"
+                :text-color="
+                  currentRegistration.power_factor === 'Major'
+                    ? 'deep-orange'
+                    : 'blue'
+                "
+                :label="currentRegistration.power_factor"
+                class="q-ml-xs"
+              />
             </div>
             <div v-if="currentRegistration" class="text-h6 text-weight-bold ellipsis">
               {{ currentRegistration.shooter_name }}
@@ -97,7 +108,6 @@
             <div v-else class="text-subtitle1 q-py-xs">No shooters registered</div>
             <div v-if="currentRegistration" class="text-caption">
               {{ getDivisionLabel(organization, currentRegistration.division) }}
-              · {{ currentRegistration.power_factor }}
               <template v-if="currentRegistration.classification">
                 · {{ currentRegistration.classification }}
               </template>
