@@ -1,11 +1,39 @@
 <template>
   <div>
+    <!-- Find a shooter → scroll to + highlight their row -->
+    <q-select
+      v-if="filteredResults.length > 1"
+      v-model="pick"
+      :options="shooterOptions"
+      use-input
+      input-debounce="0"
+      clearable
+      dense
+      outlined
+      label="Find shooter"
+      emit-value
+      map-options
+      class="q-mb-md"
+      style="max-width: 320px"
+      @filter="filterShooters"
+      @update:model-value="onPick"
+    >
+      <template #prepend><q-icon name="search" /></template>
+      <template #no-option>
+        <q-item>
+          <q-item-section class="text-grey">No match</q-item-section>
+        </q-item>
+      </template>
+    </q-select>
+
     <!-- Mobile: one tappable card per shooter, expand for per-stage detail -->
     <div v-if="$q.screen.lt.sm" class="column q-gutter-y-sm">
       <q-expansion-item
         v-for="row in filteredResults"
+        :id="`standing-${row.registration_id}`"
         :key="row.registration_id"
         class="standings-card"
+        :class="{ 'result-focus': focusId === row.registration_id }"
         dense-toggle
         expand-icon-toggle
       >
@@ -67,28 +95,61 @@
       flat
       bordered
       dense
-      :pagination="{ rowsPerPage: 50 }"
+      :pagination="{ rowsPerPage: 0 }"
+      hide-bottom
       class="standings-table"
     >
-      <template #body-cell-place="props">
-        <q-td :props="props">
-          <span :class="{ 'text-weight-bold text-primary': props.row.place <= 3 }">
-            {{ props.row.dqed ? 'DQ' : props.row.place }}
-          </span>
-        </q-td>
-      </template>
-
-      <template #body-cell-total_percentage="props">
-        <q-td :props="props">
-          <span class="text-weight-bold">{{ props.row.total_percentage.toFixed(2) }}%</span>
-        </q-td>
+      <template #body="props">
+        <q-tr
+          :id="`standing-${props.row.registration_id}`"
+          :props="props"
+          :class="{ 'result-focus': focusId === props.row.registration_id }"
+        >
+          <q-td key="place" :props="props">
+            <span
+              :class="{
+                'text-weight-bold text-primary':
+                  props.row.place <= 3 && !props.row.dqed,
+              }"
+            >
+              {{ props.row.dqed ? 'DQ' : props.row.place }}
+            </span>
+          </q-td>
+          <q-td key="shooter_name" :props="props" class="text-left">
+            {{ props.row.shooter_name }}
+          </q-td>
+          <q-td key="division" :props="props">
+            {{ getDivisionLabel(organization, props.row.division) }}
+          </q-td>
+          <q-td key="classification" :props="props">
+            {{ props.row.classification ?? '-' }}
+          </q-td>
+          <q-td key="power_factor" :props="props">
+            {{ props.row.power_factor }}
+          </q-td>
+          <q-td
+            v-for="stage in sortedStages"
+            :key="`stage_${stage.id}`"
+            :props="props"
+          >
+            {{ stagePercentage(props.row, stage.id) }}
+          </q-td>
+          <q-td key="match_points" :props="props">
+            {{ (props.row.match_points ?? 0).toFixed(2) }}
+          </q-td>
+          <q-td key="total_percentage" :props="props">
+            <span class="text-weight-bold">
+              {{ props.row.total_percentage.toFixed(2) }}%
+            </span>
+          </q-td>
+        </q-tr>
       </template>
     </q-table>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, nextTick } from 'vue';
 import { useQuasar } from 'quasar';
 import type { MatchResultEntry, Stage, Organization } from '@hitfactor/shared';
 import { getDivisionLabel, DEFAULT_ORGANIZATION } from '@hitfactor/shared';
@@ -110,6 +171,43 @@ const props = withDefaults(
 const filteredResults = computed(() =>
   props.results.filter((r) => r.division === props.division)
 );
+
+// ── Find-a-shooter search → scroll to + highlight their row ──
+const pick = ref<string | null>(null);
+const focusId = ref<string>('');
+const shooterOptions = ref<{ label: string; value: string }[]>([]);
+
+function allShooterOptions() {
+  return filteredResults.value.map((r) => ({
+    label: `${r.dqed ? 'DQ' : r.place}. ${r.shooter_name}`,
+    value: r.registration_id,
+  }));
+}
+
+function filterShooters(val: string, update: (fn: () => void) => void) {
+  update(() => {
+    const q = val.toLowerCase();
+    shooterOptions.value = q
+      ? allShooterOptions().filter((o) => o.label.toLowerCase().includes(q))
+      : allShooterOptions();
+  });
+}
+
+function onPick(registrationId: string | null) {
+  if (!registrationId) {
+    focusId.value = '';
+    return;
+  }
+  focusId.value = registrationId;
+  void nextTick(() => {
+    document
+      .getElementById(`standing-${registrationId}`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+  window.setTimeout(() => {
+    if (focusId.value === registrationId) focusId.value = '';
+  }, 3000);
+}
 
 const stageColumns = computed<QTableColumn[]>(() => {
   return props.stages
@@ -162,5 +260,14 @@ const columns = computed<QTableColumn[]>(() => [
 .standings-place {
   min-width: 40px;
   align-items: center;
+}
+/* Flash the searched-for shooter's row/card */
+.result-focus {
+  background-color: #fff8e1 !important;
+  box-shadow: inset 3px 0 0 var(--q-primary);
+  transition: background-color 0.4s ease;
+}
+.result-focus :deep(td) {
+  background-color: #fff8e1;
 }
 </style>

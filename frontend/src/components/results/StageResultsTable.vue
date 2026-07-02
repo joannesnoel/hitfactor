@@ -97,7 +97,8 @@
       flat
       bordered
       dense
-      :pagination="{ rowsPerPage: 50 }"
+      :pagination="{ rowsPerPage: 0 }"
+      hide-bottom
       class="stage-results-table"
     >
       <template #body-cell-place="props">
