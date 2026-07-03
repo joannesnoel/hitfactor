@@ -18,6 +18,7 @@ import {
   registrations,
   scores,
   users,
+  shooterAliases,
 } from '../../db/schema.js';
 import { recomputeMatchResults } from '../results/results.controller.js';
 import { normalizeShooterName, cleanDisplayName } from './shooter-identity.js';
@@ -189,6 +190,19 @@ export async function importMatch(
           shooterCache.set(norm, existing.id);
           summary.shootersMatched++;
           return existing.id;
+        }
+
+        // No exact match — fall back to a recorded merge alias (nickname /
+        // spelling variant an admin previously merged), so hand merges stick.
+        const [alias] = await tx
+          .select({ user_id: shooterAliases.user_id })
+          .from(shooterAliases)
+          .where(eq(shooterAliases.normalized_name, norm))
+          .limit(1);
+        if (alias) {
+          shooterCache.set(norm, alias.user_id);
+          summary.shootersMatched++;
+          return alias.user_id;
         }
 
         const [created] = await tx

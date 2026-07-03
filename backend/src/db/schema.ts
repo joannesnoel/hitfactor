@@ -56,6 +56,21 @@ export const userDivisions = pgTable(
   ]
 );
 
+// ─── Shooter Aliases (sticky merges) ─────────────
+// Extra normalized "LAST, FIRST" keys that resolve to a shooter even though they
+// aren't that user's own normalized_name — recorded when an admin merges two
+// records (nickname / spelling / middle-name variants that normalization can't
+// derive). Consulted by the importer after the exact normalized_name lookup, so
+// a hand merge stays merged on future imports.
+export const shooterAliases = pgTable('shooter_aliases', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  normalized_name: varchar('normalized_name', { length: 120 }).notNull().unique(),
+  user_id: uuid('user_id')
+    .references(() => users.id, { onDelete: 'cascade' })
+    .notNull(),
+  created_at: timestamp('created_at').defaultNow().notNull(),
+});
+
 // ─── Matches ────────────────────────────────────
 
 export const shootingRanges = pgTable('shooting_ranges', {

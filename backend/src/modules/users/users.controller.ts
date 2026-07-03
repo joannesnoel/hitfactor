@@ -345,10 +345,10 @@ export async function mergeShooters(
   }
 
   const [source] = await db
-    .select({ id: users.id, claimed: users.claimed, display_name: users.display_name })
+    .select({ id: users.id, claimed: users.claimed, display_name: users.display_name, normalized_name: users.normalized_name })
     .from(users).where(eq(users.id, sourceId)).limit(1);
   const [target] = await db
-    .select({ id: users.id, display_name: users.display_name })
+    .select({ id: users.id, display_name: users.display_name, normalized_name: users.normalized_name })
     .from(users).where(eq(users.id, targetId)).limit(1);
 
   if (!source || !target) {
@@ -382,6 +382,18 @@ export async function mergeShooters(
     await tx.execute(sql`UPDATE scores SET scored_by = ${targetId} WHERE scored_by = ${sourceId}`);
     await tx.execute(sql`UPDATE scores SET verified_by = ${targetId} WHERE verified_by = ${sourceId}`);
     await tx.execute(sql`UPDATE scores SET modified_by = ${targetId} WHERE modified_by = ${sourceId}`);
+    // Make the merge sticky: carry over any aliases the source already owned,
+    // then record the source's own identity key as an alias of the target, so a
+    // future import of that name variant resolves to the kept record instead of
+    // re-creating the duplicate. (Aliases cascade-delete with the source, so
+    // re-point them before the delete.)
+    await tx.execute(sql`UPDATE shooter_aliases SET user_id = ${targetId} WHERE user_id = ${sourceId}`);
+    if (source.normalized_name && source.normalized_name !== target.normalized_name) {
+      await tx.execute(sql`
+        INSERT INTO shooter_aliases (normalized_name, user_id)
+        VALUES (${source.normalized_name}, ${targetId})
+        ON CONFLICT (normalized_name) DO UPDATE SET user_id = ${targetId}`);
+    }
     // Delete the source; cascades away its (now empty/duplicate) memberships.
     await tx.execute(sql`DELETE FROM users WHERE id = ${sourceId}`);
     return [{ moved: res.count ?? 0 }];
