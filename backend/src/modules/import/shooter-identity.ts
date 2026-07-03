@@ -17,7 +17,42 @@ export function cleanDisplayName(raw: string): string {
   return stripEntrySuffix(collapsed).replace(/\s+/g, ' ').trim();
 }
 
+// Police/military rank + title tokens that PSMOC embeds in the given-name field
+// ("ABESIA, PLT ELMER I"). Ranks change with promotions and are formatted
+// inconsistently, so they're stripped from the *matching key* only — the full
+// name (with rank) is kept for display via cleanDisplayName().
+const RANK_PREFIXES = new Set([
+  // PNP enlisted
+  'PAT', 'PCPL', 'PSSG', 'PMSG', 'PSMS', 'PCMS', 'PEMS', 'PMS',
+  // PNP commissioned / general
+  'PLT', 'PCPT', 'PCAPT', 'PMAJ', 'PLTCOL', 'PCOL', 'PBGEN', 'PMGEN',
+  'PLTGEN', 'PGEN', 'PSUPT', 'PSSUPT', 'PCSUPT', 'PSINSP', 'PINSP', 'PCINSP',
+  'PO1', 'PO2', 'PO3', 'SPO1', 'SPO2', 'SPO3', 'SPO4', 'NUP',
+  // AFP / military
+  'MSG', 'SSG', 'SGT', 'TSG', 'CPL', 'PFC', 'TS', 'CMS', 'SMS',
+  // civilian titles occasionally used in this field
+  'MS', 'MR', 'MRS', 'DR', 'ATTY', 'ENGR', 'HON',
+]);
+
+// Drop a leading rank/title token from the given-name, but only when a real name
+// follows (so "SURNAME, PAT" — where Pat is the name — is left intact).
+function stripRankPrefix(firstName: string): string {
+  const parts = firstName.split(' ').filter(Boolean);
+  while (
+    parts.length > 1 &&
+    RANK_PREFIXES.has(parts[0].replace(/\./g, '').toUpperCase())
+  ) {
+    parts.shift();
+  }
+  return parts.join(' ');
+}
+
 /** Case-insensitive identity key used to dedupe a shooter across matches. */
 export function normalizeShooterName(raw: string): string {
-  return cleanDisplayName(raw).toUpperCase();
+  const clean = cleanDisplayName(raw).toUpperCase();
+  const comma = clean.indexOf(',');
+  if (comma === -1) return clean;
+  const last = clean.slice(0, comma).trim();
+  const first = stripRankPrefix(clean.slice(comma + 1).trim());
+  return `${last}, ${first}`;
 }

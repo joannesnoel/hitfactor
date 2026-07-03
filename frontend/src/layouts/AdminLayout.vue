@@ -96,6 +96,18 @@
         <q-item
           clickable
           v-ripple
+          :to="'/admin/shooters'"
+          active-class="text-primary"
+        >
+          <q-item-section avatar>
+            <q-icon name="people" />
+          </q-item-section>
+          <q-item-section>Shooters</q-item-section>
+        </q-item>
+
+        <q-item
+          clickable
+          v-ripple
           :to="'/admin/ranges'"
           active-class="text-primary"
         >

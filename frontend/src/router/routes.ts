@@ -25,6 +25,10 @@ const routes: RouteRecordRaw[] = [
         component: () => import('src/pages/admin/ManageOfficersPage.vue'),
       },
       {
+        path: 'shooters',
+        component: () => import('src/pages/admin/ShootersPage.vue'),
+      },
+      {
         path: 'ranges',
         component: () => import('src/pages/admin/RangesPage.vue'),
       },
