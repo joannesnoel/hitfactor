@@ -6,6 +6,7 @@ import { updateProfileSchema, createOfficerSchema, ROLES } from '@hitfactor/shar
 import type { Role } from '@hitfactor/shared';
 import { db } from '../../config/database.js';
 import { users, userDivisions } from '../../db/schema.js';
+import { suggestDuplicates } from './shooter-suggestions.js';
 
 export async function createOfficer(
   request: FastifyRequest,
@@ -315,6 +316,30 @@ export async function listShooters(
     .limit(50);
 
   return reply.send(result);
+}
+
+/**
+ * Admin: suggest likely-duplicate shooters to review + merge, so the admin
+ * doesn't have to guess who to search for. Fuzzy-groups records by surname +
+ * given-name similarity (nicknames, spelling, middle names). Nothing auto-merges.
+ */
+export async function listShooterSuggestions(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const rows = await db
+    .select({
+      id: users.id,
+      display_name: users.display_name,
+      normalized_name: users.normalized_name,
+      claimed: users.claimed,
+      member_number: users.member_number,
+      match_count: sql<number>`(SELECT count(DISTINCT r.match_id)::int FROM registrations r WHERE r.user_id = ${users.id})`,
+      registration_count: sql<number>`(SELECT count(*)::int FROM registrations r WHERE r.user_id = ${users.id})`,
+    })
+    .from(users);
+
+  return reply.send(suggestDuplicates(rows).slice(0, 300));
 }
 
 /**

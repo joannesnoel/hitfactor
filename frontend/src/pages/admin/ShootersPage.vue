@@ -2,11 +2,75 @@
   <q-page padding>
     <div class="text-h5 text-weight-bold q-mb-xs">Shooters</div>
     <div class="text-grey-7 q-mb-lg">
-      Find duplicate shooter records (e.g. the same person imported under a rank
-      prefix or nickname) and merge them into one. Search a surname, select the
-      records that are the same person, choose which to keep, then merge.
+      Review the suggested duplicate shooters below (same person imported under a
+      nickname, spelling, or middle-name variant), or search manually. Choose
+      which record to keep, then merge — the merge is remembered for future imports.
     </div>
 
+    <!-- Suggested duplicates: fuzzy-grouped candidates to review + merge -->
+    <div v-if="loadingSuggestions" class="row items-center q-gutter-sm q-mb-lg text-grey-7">
+      <q-spinner color="primary" size="1.5em" /> Scanning for likely duplicates…
+    </div>
+    <div v-else-if="suggestions.length" class="q-mb-lg">
+      <div class="text-subtitle1 text-weight-medium q-mb-sm">
+        Suggested matches
+        <q-badge color="primary" class="q-ml-xs">{{ suggestions.length }}</q-badge>
+      </div>
+      <q-card
+        v-for="(g, gi) in suggestions"
+        :key="gi"
+        flat
+        bordered
+        class="q-mb-sm"
+      >
+        <q-card-section class="q-py-sm">
+          <div class="row items-center q-gutter-sm q-mb-xs">
+            <q-badge :color="tierColor(g.tier)" :label="`${g.tier} · ${Math.round(g.confidence * 100)}%`" />
+            <span class="text-caption text-grey-7">{{ g.reason }}</span>
+            <q-space />
+            <q-btn flat dense size="sm" color="grey-7" label="Dismiss" @click="dismiss(gi)" />
+            <q-btn
+              color="primary"
+              unelevated
+              dense
+              size="sm"
+              icon="merge"
+              :label="`Merge ${g.shooters.length - 1} in`"
+              :loading="g.merging"
+              @click="mergeSuggestion(g, gi)"
+            />
+          </div>
+          <q-list dense>
+            <q-item
+              v-for="s in g.shooters"
+              :key="s.id"
+              clickable
+              @click="g.keepId = s.id"
+            >
+              <q-item-section side>
+                <q-radio v-model="g.keepId" :val="s.id" dense />
+              </q-item-section>
+              <q-item-section>
+                <q-item-label>
+                  {{ s.display_name }}
+                  <q-badge v-if="s.id === g.keepId" color="green" class="q-ml-sm" label="keep" />
+                </q-item-label>
+                <q-item-label caption>
+                  {{ s.match_count }} match{{ s.match_count === 1 ? '' : 'es' }} ·
+                  {{ s.registration_count }} entries<span v-if="s.claimed"> · claimed</span><span v-if="s.member_number"> · #{{ s.member_number }}</span>
+                </q-item-label>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-card-section>
+      </q-card>
+    </div>
+    <div v-else class="text-grey-6 q-mb-lg">
+      No likely duplicates found — everything looks already matched. Use search
+      below for anything the suggestions miss (e.g. unrelated nicknames).
+    </div>
+
+    <div class="text-subtitle1 text-weight-medium q-mb-sm">Search all shooters</div>
     <q-input
       v-model="query"
       label="Search by name or member #"
@@ -101,7 +165,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { api } from 'src/boot/axios';
 import type { QTableColumn } from 'quasar';
@@ -116,6 +180,16 @@ interface Shooter {
   registration_count: number;
 }
 
+interface SuggestionGroup {
+  confidence: number;
+  tier: 'high' | 'medium' | 'low';
+  reason: string;
+  suggested_keep_id: string;
+  shooters: Shooter[];
+  keepId: string; // local: which record to keep (defaults to suggested)
+  merging: boolean; // local: per-group merge spinner
+}
+
 const $q = useQuasar();
 const query = ref('');
 const rows = ref<Shooter[]>([]);
@@ -123,8 +197,69 @@ const loading = ref(false);
 const merging = ref(false);
 const selected = ref<Shooter[]>([]);
 const keepId = ref<string>('');
+const suggestions = ref<SuggestionGroup[]>([]);
+const loadingSuggestions = ref(false);
 // `clearable` sets the model to null on clear, so guard before trimming.
 const trimmedQuery = computed(() => (query.value ?? '').trim());
+
+onMounted(loadSuggestions);
+
+async function loadSuggestions(): Promise<void> {
+  loadingSuggestions.value = true;
+  try {
+    const { data } = await api.get<SuggestionGroup[]>('/api/users/shooters/duplicates');
+    suggestions.value = data.map((g) => ({
+      ...g,
+      keepId: g.suggested_keep_id,
+      merging: false,
+    }));
+  } catch {
+    $q.notify({ type: 'negative', message: 'Failed to load suggestions' });
+  } finally {
+    loadingSuggestions.value = false;
+  }
+}
+
+function tierColor(tier: string): string {
+  return tier === 'high' ? 'green-7' : tier === 'medium' ? 'orange-8' : 'grey-6';
+}
+
+function dismiss(index: number): void {
+  suggestions.value.splice(index, 1);
+}
+
+async function mergeSuggestion(g: SuggestionGroup, index: number): Promise<void> {
+  const keep = g.shooters.find((s) => s.id === g.keepId);
+  const dups = g.shooters.filter((s) => s.id !== g.keepId);
+  if (!keep || dups.length === 0) return;
+  const claimedDup = dups.find((s) => s.claimed);
+  if (claimedDup) {
+    $q.notify({
+      type: 'warning',
+      message: `“${claimedDup.display_name}” is a claimed account — make it the keep record.`,
+    });
+    return;
+  }
+  g.merging = true;
+  try {
+    for (const d of dups) {
+      await api.post(`/api/users/${d.id}/merge`, { into: keep.id });
+    }
+    $q.notify({
+      type: 'positive',
+      message: `Merged ${dups.length} into ${keep.display_name}.`,
+    });
+    suggestions.value.splice(index, 1);
+    if (trimmedQuery.value.length >= 2) await search();
+  } catch (e) {
+    const msg =
+      (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+      'Merge failed';
+    $q.notify({ type: 'negative', message: msg });
+  } finally {
+    g.merging = false;
+  }
+}
 
 const columns: QTableColumn[] = [
   { name: 'select', label: '', field: 'id', align: 'center' },
