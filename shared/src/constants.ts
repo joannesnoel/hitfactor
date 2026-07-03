@@ -22,6 +22,8 @@ export const DIVISION_KEYS = [
   'pcc_iron',
   'prr_limited',
   'prr_unlimited',
+  'limited_10',
+  'pcc_sb_unlimited',
 ] as const;
 export type DivisionKey = (typeof DIVISION_KEYS)[number];
 
@@ -48,6 +50,8 @@ export const DIVISION_CONFIG: Record<
     { key: 'pcc_iron', label: 'Limited PCC' },
     { key: 'prr_limited', label: 'Practical Rimfired Rifle Limited' },
     { key: 'prr_unlimited', label: 'Practical Rimfired Rifle Unlimited' },
+    { key: 'limited_10', label: 'Limited 10' },
+    { key: 'pcc_sb_unlimited', label: 'PCC Short Barrel Unlimited' },
   ],
   PPSA: [
     { key: 'open', label: 'Open' },
@@ -101,10 +105,18 @@ const PRACTISCORE_DIVISION_ABBREV: Record<string, DivisionKey> = {
   u: 'open',
   prrl: 'prr_limited',
   prru: 'prr_unlimited',
+  l10: 'limited_10',
+  pccsbu: 'pcc_sb_unlimited',
   // PractiScore full-name variants that don't exactly match a PSMOC label
-  // (e.g. plural "Optics" vs label "Optic").
+  // (e.g. plural "Optics" vs label "Optic", or the full PCC/PRR names vs the
+  // short "Unlimited PCC" / "Practical Rimfired Rifle …" labels).
   stockhicapoptic: 'optics',
   stockhicapoptics: 'optics',
+  pistolcalibercarbinelimited: 'pcc_iron',
+  pistolcalibercarbineunlimited: 'pcc_optics',
+  pistolcalibercarbineshortbarrelunlimited: 'pcc_sb_unlimited',
+  practicalrimfireriflelimited: 'prr_limited',
+  practicalrimfirerifleunlimited: 'prr_unlimited',
 };
 
 /** Resolve a PractiScore division string (abbrev, key, or label) to a canonical

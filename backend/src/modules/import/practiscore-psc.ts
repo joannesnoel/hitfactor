@@ -101,7 +101,12 @@ export function parsePsc(buf: Uint8Array): ParsedMatch {
     : { match_scores: [] };
 
   // ── Stages ──────────────────────────────────────────────────────────────
-  const stages: ParsedStage[] = (def.match_stages ?? []).map((st: Json) => {
+  const stages: ParsedStage[] = (def.match_stages ?? [])
+    // Chronograph "stages" are power-factor checks, not scored stages — skip them.
+    .filter(
+      (st: Json) => String(st.stage_scoretype ?? '').toLowerCase() !== 'chrono'
+    )
+    .map((st: Json) => {
     const targets: Json[] = st.stage_targets ?? [];
     return {
       stage_number: Number(st.stage_number),
