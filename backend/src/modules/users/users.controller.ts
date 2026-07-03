@@ -307,8 +307,8 @@ export async function listShooters(
       member_number: users.member_number,
       claimed: users.claimed,
       roles: users.roles,
-      match_count: sql<number>`(SELECT count(DISTINCT r.match_id)::int FROM registrations r WHERE r.user_id = ${users.id})`,
-      registration_count: sql<number>`(SELECT count(*)::int FROM registrations r WHERE r.user_id = ${users.id})`,
+      match_count: sql<number>`(SELECT count(DISTINCT r.match_id)::int FROM registrations r WHERE r.user_id = users.id)`,
+      registration_count: sql<number>`(SELECT count(*)::int FROM registrations r WHERE r.user_id = users.id)`,
     })
     .from(users)
     .where(or(ilike(users.display_name, pattern), ilike(users.member_number, pattern)))
@@ -334,8 +334,8 @@ export async function listShooterSuggestions(
       normalized_name: users.normalized_name,
       claimed: users.claimed,
       member_number: users.member_number,
-      match_count: sql<number>`(SELECT count(DISTINCT r.match_id)::int FROM registrations r WHERE r.user_id = ${users.id})`,
-      registration_count: sql<number>`(SELECT count(*)::int FROM registrations r WHERE r.user_id = ${users.id})`,
+      match_count: sql<number>`(SELECT count(DISTINCT r.match_id)::int FROM registrations r WHERE r.user_id = users.id)`,
+      registration_count: sql<number>`(SELECT count(*)::int FROM registrations r WHERE r.user_id = users.id)`,
     })
     .from(users);
 
