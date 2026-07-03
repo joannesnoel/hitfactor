@@ -63,6 +63,30 @@ function parseCategories(raw: unknown): string[] {
   }
 }
 
+const VALID_CLASSIFICATIONS = new Set(['GM', 'M', 'A', 'B', 'C', 'D', 'U']);
+
+// PractiScore `sh_grd` is free-form — short codes, full words, or a percentage.
+// The app stores classification as a short USPSA-style code (varchar(5)), so map
+// to a known code or null. Unknown/long grades → null, never a raw overflowing
+// string.
+function normalizeClassification(raw: unknown): string | null {
+  if (raw == null) return null;
+  const s = String(raw).trim().toUpperCase();
+  if (!s) return null;
+  if (VALID_CLASSIFICATIONS.has(s)) return s;
+  const aliases: Record<string, string> = {
+    GRANDMASTER: 'GM',
+    'GRAND MASTER': 'GM',
+    MASTER: 'M',
+    UNCLASSIFIED: 'U',
+    UNCL: 'U',
+    UNC: 'U',
+    NONE: 'U',
+    NA: 'U',
+  };
+  return aliases[s] ?? null;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Json = any;
 
@@ -113,7 +137,7 @@ export function parsePsc(buf: Uint8Array): ParsedMatch {
       division: String(sh.sh_dvp ?? ''),
       power_factor: String(sh.sh_pf ?? 'MINOR'),
       categories: parseCategories(sh.sh_ctgs),
-      classification: sh.sh_grd ? String(sh.sh_grd) : null,
+      classification: normalizeClassification(sh.sh_grd),
       dq: Boolean(sh.sh_dq),
     });
   }
