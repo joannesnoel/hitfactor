@@ -92,7 +92,7 @@
     </q-table>
 
     <div
-      v-if="!loading && query.trim().length >= 2 && rows.length === 0"
+      v-if="!loading && trimmedQuery.length >= 2 && rows.length === 0"
       class="text-center text-grey q-pa-xl"
     >
       No shooters match “{{ query }}”.
@@ -123,6 +123,8 @@ const loading = ref(false);
 const merging = ref(false);
 const selected = ref<Shooter[]>([]);
 const keepId = ref<string>('');
+// `clearable` sets the model to null on clear, so guard before trimming.
+const trimmedQuery = computed(() => (query.value ?? '').trim());
 
 const columns: QTableColumn[] = [
   { name: 'select', label: '', field: 'id', align: 'center' },
@@ -160,7 +162,7 @@ function toggle(row: Shooter, on: boolean): void {
 }
 
 async function search(): Promise<void> {
-  const q = query.value.trim();
+  const q = trimmedQuery.value;
   if (q.length < 2) {
     rows.value = [];
     return;
