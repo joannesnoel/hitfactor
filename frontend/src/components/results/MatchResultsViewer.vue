@@ -93,12 +93,18 @@ const cache = new Map<string, StageResultEntry[]>();
 
 // One division for the whole results view; defaults to the first, never empty.
 const availableDivisions = computed(() => {
-  const divs = new Set(props.matchResults.map((r) => r.division));
-  return Array.from(divs).sort();
+  const real = Array.from(
+    new Set(props.matchResults.filter((r) => !r.combined).map((r) => r.division))
+  ).sort();
+  // Append the cross-division Combined ranking when the backend computed it.
+  return props.matchResults.some((r) => r.combined)
+    ? [...real, 'combined']
+    : real;
 });
 const divisionOptions = computed(() =>
   availableDivisions.value.map((d) => ({
-    label: getDivisionLabel(props.organization, d),
+    label:
+      d === 'combined' ? 'Combined' : getDivisionLabel(props.organization, d),
     value: d,
   }))
 );

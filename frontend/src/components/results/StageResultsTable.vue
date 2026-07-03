@@ -229,9 +229,14 @@ const divisionOptions = computed(() => {
   }));
 });
 
-const filteredResults = computed(() =>
-  props.results.filter((r) => r.division === activeDivision.value)
-);
+const filteredResults = computed(() => {
+  if (activeDivision.value === 'combined') {
+    return props.results.filter((r) => r.combined);
+  }
+  return props.results.filter(
+    (r) => r.division === activeDivision.value && !r.combined
+  );
+});
 
 // ── Find-a-shooter search → scroll to + highlight their row ──
 const pick = ref<string | null>(null);

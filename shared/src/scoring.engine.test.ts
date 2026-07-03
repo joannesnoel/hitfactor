@@ -297,6 +297,28 @@ describe('computeStageResults', () => {
     const { results } = computeStageResults(scores, 'comstock', 'Open', 50);
     expect(results).toHaveLength(1);
   });
+
+  it('combined pools all divisions against the overall best HF', () => {
+    const scores = [
+      makeScore({ registration_id: 'r1', shooter_name: 'FastOpen', division: 'open', time: 5 }),
+      makeScore({ registration_id: 'r2', shooter_name: 'SlowProd', division: 'production', time: 10 }),
+    ];
+    const { results, stageWinnerHF } = computeStageResults(
+      scores,
+      'comstock',
+      'combined',
+      50,
+      true
+    );
+    expect(results).toHaveLength(2); // both divisions in one pool
+    expect(stageWinnerHF).toBe(10.0);
+    expect(results[0].shooter_name).toBe('FastOpen');
+    expect(results[0].division).toBe('open'); // keeps its real division
+    expect(results[0].combined).toBe(true);
+    expect(results[0].stage_percentage).toBe(100);
+    expect(results[1].division).toBe('production');
+    expect(results[1].stage_percentage).toBe(50);
+  });
 });
 
 describe('computeMatchResults', () => {

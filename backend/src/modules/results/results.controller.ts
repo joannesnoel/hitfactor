@@ -157,6 +157,54 @@ export async function recomputeMatchResults(
         results,
       });
     }
+
+    // Combined (cross-division) — one pool, scored vs the single overall best HF.
+    if (stageScores.length > 0) {
+      const { stageWinnerHF, results } = computeStageResults(
+        stageScores,
+        stage.scoring_type as ScoringType,
+        'combined',
+        stage.max_points,
+        true
+      );
+
+      const [existingCombined] = await db
+        .select({ id: stageResults.id })
+        .from(stageResults)
+        .where(
+          and(
+            eq(stageResults.stage_id, stage.id),
+            eq(stageResults.division, 'combined')
+          )
+        )
+        .limit(1);
+
+      if (existingCombined) {
+        await db
+          .update(stageResults)
+          .set({
+            stage_winner_hit_factor: stageWinnerHF.toString(),
+            results: results,
+            computed_at: now,
+          })
+          .where(eq(stageResults.id, existingCombined.id));
+      } else {
+        await db.insert(stageResults).values({
+          match_id: matchId,
+          stage_id: stage.id,
+          division: 'combined',
+          stage_winner_hit_factor: stageWinnerHF.toString(),
+          results: results,
+          computed_at: now,
+        });
+      }
+
+      allStageResultsForMatch.push({
+        stage_id: stage.id,
+        division: 'combined',
+        results,
+      });
+    }
   }
 
   // Compute match results per division

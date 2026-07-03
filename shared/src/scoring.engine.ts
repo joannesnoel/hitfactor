@@ -141,10 +141,14 @@ export function computeStageResults(
   scores: StageScoreData[],
   scoringType: ScoringType,
   division: string,
-  maxStagePoints: number
+  maxStagePoints: number,
+  combined = false
 ): { stageWinnerHF: number; results: StageResultEntry[] } {
-  // Filter to division
-  const divisionScores = scores.filter((s) => s.division === division);
+  // Combined = one pool across all divisions (winner is the single overall best
+  // HF); otherwise filter to the division. Entries keep their real division.
+  const divisionScores = combined
+    ? scores
+    : scores.filter((s) => s.division === division);
 
   // Compute HF for each
   const computed = divisionScores.map((s) => {
@@ -210,6 +214,7 @@ export function computeStageResults(
       place: 0, // Assigned below
       dqed: s.dqed,
       dnf: s.dnf,
+      combined,
     }))
     .sort((a, b) => {
       // DQ/DNF go last
@@ -245,6 +250,10 @@ export function computeMatchResults(
       shooter_name: string;
       classification: string | null;
       power_factor: PowerFactor;
+      // Keep the shooter's real division (for the Combined view it differs from
+      // the `division` param, which is the pseudo-division 'combined').
+      division: string;
+      combined: boolean | undefined;
       stagePercentages: Map<string, number>;
       matchPoints: number;
       dqed: boolean;
@@ -260,6 +269,8 @@ export function computeMatchResults(
           shooter_name: entry.shooter_name,
           classification: entry.classification,
           power_factor: entry.power_factor,
+          division: entry.division,
+          combined: entry.combined,
           stagePercentages: new Map(),
           matchPoints: 0,
           dqed: false,
@@ -294,7 +305,7 @@ export function computeMatchResults(
     entries.push({
       registration_id: regId,
       shooter_name: reg.shooter_name,
-      division: division as MatchResultEntry['division'],
+      division: reg.division as MatchResultEntry['division'],
       classification:
         reg.classification as MatchResultEntry['classification'],
       power_factor: reg.power_factor,
@@ -305,6 +316,7 @@ export function computeMatchResults(
       ),
       place: 0,
       dqed: reg.dqed,
+      combined: reg.combined,
     });
   }
 

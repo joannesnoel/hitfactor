@@ -179,6 +179,9 @@ export interface StageResultEntry {
   place: number;
   dqed: boolean;
   dnf: boolean;
+  // True for the cross-division "Combined" result set (scored against the single
+  // best hit factor across all divisions). `division` stays the shooter's real one.
+  combined?: boolean;
 }
 
 export interface StageResult {
@@ -205,6 +208,8 @@ export interface MatchResultEntry {
   total_percentage: number;
   place: number;
   dqed: boolean;
+  // True for the cross-division "Combined" ranking; `division` stays the real one.
+  combined?: boolean;
 }
 
 export interface MatchResult {

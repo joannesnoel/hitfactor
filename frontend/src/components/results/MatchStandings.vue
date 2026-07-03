@@ -168,9 +168,15 @@ const props = withDefaults(
   { organization: DEFAULT_ORGANIZATION }
 );
 
-const filteredResults = computed(() =>
-  props.results.filter((r) => r.division === props.division)
-);
+const filteredResults = computed(() => {
+  // 'combined' = the cross-division ranking (entries keep their real division).
+  if (props.division === 'combined') {
+    return props.results.filter((r) => r.combined);
+  }
+  return props.results.filter(
+    (r) => r.division === props.division && !r.combined
+  );
+});
 
 // ── Find-a-shooter search → scroll to + highlight their row ──
 const pick = ref<string | null>(null);
