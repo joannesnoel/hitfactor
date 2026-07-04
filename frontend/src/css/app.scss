@@ -1,7 +1,25 @@
 // App-wide SCSS
 
 body {
-  font-family: 'Roboto', sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+// Barlow Semi Condensed for headings, titles, and scoreboard numbers — a
+// leaderboard feel. Body stays Inter for legibility.
+.text-h1, .text-h2, .text-h3, .text-h4, .text-h5, .text-h6,
+.q-toolbar__title,
+.hf-display {
+  font-family: 'Barlow Semi Condensed', 'Inter', sans-serif;
+  letter-spacing: 0.2px;
+}
+
+// Align scores / times / percentages in tables and result displays.
+.q-table,
+.hf-display,
+.standings-table,
+.stage-results-table {
+  font-variant-numeric: tabular-nums;
 }
 
 // Respect iOS safe areas (notch / home indicator) — the viewport uses
