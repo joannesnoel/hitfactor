@@ -161,7 +161,11 @@
       <!-- Full Stage Results -->
       <div v-if="stageResults.length > 0">
         <div class="text-h6 q-mb-md">Stage Results</div>
-        <StageResultsTable :results="stageResults" :organization="organization" />
+        <StageResultsTable
+          :results="stageResults"
+          :organization="organization"
+          :default-division="myStageResult?.division"
+        />
       </div>
     </template>
   </q-page>

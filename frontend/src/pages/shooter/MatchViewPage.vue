@@ -111,6 +111,7 @@
             :match-results="matchResults"
             :stages="stages"
             :organization="match?.organization"
+            :default-division="myDivision"
             :load-stage-results="loadStageResults"
           />
           <div v-else class="text-center text-grey q-pa-lg">
@@ -188,6 +189,8 @@ const match = ref<Match | null>(null);
 const stages = ref<Stage[]>([]);
 const myScores = ref<Score[]>([]);
 const matchResults = ref<MatchResultEntry[]>([]);
+// The shooter's own division (first entry) — the default for the results selector.
+const myDivision = computed(() => myScores.value[0]?.division);
 
 async function loadStageResults(
   stageId: string,

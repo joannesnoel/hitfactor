@@ -184,11 +184,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watchEffect, nextTick } from 'vue';
+import { ref, computed, watch, watchEffect, nextTick } from 'vue';
 import { useQuasar } from 'quasar';
 import type { StageResultEntry, Organization } from '@hitfactor/shared';
 import { getDivisionLabel, DEFAULT_ORGANIZATION } from '@hitfactor/shared';
 import type { QTableColumn } from 'quasar';
+import {
+  usePreferredDivision,
+  pickInitialDivision,
+} from 'src/composables/usePreferredDivision';
 
 const $q = useQuasar();
 
@@ -196,12 +200,16 @@ const props = withDefaults(
   defineProps<{
     results: StageResultEntry[];
     // When set, the parent controls the (single) division and the local
-    // selector is hidden. When absent, we default to the first division.
+    // selector is hidden. When absent, we default to the sticky/first division.
     division?: string;
+    // Default selection (e.g. the shooter's division) when there's no preference.
+    defaultDivision?: string;
     organization?: Organization;
   }>(),
   { organization: DEFAULT_ORGANIZATION }
 );
+
+const { remember } = usePreferredDivision();
 
 const availableDivisions = computed(() => {
   const divs = new Set(props.results.map((r) => r.division));
@@ -216,8 +224,14 @@ watchEffect(() => {
     !props.division &&
     !availableDivisions.value.includes(internalDivision.value)
   ) {
-    internalDivision.value = availableDivisions.value[0] ?? '';
+    internalDivision.value = pickInitialDivision(
+      availableDivisions.value,
+      props.defaultDivision
+    );
   }
+});
+watch(internalDivision, (v) => {
+  if (!props.division && v) remember(v);
 });
 
 const activeDivision = computed(() => props.division ?? internalDivision.value);

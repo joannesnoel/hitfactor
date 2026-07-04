@@ -73,18 +73,27 @@ import type {
 import { DEFAULT_ORGANIZATION, getDivisionLabel } from '@hitfactor/shared';
 import MatchStandings from 'src/components/results/MatchStandings.vue';
 import StageResultsTable from 'src/components/results/StageResultsTable.vue';
+import {
+  usePreferredDivision,
+  pickInitialDivision,
+} from 'src/composables/usePreferredDivision';
 
 const props = withDefaults(
   defineProps<{
     matchResults: MatchResultEntry[];
     stages: Stage[];
     organization?: Organization;
+    // The viewer's own default (e.g. the logged-in shooter's division) used when
+    // there's no sticky preference yet.
+    defaultDivision?: string;
     // Provided by the parent so admin (REST) and shooter (PowerSync) each load
     // a stage's results their own way. Returns entries across all divisions.
     loadStageResults: (stageId: string) => Promise<StageResultEntry[]>;
   }>(),
   { organization: DEFAULT_ORGANIZATION }
 );
+
+const { remember } = usePreferredDivision();
 
 const selected = ref<string>('overall');
 const loadingStage = ref(false);
@@ -110,10 +119,17 @@ const divisionOptions = computed(() =>
 );
 const selectedDivision = ref<string>('');
 watchEffect(() => {
+  // Start from (and re-sync to) the sticky preference → the shooter's division →
+  // the first available; never leave it on a division that isn't shown here.
   if (!availableDivisions.value.includes(selectedDivision.value)) {
-    selectedDivision.value = availableDivisions.value[0] ?? '';
+    selectedDivision.value = pickInitialDivision(
+      availableDivisions.value,
+      props.defaultDivision
+    );
   }
 });
+// Persist the shooter's choice so it sticks across stages, matches, and reloads.
+watch(selectedDivision, (v) => remember(v));
 
 const sortedStages = computed(() =>
   props.stages.slice().sort((a, b) => a.stage_number - b.stage_number)
