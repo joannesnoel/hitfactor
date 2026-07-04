@@ -187,15 +187,25 @@ const stageId = route.params.stageId as string;
 const loading = ref(true);
 const stage = ref<Stage | null>(null);
 const myScore = ref<Score | null>(null);
-const myDivision = ref<string | null>(null);
+const myRegIds = ref<string[]>([]); // a shooter may have several entries (divisions / re-entries)
 const stageResults = ref<StageResultEntry[]>([]);
 const organization = ref<Organization>(DEFAULT_ORGANIZATION);
 
+// My best entry on this stage across all my registrations (a shooter can shoot
+// two divisions, or re-enter). Its division scopes the winner comparison — and if
+// this entry *is* the stage winner, no "where you lost" is shown (I won it).
+const myStageResult = computed(() => {
+  const mine = stageResults.value.filter(
+    (r) => !r.combined && myRegIds.value.includes(r.registration_id)
+  );
+  return mine.sort((a, b) => a.place - b.place)[0] ?? null;
+});
+
 // stage_results holds one entry-set per division plus a cross-division 'combined'
-// pool, all flattened together. Scope to the shooter's own division so the winner
-// and placement reflect their division — not another division or the combined pool.
+// pool, all flattened together. Scope to my best entry's division so the winner
+// reflects that division — not another division or the combined pool.
 const divisionResults = computed(() => {
-  const div = myDivision.value ?? myScore.value?.division ?? null;
+  const div = myStageResult.value?.division ?? null;
   return stageResults.value.filter(
     (r) => !r.combined && (!div || r.division === div)
   );
@@ -204,15 +214,6 @@ const divisionResults = computed(() => {
 const stageWinner = computed(
   () => divisionResults.value.find((r) => r.place === 1) ?? null
 );
-
-const myStageResult = computed(() => {
-  if (!myScore.value) return null;
-  return (
-    divisionResults.value.find(
-      (r) => r.registration_id === myScore.value!.registration_id
-    ) ?? null
-  );
-});
 
 // When you're not the stage winner, split the gap into accuracy vs speed against
 // the winner. Identity: stage% = accuracy × speed. The "what-if" gains are exact
@@ -277,23 +278,16 @@ onMounted(async () => {
       // keep default organization
     }
 
-    // Load my score
+    // My registration ids (could be several — two divisions or a re-entry).
     if (authStore.user) {
-      const myRegs = await db.getAll<{ id: string; division: string }>(
-        'SELECT id, division FROM registrations WHERE match_id = ? AND user_id = ?',
+      const myRegs = await db.getAll<{ id: string }>(
+        'SELECT id FROM registrations WHERE match_id = ? AND user_id = ?',
         [matchId, authStore.user.id],
       );
-      if (myRegs.length > 0) {
-        myDivision.value = myRegs[0].division;
-        const scoreRows = await db.getAll<Score>(
-          'SELECT * FROM scores WHERE stage_id = ? AND registration_id = ?',
-          [stageId, myRegs[0].id],
-        );
-        myScore.value = scoreRows[0] ?? null;
-      }
+      myRegIds.value = myRegs.map((r) => r.id);
     }
 
-    // Load stage results
+    // Load stage results (drives which of my entries is my best).
     try {
       const resultRows = await db.getAll<{ results: string }>(
         'SELECT results FROM stage_results WHERE stage_id = ?',
@@ -302,6 +296,16 @@ onMounted(async () => {
       stageResults.value = resultRows.flatMap((r) => JSON.parse(r.results) as StageResultEntry[]);
     } catch {
       stageResults.value = [];
+    }
+
+    // Raw score for the "Your Score" card — my best entry's (or first if unscored).
+    const myRegId = myStageResult.value?.registration_id ?? myRegIds.value[0];
+    if (myRegId) {
+      const scoreRows = await db.getAll<Score>(
+        'SELECT * FROM scores WHERE stage_id = ? AND registration_id = ?',
+        [stageId, myRegId],
+      );
+      myScore.value = scoreRows[0] ?? null;
     }
   } finally {
     loading.value = false;
