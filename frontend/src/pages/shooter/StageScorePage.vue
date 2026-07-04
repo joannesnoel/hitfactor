@@ -130,22 +130,31 @@ const stageId = route.params.stageId as string;
 const loading = ref(true);
 const stage = ref<Stage | null>(null);
 const myScore = ref<Score | null>(null);
+const myDivision = ref<string | null>(null);
 const stageResults = ref<StageResultEntry[]>([]);
 const organization = ref<Organization>(DEFAULT_ORGANIZATION);
 
-const stageWinner = computed(() => {
-  return stageResults.value.find((r) => r.place === 1) ?? null;
+// stage_results holds one entry-set per division plus a cross-division 'combined'
+// pool, all flattened together. Scope to the shooter's own division so the winner
+// and placement reflect their division — not another division or the combined pool.
+const divisionResults = computed(() => {
+  const div = myDivision.value ?? myScore.value?.division ?? null;
+  return stageResults.value.filter(
+    (r) => !r.combined && (!div || r.division === div)
+  );
 });
 
+const stageWinner = computed(
+  () => divisionResults.value.find((r) => r.place === 1) ?? null
+);
+
 const myStageResult = computed(() => {
-  if (!authStore.user) return null;
-  // Find my registration ID
-  return stageResults.value.find((r) => {
-    if (myScore.value) {
-      return r.registration_id === myScore.value.registration_id;
-    }
-    return false;
-  }) ?? null;
+  if (!myScore.value) return null;
+  return (
+    divisionResults.value.find(
+      (r) => r.registration_id === myScore.value!.registration_id
+    ) ?? null
+  );
 });
 
 function scoringLabel(type: string): string {
@@ -190,11 +199,12 @@ onMounted(async () => {
 
     // Load my score
     if (authStore.user) {
-      const myRegs = await db.getAll<{ id: string }>(
-        'SELECT id FROM registrations WHERE match_id = ? AND user_id = ?',
+      const myRegs = await db.getAll<{ id: string; division: string }>(
+        'SELECT id, division FROM registrations WHERE match_id = ? AND user_id = ?',
         [matchId, authStore.user.id],
       );
       if (myRegs.length > 0) {
+        myDivision.value = myRegs[0].division;
         const scoreRows = await db.getAll<Score>(
           'SELECT * FROM scores WHERE stage_id = ? AND registration_id = ?',
           [stageId, myRegs[0].id],
