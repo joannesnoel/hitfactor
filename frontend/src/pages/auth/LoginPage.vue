@@ -2,6 +2,7 @@
   <div class="fullscreen bg-grey-2 flex flex-center">
     <q-card class="login-card q-pa-lg" style="width: 400px; max-width: 90vw">
       <q-card-section class="text-center q-pb-none">
+        <img src="/logo.png" alt="HitFactor" style="height: 88px" class="q-mb-xs" />
         <div class="text-h4 text-weight-bold text-primary q-mb-sm">HitFactor</div>
         <div class="text-subtitle1 text-grey">PSMOC Match Management</div>
       </q-card-section>
