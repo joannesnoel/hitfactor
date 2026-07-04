@@ -1,12 +1,17 @@
 <template>
   <q-card class="match-card cursor-pointer" @click="$emit('click')">
     <q-card-section>
-      <div class="row items-center justify-between q-mb-sm">
-        <div class="text-h6 text-weight-bold">{{ match.name }}</div>
+      <div class="row items-center no-wrap q-mb-sm">
+        <div
+          class="col text-h6 text-weight-bold ellipsis"
+          style="min-width: 0"
+        >
+          {{ match.name }}
+        </div>
         <q-badge
           :color="statusColor(match.status)"
           :label="match.status"
-          class="match-status-badge"
+          class="match-status-badge q-ml-sm"
         />
       </div>
       <div class="row items-center q-gutter-sm text-grey-7">

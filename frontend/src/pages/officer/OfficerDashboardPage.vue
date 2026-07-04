@@ -18,15 +18,15 @@
       <div v-else class="q-gutter-lg">
         <q-card v-for="am in assignedMatches" :key="am.match.id" flat bordered>
           <q-card-section>
-            <div class="row items-center justify-between">
-              <div>
-                <div class="text-h6 text-weight-bold">{{ am.match.name }}</div>
-                <div class="text-grey">{{ formatDate(am.match.start_date) }} | {{ am.match.location }}</div>
+            <div class="row items-center no-wrap">
+              <div class="col" style="min-width: 0">
+                <div class="text-h6 text-weight-bold ellipsis">{{ am.match.name }}</div>
+                <div class="text-grey ellipsis">{{ formatDate(am.match.start_date) }} | {{ am.match.location }}</div>
               </div>
               <q-badge
                 :color="am.match.status === 'scoring' ? 'orange' : 'green'"
                 :label="am.match.status"
-                class="match-status-badge"
+                class="match-status-badge q-ml-sm"
               />
             </div>
           </q-card-section>

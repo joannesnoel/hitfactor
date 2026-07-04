@@ -7,19 +7,18 @@
 
     <template v-else-if="match">
       <!-- Match Header -->
-      <div class="row items-center q-mb-md">
+      <div class="row items-center no-wrap q-mb-md">
         <q-btn flat round icon="arrow_back" @click="$router.back()" />
-        <div class="q-ml-sm">
-          <div class="text-h5 text-weight-bold">{{ match.name }}</div>
-          <div class="text-grey">
+        <div class="col q-ml-sm" style="min-width: 0">
+          <div class="text-h5 text-weight-bold ellipsis">{{ match.name }}</div>
+          <div class="text-grey ellipsis">
             {{ formatDate(match.start_date) }} | {{ match.location }}
           </div>
         </div>
-        <q-space />
         <q-badge
           :color="statusColor(match.status)"
           :label="match.status"
-          class="match-status-badge"
+          class="match-status-badge q-ml-sm"
         />
       </div>
 
