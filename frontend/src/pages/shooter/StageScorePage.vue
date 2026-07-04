@@ -98,6 +98,63 @@
               <div class="text-caption text-grey">Place: {{ myStageResult.place }}</div>
             </div>
           </div>
+
+          <!-- Where you lost: accuracy vs speed vs the winner -->
+          <div v-if="lossBreakdown" class="q-mt-md">
+            <div class="text-subtitle2 text-weight-medium q-mb-sm">
+              Where you lost this stage
+              <span class="text-caption text-grey-7">(vs the winner)</span>
+            </div>
+            <div class="row items-center q-mb-sm">
+              <div class="col-3 col-sm-2 text-caption">Accuracy</div>
+              <div class="col">
+                <q-linear-progress
+                  :value="Math.min(1, lossBreakdown.accuracy)"
+                  color="teal"
+                  track-color="teal-1"
+                  size="14px"
+                  rounded
+                />
+              </div>
+              <div class="col-auto q-pl-sm text-caption text-weight-medium" style="min-width: 96px; text-align: right">
+                {{ (lossBreakdown.accuracy * 100).toFixed(0) }}%<span
+                  v-if="lossBreakdown.pointsDown > 0"
+                  class="text-grey-7"
+                > · {{ lossBreakdown.pointsDown }} pts</span>
+              </div>
+            </div>
+            <div class="row items-center">
+              <div class="col-3 col-sm-2 text-caption">Speed</div>
+              <div class="col">
+                <q-linear-progress
+                  :value="Math.min(1, lossBreakdown.speed)"
+                  color="deep-orange"
+                  track-color="deep-orange-1"
+                  size="14px"
+                  rounded
+                />
+              </div>
+              <div class="col-auto q-pl-sm text-caption text-weight-medium" style="min-width: 96px; text-align: right">
+                {{ (lossBreakdown.speed * 100).toFixed(0) }}%<span
+                  v-if="lossBreakdown.timeBehind > 0"
+                  class="text-grey-7"
+                > · {{ lossBreakdown.timeBehind.toFixed(2) }}s</span>
+              </div>
+            </div>
+            <q-banner dense class="bg-blue-1 rounded-borders q-mt-sm">
+              <template #avatar><q-icon name="lightbulb" color="amber-8" /></template>
+              <span v-if="lossBreakdown.dominant === 'speed'">
+                <b>Speed</b> cost you the most here — at the winner's pace you'd have
+                scored ~{{ (lossBreakdown.accuracy * 100).toFixed(0) }}%
+                <span class="text-positive">(+{{ lossBreakdown.gainIfSpeed.toFixed(0) }}%)</span>.
+              </span>
+              <span v-else>
+                <b>Accuracy</b> cost you the most here — with the winner's points you'd
+                have scored ~{{ (lossBreakdown.speed * 100).toFixed(0) }}%
+                <span class="text-positive">(+{{ lossBreakdown.gainIfAccuracy.toFixed(0) }}%)</span>.
+              </span>
+            </q-banner>
+          </div>
         </q-card-section>
       </q-card>
 
@@ -155,6 +212,29 @@ const myStageResult = computed(() => {
       (r) => r.registration_id === myScore.value!.registration_id
     ) ?? null
   );
+});
+
+// When you're not the stage winner, split the gap into accuracy vs speed against
+// the winner. Identity: stage% = accuracy × speed. The "what-if" gains are exact
+// — matching the winner's pace makes stage% = accuracy×100; matching the winner's
+// points makes it speed×100 — so the bigger gain is the bigger opportunity.
+const lossBreakdown = computed(() => {
+  const me = myStageResult.value;
+  const w = stageWinner.value;
+  if (!me || !w || me.place === 1 || me.dqed || me.dnf) return null;
+  if (me.time <= 0 || w.time <= 0 || w.total_points <= 0) return null;
+  const accuracy = me.total_points / w.total_points; // your points ÷ winner's
+  const speed = w.time / me.time; // winner's time ÷ yours
+  const stagePct = me.stage_percentage;
+  return {
+    accuracy,
+    speed,
+    pointsDown: Math.max(0, w.total_points - me.total_points),
+    timeBehind: Math.max(0, me.time - w.time),
+    gainIfSpeed: Math.max(0, accuracy * 100 - stagePct),
+    gainIfAccuracy: Math.max(0, speed * 100 - stagePct),
+    dominant: accuracy <= speed ? 'accuracy' : 'speed',
+  };
 });
 
 function scoringLabel(type: string): string {
