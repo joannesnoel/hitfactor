@@ -41,6 +41,12 @@
           :to="'/shooter/dashboard'"
         />
         <q-route-tab
+          name="performance"
+          icon="insights"
+          label="Performance"
+          :to="'/shooter/performance'"
+        />
+        <q-route-tab
           name="profile"
           icon="person"
           label="Profile"

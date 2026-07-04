@@ -1,7 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
-import { eq, or, ilike, sql } from 'drizzle-orm';
+import { eq, and, or, ilike, sql } from 'drizzle-orm';
 import { updateProfileSchema, createOfficerSchema, ROLES } from '@hitfactor/shared';
 import type { Role } from '@hitfactor/shared';
 import { db } from '../../config/database.js';
@@ -316,6 +316,41 @@ export async function listShooters(
     .limit(50);
 
   return reply.send(result);
+}
+
+/**
+ * Public: search UNCLAIMED shooter records (with match history) so a shooter can
+ * find + claim themselves at sign-up. Names/results are already public; claimed
+ * accounts are never returned.
+ */
+export async function listClaimable(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const { q } = request.query as { q?: string };
+  if (!q || q.trim().length < 2) {
+    return reply.send([]);
+  }
+  const pattern = `%${q.trim()}%`;
+  const result = await db
+    .select({
+      id: users.id,
+      display_name: users.display_name,
+      member_number: users.member_number,
+      match_count: sql<number>`(SELECT count(DISTINCT r.match_id)::int FROM registrations r WHERE r.user_id = users.id)`,
+    })
+    .from(users)
+    .where(
+      and(
+        eq(users.claimed, false),
+        or(ilike(users.display_name, pattern), ilike(users.member_number, pattern))
+      )
+    )
+    .orderBy(users.display_name)
+    .limit(25);
+
+  // Only surface records that actually carry match history.
+  return reply.send(result.filter((r) => r.match_count > 0));
 }
 
 /**

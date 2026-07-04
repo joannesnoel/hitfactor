@@ -1,7 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { eq } from 'drizzle-orm';
-import { registerSchema, loginSchema } from '@hitfactor/shared';
+import { registerSchema, loginSchema, claimSchema } from '@hitfactor/shared';
 import { db } from '../../config/database.js';
 import { users } from '../../db/schema.js';
 import {
@@ -66,6 +66,82 @@ export async function register(
   const refresh_token = await signRefreshToken(tokenPayload);
 
   return reply.status(201).send({
+    access_token,
+    refresh_token,
+    user: {
+      id: user.id,
+      email: user.email,
+      display_name: user.display_name,
+      roles: user.roles,
+    },
+  });
+}
+
+/**
+ * Self-service account claim: attach a login (email + password) to an imported,
+ * unclaimed shooter record chosen from /api/users/claimable. Done in place so the
+ * user id — and therefore all its registrations/scores — is preserved, and the
+ * JWT `sub` immediately owns that history. Auto-logs in like register.
+ */
+export async function claim(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const parsed = claimSchema.safeParse(request.body);
+  if (!parsed.success) {
+    return reply.status(400).send({
+      statusCode: 400,
+      error: 'Bad Request',
+      message: 'Validation failed',
+      details: parsed.error.flatten(),
+    });
+  }
+  const { user_id, email, password } = parsed.data;
+
+  const [target] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, user_id))
+    .limit(1);
+  if (!target) {
+    return reply.status(404).send({
+      statusCode: 404,
+      error: 'Not Found',
+      message: 'Shooter record not found',
+    });
+  }
+  if (target.claimed || target.password_hash) {
+    return reply.status(409).send({
+      statusCode: 409,
+      error: 'Conflict',
+      message: 'This shooter record has already been claimed',
+    });
+  }
+
+  const [emailTaken] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
+  if (emailTaken && emailTaken.id !== user_id) {
+    return reply.status(409).send({
+      statusCode: 409,
+      error: 'Conflict',
+      message: 'Email already registered',
+    });
+  }
+
+  const password_hash = await bcrypt.hash(password, 10);
+  const [user] = await db
+    .update(users)
+    .set({ email, password_hash, claimed: true, claimed_at: new Date() })
+    .where(eq(users.id, user_id))
+    .returning();
+
+  const tokenPayload = { sub: user.id, email, roles: user.roles as string[] };
+  const access_token = await signAccessToken(tokenPayload);
+  const refresh_token = await signRefreshToken(tokenPayload);
+  return reply.status(200).send({
     access_token,
     refresh_token,
     user: {

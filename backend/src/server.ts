@@ -16,6 +16,7 @@ import { rangesRoutes } from './modules/ranges/ranges.routes.js';
 import { powersyncRoutes } from './modules/powersync/powersync.routes.js';
 import { importRoutes } from './modules/import/import.routes.js';
 import { publicRoutes } from './modules/public/public.routes.js';
+import { performanceRoutes } from './modules/shooter/performance.routes.js';
 
 const PORT = parseInt(process.env.PORT ?? '3000', 10);
 const HOST = process.env.HOST ?? '0.0.0.0';
@@ -72,6 +73,7 @@ async function buildApp() {
   await app.register(powersyncRoutes);
   await app.register(importRoutes);
   await app.register(publicRoutes);
+  await app.register(performanceRoutes);
 
   return app;
 }

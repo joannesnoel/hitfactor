@@ -103,6 +103,10 @@ const routes: RouteRecordRaw[] = [
         component: () => import('src/pages/shooter/DashboardPage.vue'),
       },
       {
+        path: 'performance',
+        component: () => import('src/pages/shooter/PerformancePage.vue'),
+      },
+      {
         path: 'matches/:id',
         component: () => import('src/pages/shooter/MatchViewPage.vue'),
         props: true,

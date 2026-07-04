@@ -1,6 +1,17 @@
 <template>
   <q-page padding>
-    <div class="text-h5 text-weight-bold q-mb-lg">Dashboard</div>
+    <div class="row items-center q-mb-lg">
+      <div class="text-h5 text-weight-bold">Dashboard</div>
+      <q-space />
+      <q-btn
+        color="primary"
+        outline
+        icon="insights"
+        label="My Performance"
+        to="/shooter/performance"
+        no-caps
+      />
+    </div>
 
     <!-- Loading -->
     <div v-if="loading" class="flex flex-center q-pa-xl">

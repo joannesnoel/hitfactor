@@ -177,3 +177,11 @@ export const assignOfficerSchema = z.union([
   assignStageOfficerSchema,
 ]);
 export type AssignOfficerInput = z.infer<typeof assignOfficerSchema>;
+
+// Self-service account claim: link a login onto an imported (unclaimed) shooter.
+export const claimSchema = z.object({
+  user_id: z.string().uuid(),
+  email: z.string().email(),
+  password: z.string().min(8).max(128),
+});
+export type ClaimInput = z.infer<typeof claimSchema>;

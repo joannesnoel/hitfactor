@@ -58,6 +58,16 @@ export const useAuthStore = defineStore('auth', () => {
     );
   }
 
+  async function claim(input: { user_id: string; email: string; password: string }) {
+    const response = await api.post<User & AuthTokens>('/api/auth/claim', input);
+    user.value = response.data.user;
+    setTokens(response.data);
+    localStorage.setItem('user', JSON.stringify(response.data.user));
+    connectPowerSync().catch((err) =>
+      console.warn('[PowerSync] Connect after claim failed:', err),
+    );
+  }
+
   function logout() {
     clearAuth();
     // Fire-and-forget — don't block logout on PowerSync cleanup
@@ -112,6 +122,7 @@ export const useAuthStore = defineStore('auth', () => {
     isOfficer,
     login,
     register,
+    claim,
     logout,
     refreshTokens,
     loadFromStorage,
