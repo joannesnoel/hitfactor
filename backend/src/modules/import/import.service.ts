@@ -1,4 +1,4 @@
-import { eq, and, isNull } from 'drizzle-orm';
+import { eq, and, isNull, notInArray } from 'drizzle-orm';
 import {
   computeScore,
   divisionFromPractiscore,
@@ -50,9 +50,10 @@ function buildRoundsArray(numTargets: number, total: number): number[] {
 export async function importMatch(
   parsed: ParsedMatch,
   adminUserId: string,
-  opts: { dryRun?: boolean } = {}
+  opts: { dryRun?: boolean; status?: 'scoring' | 'final' } = {}
 ): Promise<ImportSummary> {
   const org: Organization = parsed.organization ?? DEFAULT_ORGANIZATION;
+  const status = opts.status ?? 'final';
   const summary: ImportSummary = {
     match: parsed.name,
     matchCreated: false,
@@ -84,28 +85,50 @@ export async function importMatch(
   try {
     await db.transaction(async (tx) => {
       // ── Match ──────────────────────────────────────────────────────────────
-      const [existingMatch] = await tx
-        .select({ id: matches.id })
-        .from(matches)
-        .where(
-          and(eq(matches.name, parsed.name), eq(matches.start_date, parsed.date))
-        )
-        .limit(1);
+      // Prefer the PractiScore match UUID as identity so re-uploads update the
+      // same match even if its name/date changed; fall back to name+date for
+      // matches imported before source_match_id was tracked.
+      const [existingMatch] = parsed.source_match_id
+        ? await tx
+            .select({ id: matches.id })
+            .from(matches)
+            .where(eq(matches.source_match_id, parsed.source_match_id))
+            .limit(1)
+        : await tx
+            .select({ id: matches.id })
+            .from(matches)
+            .where(
+              and(
+                eq(matches.name, parsed.name),
+                eq(matches.start_date, parsed.date)
+              )
+            )
+            .limit(1);
+
+      const descriptive = {
+        name: parsed.name,
+        start_date: parsed.date,
+        end_date: parsed.date,
+        location: parsed.location ?? 'Unknown',
+        level: parsed.level ?? 'I',
+        organization: org,
+        status,
+      };
 
       let matchId: string;
       if (existingMatch) {
         matchId = existingMatch.id;
+        // Keep the match record current with the latest export.
+        await tx
+          .update(matches)
+          .set({ ...descriptive, source_match_id: parsed.source_match_id ?? null })
+          .where(eq(matches.id, matchId));
       } else {
         const [m] = await tx
           .insert(matches)
           .values({
-            name: parsed.name,
-            start_date: parsed.date,
-            end_date: parsed.date,
-            location: parsed.location ?? 'Unknown',
-            level: parsed.level ?? 'I',
-            organization: org,
-            status: 'final',
+            ...descriptive,
+            source_match_id: parsed.source_match_id ?? null,
             created_by: adminUserId,
             registration_open: false,
           })
@@ -229,6 +252,10 @@ export async function importMatch(
         (a, b) => Number(a.member_number ?? 0) - Number(b.member_number ?? 0)
       );
       const entryCountByUser = new Map<string, number>();
+      // Track what this upload contains so we can reconcile away anything the
+      // source no longer has (a withdrawn shooter, an un-scored stage).
+      const importedRegIds = new Set<string>();
+      const importedScoreIds = new Set<string>();
 
       for (const entry of orderedEntries) {
         const division = divisionFromPractiscore(entry.division);
@@ -288,6 +315,7 @@ export async function importMatch(
           registrationId = reg.id;
           summary.registrations++;
         }
+        importedRegIds.add(registrationId);
 
         // Scores (one per stage).
         for (const sc of entry.scores) {
@@ -337,7 +365,7 @@ export async function importMatch(
             dnf: sc.dnf ?? false,
           };
 
-          await tx
+          const [scoreRow] = await tx
             .insert(scores)
             .values({
               match_id: matchId,
@@ -358,11 +386,44 @@ export async function importMatch(
                 modified_at: new Date(),
                 modified_by: adminUserId,
               },
-            });
+            })
+            .returning({ id: scores.id });
+          importedScoreIds.add(scoreRow.id);
           summary.scores++;
           if (hasTime) summary.scored++;
         }
       }
+
+      // ── Reconcile ──────────────────────────────────────────────────────────
+      // A .psc is the authoritative full state of the match, so remove scores
+      // and registrations it no longer contains (a withdrawn shooter, a stage
+      // that was un-scored). Deleting a registration cascades its scores.
+      const regIds = [...importedRegIds];
+      const scoreIds = [...importedScoreIds];
+
+      const removedScores = await tx
+        .delete(scores)
+        .where(
+          scoreIds.length
+            ? and(eq(scores.match_id, matchId), notInArray(scores.id, scoreIds))
+            : eq(scores.match_id, matchId)
+        )
+        .returning({ id: scores.id });
+
+      const removedRegs = await tx
+        .delete(registrations)
+        .where(
+          regIds.length
+            ? and(
+                eq(registrations.match_id, matchId),
+                notInArray(registrations.id, regIds)
+              )
+            : eq(registrations.match_id, matchId)
+        )
+        .returning({ id: registrations.id });
+
+      summary.scoresRemoved = removedScores.length;
+      summary.registrationsRemoved = removedRegs.length;
 
       if (opts.dryRun) throw new DryRunRollback();
     });

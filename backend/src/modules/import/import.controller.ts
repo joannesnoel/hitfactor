@@ -19,7 +19,11 @@ export async function importMatchUpload(
     });
   }
 
-  const commit = (request.query as { commit?: string }).commit === 'true';
+  const query = request.query as { commit?: string; in_progress?: string };
+  const commit = query.commit === 'true';
+  // In-progress matches are marked 'scoring' (shown as ongoing, not completed),
+  // so the admin can keep uploading updated .psc exports through the day.
+  const status = query.in_progress === 'true' ? 'scoring' : 'final';
 
   const upload = await request.file();
   if (!upload) {
@@ -46,6 +50,7 @@ export async function importMatchUpload(
 
   const summary = await importMatch(parsed, request.user.id, {
     dryRun: !commit,
+    status,
   });
   return reply.send(summary);
 }

@@ -21,6 +21,19 @@
         <template #prepend><q-icon name="attach_file" /></template>
       </q-file>
 
+      <q-checkbox
+        v-model="inProgress"
+        dense
+        class="q-mt-sm"
+        label="Match still in progress"
+        :disable="loading"
+      />
+      <div class="text-caption text-grey q-ml-lg">
+        Marks the match as ongoing (not completed). Re-upload the latest
+        <code>.psc</code> any time to refresh scores — it updates the same match
+        by its PractiScore ID and reconciles removed entries.
+      </div>
+
       <div class="row q-gutter-sm q-mt-md">
         <q-btn
           color="primary"
@@ -103,12 +116,15 @@ interface ImportSummary {
   registrations: number;
   scores: number;
   scored: number;
+  scoresRemoved?: number;
+  registrationsRemoved?: number;
   warnings: string[];
   dryRun: boolean;
 }
 
 const $q = useQuasar();
 const file = ref<File | null>(null);
+const inProgress = ref(false);
 const summary = ref<ImportSummary | null>(null);
 const loading = ref(false);
 const pending = ref<'preview' | 'commit' | null>(null);
@@ -120,7 +136,7 @@ const canCommit = computed(() => Boolean(summary.value?.dryRun));
 const stats = computed(() => {
   const p = summary.value;
   if (!p) return [];
-  return [
+  const rows = [
     { label: 'Stages', value: p.stages },
     { label: 'New shooters', value: p.shootersCreated },
     { label: 'Matched', value: p.shootersMatched },
@@ -128,6 +144,10 @@ const stats = computed(() => {
     { label: 'Scores', value: p.scores },
     { label: 'Timed', value: p.scored },
   ];
+  if (p.scoresRemoved) rows.push({ label: 'Scores removed', value: p.scoresRemoved });
+  if (p.registrationsRemoved)
+    rows.push({ label: 'Entries removed', value: p.registrationsRemoved });
+  return rows;
 });
 
 function onFileChange() {
@@ -144,7 +164,10 @@ async function run(commit: boolean) {
     const form = new FormData();
     form.append('file', file.value);
     const res = await api.post<ImportSummary>('/api/admin/import', form, {
-      params: { commit: commit ? 'true' : 'false' },
+      params: {
+        commit: commit ? 'true' : 'false',
+        in_progress: inProgress.value ? 'true' : 'false',
+      },
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     summary.value = res.data;

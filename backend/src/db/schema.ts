@@ -82,6 +82,10 @@ export const shootingRanges = pgTable('shooting_ranges', {
 
 export const matches = pgTable('matches', {
   id: uuid('id').primaryKey().defaultRandom(),
+  // PractiScore match UUID — stable identity so a re-uploaded .psc updates this
+  // match instead of creating a duplicate (nullable for manually-created matches;
+  // Postgres UNIQUE allows multiple NULLs).
+  source_match_id: varchar('source_match_id', { length: 64 }).unique(),
   name: varchar('name', { length: 200 }).notNull(),
   start_date: date('start_date').notNull(),
   end_date: date('end_date'),

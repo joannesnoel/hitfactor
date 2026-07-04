@@ -226,6 +226,7 @@ export function parsePsc(buf: Uint8Array): ParsedMatch {
     location: String(def.match_clubname ?? def.match_clubcode ?? 'Unknown'),
     organization: 'PSMOC',
     level: 'I',
+    source_match_id: def.match_id ? String(def.match_id) : undefined,
     stages,
     entries,
   };

@@ -80,6 +80,11 @@ export async function recomputeMatchResults(
     .from(scores)
     .where(eq(scores.match_id, matchId));
 
+  // Rebuild results from scratch so a division or shooter no longer present
+  // (reconciled away on re-import) doesn't leave a stale standings row.
+  await db.delete(stageResults).where(eq(stageResults.match_id, matchId));
+  await db.delete(matchResults).where(eq(matchResults.match_id, matchId));
+
   const now = new Date();
   const allStageResultsForMatch: StageResultsForMatch[] = [];
 

@@ -48,6 +48,7 @@ export interface ParsedMatch {
   location?: string;
   organization?: Organization; // default 'PSMOC'
   level?: string;
+  source_match_id?: string; // PractiScore match UUID — stable identity for re-uploads
   stages: ParsedStage[];
   entries: ParsedEntry[];
 }
@@ -61,6 +62,8 @@ export interface ImportSummary {
   registrations: number;
   scores: number;
   scored: number; // scores that had a time (real HF) vs placeholders
+  scoresRemoved?: number; // reconciled away (no longer in the .psc)
+  registrationsRemoved?: number;
   warnings: string[];
   dryRun: boolean;
 }
