@@ -105,7 +105,12 @@
       </q-card>
 
       <!-- Past matches -->
-      <div class="text-subtitle1 text-weight-medium q-mb-sm">Past matches</div>
+      <div class="text-subtitle1 text-weight-medium q-mb-xs">Past matches</div>
+      <div class="text-caption text-grey-6 q-mb-sm">
+        A = alpha % · pts = your points vs the winner · pace = your speed vs the
+        winner · ± = stage-to-stage consistency (lower = steadier) · top % =
+        percentile
+      </div>
       <q-card
         v-for="m in perf.matches"
         :key="m.match_id + m.division"
@@ -132,13 +137,30 @@
             </div>
           </div>
           <div class="row items-center q-gutter-sm q-mt-xs text-caption text-grey-8">
-            <div v-if="m.alpha_pct !== null">A {{ m.alpha_pct.toFixed(0) }}%</div>
-            <div v-if="m.accuracy_factor !== null">pts {{ (m.accuracy_factor * 100).toFixed(0) }}%</div>
-            <div v-if="m.speed_factor !== null">pace {{ (m.speed_factor * 100).toFixed(0) }}%</div>
-            <div v-if="m.consistency !== null">± {{ m.consistency.toFixed(1) }}</div>
+            <div v-if="m.alpha_pct !== null">
+              A {{ m.alpha_pct.toFixed(0) }}%
+              <q-tooltip>Alpha hits — % of your hits in the A zone</q-tooltip>
+            </div>
+            <div v-if="m.accuracy_factor !== null">
+              pts {{ (m.accuracy_factor * 100).toFixed(0) }}%
+              <q-tooltip>Accuracy — your points as a % of the stage winner's</q-tooltip>
+            </div>
+            <div v-if="m.speed_factor !== null">
+              pace {{ (m.speed_factor * 100).toFixed(0) }}%
+              <q-tooltip>Speed — your pace as a % of the stage winner's</q-tooltip>
+            </div>
+            <div v-if="m.consistency !== null">
+              ± {{ m.consistency.toFixed(1) }} swing
+              <q-tooltip>
+                Consistency — how much your stage %s varied (standard deviation).
+                Lower = you shot every stage at a similar level.
+              </q-tooltip>
+            </div>
             <div v-if="m.stage_wins > 0" class="text-teal">{{ m.stage_wins }} stage win{{ m.stage_wins > 1 ? 's' : '' }}</div>
             <q-space />
-            <q-badge color="grey-3" text-color="grey-9" :label="`top ${(100 - m.percentile).toFixed(0)}%`" />
+            <q-badge color="grey-3" text-color="grey-9" :label="`top ${(100 - m.percentile).toFixed(0)}%`">
+              <q-tooltip>Percentile — you placed in the top {{ (100 - m.percentile).toFixed(0) }}% of your division</q-tooltip>
+            </q-badge>
           </div>
         </q-card-section>
       </q-card>
