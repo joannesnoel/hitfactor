@@ -2,6 +2,13 @@
   <q-layout view="lHh Lpr lFf">
     <q-header elevated class="bg-dark text-white">
       <q-toolbar>
+        <img
+          src="/logo.png"
+          alt="HitFactor"
+          class="q-mr-sm cursor-pointer"
+          style="height: 30px"
+          @click="$router.push('/public/matches')"
+        />
         <q-toolbar-title
           class="cursor-pointer"
           @click="$router.push('/public/matches')"

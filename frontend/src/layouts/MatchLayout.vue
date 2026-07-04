@@ -3,6 +3,7 @@
     <q-header elevated class="bg-dark text-white">
       <q-toolbar>
         <q-btn flat dense round icon="menu" aria-label="Menu" @click="toggleDrawer" />
+        <img src="/logo.png" alt="HitFactor" class="q-mr-sm" style="height: 28px" />
         <q-toolbar-title class="ellipsis">
           {{ match?.name ?? 'Match' }}
         </q-toolbar-title>

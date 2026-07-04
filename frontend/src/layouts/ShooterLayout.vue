@@ -2,6 +2,7 @@
   <q-layout view="lHh Lpr lFf">
     <q-header elevated class="bg-dark text-white">
       <q-toolbar>
+        <img src="/logo.png" alt="HitFactor" class="q-mr-sm" style="height: 30px" />
         <q-toolbar-title>HitFactor</q-toolbar-title>
         <SyncStatusIndicator />
         <q-btn flat round dense icon="account_circle">

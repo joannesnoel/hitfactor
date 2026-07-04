@@ -10,6 +10,7 @@
           aria-label="Menu"
           @click="toggleLeftDrawer"
         />
+        <img src="/logo.png" alt="HitFactor" class="q-mr-sm" style="height: 30px" />
         <q-toolbar-title>HitFactor</q-toolbar-title>
         <SyncStatusIndicator />
         <q-btn flat round dense icon="account_circle">
