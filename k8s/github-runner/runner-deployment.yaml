@@ -98,7 +98,7 @@ spec:
         # Docker-in-Docker for building images; trusts the insecure registry
         - name: dind
           image: docker:24-dind
-          args: ["--insecure-registry=192.168.0.20:30500"]
+          args: ["--insecure-registry=registry.lan:5000"]
           securityContext:
             privileged: true
           env:

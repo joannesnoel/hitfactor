@@ -17,7 +17,7 @@ spec:
       restartPolicy: Never
       containers:
         - name: seed
-          image: 192.168.0.20:30500/hitfactor-backend:latest
+          image: registry.lan:5000/hitfactor-backend:latest
           workingDir: /app/backend
           command: ["node", "dist/db/seed.js"]
           env:

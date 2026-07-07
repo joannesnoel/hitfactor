@@ -10,9 +10,9 @@ resources:
   - ../../base
 
 images:
-  - name: 192.168.0.20:30500/hitfactor-backend
+  - name: registry.lan:5000/hitfactor-backend
     newTag: prod # env-specific floating tag (CI keeps it current); never :latest,
     # which is shared with staging and would bake the wrong API URL into the SPA
-  - name: 192.168.0.20:30500/hitfactor-frontend
+  - name: registry.lan:5000/hitfactor-frontend
     newTag: prod # env-specific floating tag (CI keeps it current); never :latest,
     # which is shared with staging and would bake the wrong API URL into the SPA

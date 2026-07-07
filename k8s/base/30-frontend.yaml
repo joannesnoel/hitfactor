@@ -18,7 +18,7 @@ spec:
       containers:
         - name: frontend
           # Rebuild this image whenever VITE_API_URL (the API hostname) changes.
-          image: 192.168.0.20:30500/hitfactor-frontend:latest
+          image: registry.lan:5000/hitfactor-frontend:latest
           ports:
             - containerPort: 80
           readinessProbe:

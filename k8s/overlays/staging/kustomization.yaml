@@ -15,9 +15,9 @@ resources:
 
 # CI overrides these via `kubectl set image`; the tag here is the bootstrap value.
 images:
-  - name: 192.168.0.20:30500/hitfactor-backend
+  - name: registry.lan:5000/hitfactor-backend
     newTag: staging # env-specific floating tag (not :latest, which is shared)
-  - name: 192.168.0.20:30500/hitfactor-frontend
+  - name: registry.lan:5000/hitfactor-frontend
     newTag: staging # env-specific floating tag (not :latest, which is shared)
 
 patches:

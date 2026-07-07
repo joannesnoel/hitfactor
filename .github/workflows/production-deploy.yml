@@ -19,7 +19,7 @@ jobs:
     environment: production
 
     env:
-      REGISTRY: 192.168.0.20:30500
+      REGISTRY: registry.lan:5000
       BACKEND_IMAGE: hitfactor-backend
       FRONTEND_IMAGE: hitfactor-frontend
       NAMESPACE: hitfactor
