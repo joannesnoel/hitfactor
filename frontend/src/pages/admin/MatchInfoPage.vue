@@ -7,7 +7,7 @@
     <template v-else-if="match">
       <!-- Banner -->
       <q-card flat bordered class="q-mb-md">
-        <q-img v-if="currentBanner" :src="currentBanner" :ratio="16 / 5" />
+        <q-img v-if="currentBanner" :src="currentBanner" :ratio="16 / 9" />
         <q-card-section>
           <div class="text-caption text-grey q-mb-sm">
             Match banner — shown on the public match page, lists, and headers.

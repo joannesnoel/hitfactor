@@ -9,7 +9,7 @@
       <q-img
         v-if="bannerSrc"
         :src="bannerSrc"
-        :ratio="16 / 5"
+        :ratio="16 / 9"
         class="rounded-borders q-mb-md"
       />
 

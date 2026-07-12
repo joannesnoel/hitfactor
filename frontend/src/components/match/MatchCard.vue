@@ -1,6 +1,6 @@
 <template>
   <q-card class="match-card cursor-pointer" @click="$emit('click')">
-    <q-img v-if="bannerSrc" :src="bannerSrc" :ratio="16 / 5" />
+    <q-img v-if="bannerSrc" :src="bannerSrc" :ratio="16 / 9" />
     <q-card-section>
       <div class="row items-center no-wrap q-mb-sm">
         <div
