@@ -66,6 +66,7 @@ const registrations = new Table({
   division: column.text,
   power_factor: column.text,
   classification: column.text,
+  categories: column.text, // jsonb → JSON string on the client
   squad_id: column.text,
   registered_at: column.text,
 });

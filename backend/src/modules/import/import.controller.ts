@@ -1,7 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { parsePsc } from './practiscore-psc.js';
 import { importMatch } from './import.service.js';
-import { fetchEssShooters, buildEssMatch } from './ipsc-ess.js';
+import { fetchEssShooters, fetchEssDqIds, buildEssMatch } from './ipsc-ess.js';
 
 /**
  * POST /api/admin/import?commit=true — upload a PractiScore .psc file.
@@ -138,15 +138,20 @@ export async function importMatchFromEss(
     });
   }
 
+  // DQ is hidden on the verify pages — pull it from the division results pages.
+  const dqIds = await fetchEssDqIds(host, matchId);
+
   const date = new Date().toISOString().slice(0, 10);
-  const parsed = buildEssMatch(host, matchId, shooters, date);
+  const parsed = buildEssMatch(host, matchId, shooters, date, dqIds);
 
   const summary = await importMatch(parsed, request.user.id, {
     dryRun: !commit,
     status,
   });
   summary.warnings.unshift(
-    `Scraped ${shooters.length} shooter(s) from ${host} (scanned ${scanned} ids). No steel/DQ data in ESS verify pages; date defaulted to ${date}.`
+    `Scraped ${shooters.length} shooter(s) from ${host} (scanned ${scanned} ids); ` +
+      `${dqIds.size} DQ'd (from division results). No steel data in ESS pages; ` +
+      `date defaulted to ${date}.`
   );
   return reply.send(summary);
 }

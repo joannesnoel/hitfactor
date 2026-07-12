@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { computeScore } from '@hitfactor/shared';
-import { parseEssVerify, buildEssMatch } from './ipsc-ess.js';
+import { parseEssVerify, buildEssMatch, parseEssDqIds } from './ipsc-ess.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixture = (name: string): string =>
@@ -113,6 +113,7 @@ describe('buildEssMatch', () => {
     expect(entry.member_number).toBe('5');
     expect(entry.division).toBe('Standard');
     expect(entry.power_factor).toBe('Major');
+    expect(entry.categories).toEqual(['Senior']);
     expect(entry.scores.map((s) => s.stage_number)).toEqual([1, 2, 3, 4]);
     expect(entry.scores[0]).toMatchObject({
       stage_number: 1,
@@ -121,6 +122,35 @@ describe('buildEssMatch', () => {
       steel_hits: 0,
       steel_misses: 0,
       time: 35.42,
+      dqed: false,
     });
+  });
+
+  it('marks a DQ\'d shooter\'s scores dqed (DQ is hidden on verify)', () => {
+    const dqShooter = parseEssVerify(fixture('ess-verify-64-dq.html'))!;
+    expect(dqShooter.id).toBe(64);
+    // On the verify page the FACTOR is zeroed but hits + time are real.
+    const shot = dqShooter.stages.find((st) => st.time > 0)!;
+    expect(shot.a).toBeGreaterThan(0);
+
+    // Without the DQ set the entry would recompute to a live score.
+    const dqIds = new Set(parseEssDqIds(fixture('ess-results-div3.html')));
+    expect(dqIds.has(64)).toBe(true);
+
+    const match = buildEssMatch('h.ipscess.org', 29, [dqShooter], '2026-07-12', dqIds);
+    expect(match.entries).toHaveLength(1);
+    expect(match.entries[0].scores.every((s) => s.dqed)).toBe(true);
+  });
+});
+
+describe('parseEssDqIds', () => {
+  it('extracts DQ\'d shooter ids from a division results page', () => {
+    const ids = parseEssDqIds(fixture('ess-results-div3.html'));
+    expect(ids).toEqual([64]); // DAWA, JAMES
+  });
+
+  it('returns [] for a page with no DQ rows', () => {
+    // The not-found verify page has no results tbody → no ids.
+    expect(parseEssDqIds(fixture('ess-verify-notfound.html'))).toEqual([]);
   });
 });

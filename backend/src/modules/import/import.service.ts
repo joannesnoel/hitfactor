@@ -276,6 +276,8 @@ export async function importMatch(
         // Registration — one per entry. A shooter may have several in the same
         // division (distinct member numbers), so dedupe includes member_number.
         const memberNumber = entry.member_number ?? null;
+        const categories =
+          entry.categories && entry.categories.length ? entry.categories : null;
         const [existingReg] = await tx
           .select({ id: registrations.id })
           .from(registrations)
@@ -297,7 +299,12 @@ export async function importMatch(
           // Keep the marked name current on re-import.
           await tx
             .update(registrations)
-            .set({ shooter_name: shooterName, power_factor: pf })
+            .set({
+              shooter_name: shooterName,
+              power_factor: pf,
+              classification: entry.classification ?? null,
+              categories,
+            })
             .where(eq(registrations.id, existingReg.id));
         } else {
           const [reg] = await tx
@@ -310,6 +317,7 @@ export async function importMatch(
               division,
               power_factor: pf,
               classification: entry.classification ?? null,
+              categories,
             })
             .returning({ id: registrations.id });
           registrationId = reg.id;

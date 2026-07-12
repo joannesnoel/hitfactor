@@ -240,6 +240,9 @@ export const registrations = pgTable(
     division: varchar('division', { length: 50 }).notNull(),
     power_factor: varchar('power_factor', { length: 10 }).notNull(),
     classification: varchar('classification', { length: 5 }),
+    // Match categories the shooter entered (e.g. Lady, Junior, Senior,
+    // Super Senior). Free-form from the source; null when none.
+    categories: jsonb('categories').$type<string[]>(),
     squad_id: uuid('squad_id').references(() => squads.id, {
       onDelete: 'set null',
     }),

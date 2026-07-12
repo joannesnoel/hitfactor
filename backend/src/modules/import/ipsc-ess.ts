@@ -129,15 +129,87 @@ export function parseEssVerify(html: string): EssShooter | null {
 }
 
 /**
+ * Parse a division results page (`/portal/results/<matchId>?division=<n>`) for
+ * DQ'd shooters. A DQ row has a blank place, the shooter id, the name, a
+ * `colspan` filler, and a `DQ` cell — DQ never appears on the verify page, so
+ * this is the only place it's visible. Returns the DQ'd shooter ids.
+ */
+export function parseEssDqIds(html: string): number[] {
+  const ids: number[] = [];
+  const tbody = html.match(/<tbody>([\s\S]*?)<\/tbody>/);
+  if (!tbody) return ids;
+  const rows = tbody[1].match(/<tr>[\s\S]*?<\/tr>/g) ?? [];
+  for (const row of rows) {
+    if (!/>\s*DQ\s*</.test(row)) continue;
+    const cells = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)].map((m) =>
+      decode(m[1])
+    );
+    // cells: [place, id, name, …, "DQ"]
+    const id = Number(cells[1]);
+    if (Number.isInteger(id) && id > 0) ids.push(id);
+  }
+  return ids;
+}
+
+/**
+ * Scan a match's division results pages (division=1,2,…) collecting DQ'd shooter
+ * ids. Stops after `stopAfterEmpty` consecutive divisions with no results table.
+ */
+export async function fetchEssDqIds(
+  host: string,
+  matchId: number,
+  opts: { stopAfterEmpty?: number; cap?: number } = {}
+): Promise<Set<number>> {
+  const stopAfterEmpty = opts.stopAfterEmpty ?? 3;
+  const cap = opts.cap ?? 30;
+  const dq = new Set<number>();
+  let empty = 0;
+  for (let d = 1; d <= cap; d++) {
+    const url = `https://${host}/portal/results/${matchId}?division=${d}`;
+    let html: string;
+    try {
+      const res = await fetch(url, {
+        headers: { 'user-agent': 'HitFactor-Import/1.0' },
+      });
+      if (!res.ok) {
+        empty++;
+        if (empty >= stopAfterEmpty) break;
+        continue;
+      }
+      html = await res.text();
+    } catch {
+      empty++;
+      if (empty >= stopAfterEmpty) break;
+      continue;
+    }
+    // A populated division has an <h3>Name</h3> heading + a results table.
+    const populated = /<tbody>[\s\S]*<tr>/.test(html) && /<h3>[^<]+<\/h3>/.test(html);
+    if (!populated) {
+      empty++;
+      if (empty >= stopAfterEmpty) break;
+      continue;
+    }
+    empty = 0;
+    for (const id of parseEssDqIds(html)) dq.add(id);
+    await new Promise((r) => setTimeout(r, 60));
+  }
+  return dq;
+}
+
+/**
  * Assemble scraped ESS shooters into a source-agnostic ParsedMatch.
  * `date` defaults to today (the verify page carries no date; match identity is
  * the stable source_match_id, so re-imports update descriptive fields).
+ * `dqIds` (from the division results pages) marks those shooters' scores DQ'd —
+ * the verify page hides DQ and zeroes only the FACTOR, so without this a DQ'd
+ * shooter would recompute to a live score.
  */
 export function buildEssMatch(
   host: string,
   matchId: number,
   shooters: EssShooter[],
-  date: string
+  date: string,
+  dqIds: Set<number> = new Set()
 ): ParsedMatch {
   const matchName =
     shooters.find((s) => s.matchName)?.matchName ?? `ESS Match ${matchId}`;
@@ -168,6 +240,7 @@ export function buildEssMatch(
 
   const entries: ParsedEntry[] = [];
   for (const s of shooters) {
+    const dqed = dqIds.has(s.id);
     // Only stages actually shot (a time was recorded). Unshot stages read as
     // all-zero, 0.00 time → skip, leaving them as unscored placeholders.
     const scores: ParsedStageScore[] = s.stages
@@ -183,6 +256,7 @@ export function buildEssMatch(
         steel_hits: 0,
         steel_misses: 0,
         time: st.time,
+        dqed,
       }));
     if (scores.length === 0) continue; // no scored stages → no entry
     entries.push({
