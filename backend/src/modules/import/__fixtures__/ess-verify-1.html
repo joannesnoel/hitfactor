@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <title>Verify - ESS</title>
+
+    <link rel="stylesheet" href="/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="/css/fontawesome-all.css" />
+    <link rel="stylesheet" href="/css/custom/ess.css" />
+
+    <style>
+        body { padding-top: 70px; }
+        .app { min-height: 100vh; }
+        .app-footer { padding-bottom: 1em; }
+    </style>
+    <link rel="stylesheet" href="/css/custom/score-input.css" />
+<link rel="stylesheet" href="/css/custom/numpad.css" />
+</head>
+<body class="app">
+
+
+
+
+<header class="app-header">
+    <nav class="navbar navbar-expand-sm navbar-dark bg-dark fixed-top" role="navigation">
+        <div class="container">
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggler" data-toggle="collapse" data-target="#navbarCollapse" aria-controls="#navbarCollapse" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <!-- Brand -->
+                <a class="navbar-brand p-0" href="/">
+                    <img src="/img/logo-navbar.png" height="40" />
+                </a>
+            </div>
+            <div class="collapse navbar-collapse mr-auto" id="navbarCollapse">
+                <ul class="navbar-nav mr-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#">
+                            CAC N' LOAD: SHOOT FOR A CAUSE HG                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+</header>
+<div class="container">
+    <form method="GET">
+        <div class="row d-print-none">
+            <div class="col-3"></div>
+            <div class="col-6">
+                <div class="input-group">
+                    <input id="shooter" name="shooter" type="text" class="form-control input-lg" placeholder="Type your ID" value="1" autofocus />
+                    <span class="input-group-append">
+                            <input type="submit" name="verify" value="Verify" class="btn btn-primary btn-lg" />
+                        </span>
+                </div>
+            </div>
+            <div class="col-sm-3 text-right">
+                                    <button class="btn btn-default btn-lg" type="button" onclick="doPrint()" name="print" id="btn-print">
+                        <span class="fa fa-print"></span>
+                        Print
+                    </button>
+                            </div>
+        </div>
+
+                <div class="row mt-6 p-2" style="font-weight: bold;">
+            <div class="col-4">
+                1 MARAVILLAS, DENNIS            </div>
+            <div class="col-8 text-right">
+                DIV: Production                CLASSE: U                FATOR: Minor                CAT:              </div>
+        </div>
+
+        <table class="table">
+            <thead class="thead-dark">
+            <tr>
+                <th>STG</th>
+                <th>FACTOR</th>
+                <th>PTS</th>
+                <th>A</th>
+                <th>C</th>
+                <th>D</th>
+                <th>MI</th>
+                <th>NS</th>
+                <th>PE</th>
+                <th>&nbsp;</th>
+                <th>TIME</th>
+            </tr>
+            </thead>
+            <tbody>
+                            <tr>
+                    <td>STAGE 1</td>
+                    <td>0.0000</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>&nbsp;</td>
+                    <td>0.00</td>
+                </tr>
+                            <tr>
+                    <td>STAGE 2</td>
+                    <td>0.0000</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>&nbsp;</td>
+                    <td>0.00</td>
+                </tr>
+                            <tr>
+                    <td>STAGE 3</td>
+                    <td>0.0000</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>&nbsp;</td>
+                    <td>0.00</td>
+                </tr>
+                            <tr>
+                    <td>STAGE 4</td>
+                    <td>0.0000</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>&nbsp;</td>
+                    <td>0.00</td>
+                </tr>
+                            <tr>
+                    <td>STAGE 5</td>
+                    <td>0.0000</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>&nbsp;</td>
+                    <td>0.00</td>
+                </tr>
+                            <tr>
+                    <td>STAGE 6</td>
+                    <td>0.0000</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>0</td>
+                    <td>&nbsp;</td>
+                    <td>0.00</td>
+                </tr>
+                        </tbody>
+        </table>
+    </form>
+</div>
+<script>
+    function doPrint() {
+        window.print();
+    }
+</script>
+<footer class="app-footer">
+    <div class="container">
+        <hr />
+            </div>
+</footer>
+
+<script src="/js/jquery-2.2.4.min.js"></script>
+<script src="/js/jquery.mobile.custom.min.js"></script>
+<script src="/js/jquery.nodoubletapzoom.js"></script>
+<script src="/js/jquery-cookie.js"></script>
+<script src="/js/jquery-numpad.js"></script>
+<script src="/js/popper.min.js"></script>
+<script src="/js/bootstrap.min.js"></script>
+<script src="/js/hammer.min.js"></script>
+
+</body>
+</html>

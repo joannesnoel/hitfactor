@@ -54,7 +54,72 @@
         />
       </div>
 
-      <q-banner v-if="error" class="bg-red-1 text-red-9 q-mt-md" rounded dense>
+      <q-banner v-if="error && source === 'psc'" class="bg-red-1 text-red-9 q-mt-md" rounded dense>
+        <template #avatar><q-icon name="error" color="red" /></template>
+        {{ error }}
+      </q-banner>
+    </q-card>
+
+    <!-- IPSC ESS web import -->
+    <q-card flat bordered class="q-pa-md q-mt-lg" style="max-width: 680px">
+      <div class="text-subtitle1 text-weight-bold q-mb-xs">
+        <q-icon name="public" /> Import from IPSC ESS
+      </div>
+      <div class="text-body2 text-grey q-mb-md">
+        Paste an ESS results link (e.g.
+        <code>https://phicvi.as.ipscess.org/portal?match=29</code>). The server
+        reads the public per-shooter verify pages and builds the match.
+      </div>
+
+      <q-input
+        v-model="essUrl"
+        label="ESS portal / verify URL"
+        outlined
+        dense
+        clearable
+        :disable="essLoading"
+        @update:model-value="onEssChange"
+      >
+        <template #prepend><q-icon name="link" /></template>
+      </q-input>
+
+      <q-checkbox
+        v-model="essInProgress"
+        dense
+        class="q-mt-sm"
+        label="Match still in progress"
+        :disable="essLoading"
+      />
+      <div class="text-caption text-grey q-ml-lg">
+        Marks the match as ongoing. Re-run any time to refresh scores — it
+        updates the same match and reconciles removed entries. No steel/DQ data
+        is available from ESS; the match date defaults to today.
+      </div>
+
+      <div class="row q-gutter-sm q-mt-md">
+        <q-btn
+          color="primary"
+          outline
+          label="Preview"
+          icon="visibility"
+          :disable="!essUrl || essLoading"
+          :loading="essLoading && pending === 'preview'"
+          @click="runEss(false)"
+        />
+        <q-btn
+          color="primary"
+          label="Import"
+          icon="upload"
+          :disable="!essCanCommit || essLoading"
+          :loading="essLoading && pending === 'commit'"
+          @click="runEss(true)"
+        />
+      </div>
+      <div v-if="essLoading" class="text-caption text-grey q-mt-sm">
+        Fetching shooters from ESS — a large match takes a moment…
+      </div>
+
+      <q-banner v-if="error && source === 'ess'" class="bg-red-1 text-red-9 q-mt-md" rounded dense>
         <template #avatar><q-icon name="error" color="red" /></template>
         {{ error }}
       </q-banner>
@@ -129,9 +194,22 @@ const summary = ref<ImportSummary | null>(null);
 const loading = ref(false);
 const pending = ref<'preview' | 'commit' | null>(null);
 const error = ref<string | null>(null);
+// Which source produced the current summary/error, so each card gates its own
+// Import button and shows its own error.
+const source = ref<'psc' | 'ess' | null>(null);
 
-// Import is enabled only after a successful preview of the current file.
-const canCommit = computed(() => Boolean(summary.value?.dryRun));
+// IPSC ESS web import state.
+const essUrl = ref<string | null>(null);
+const essInProgress = ref(false);
+const essLoading = ref(false);
+
+// Import is enabled only after a successful preview from the matching source.
+const canCommit = computed(
+  () => source.value === 'psc' && Boolean(summary.value?.dryRun)
+);
+const essCanCommit = computed(
+  () => source.value === 'ess' && Boolean(summary.value?.dryRun)
+);
 
 const stats = computed(() => {
   const p = summary.value;
@@ -155,11 +233,17 @@ function onFileChange() {
   error.value = null;
 }
 
+function onEssChange() {
+  summary.value = null;
+  error.value = null;
+}
+
 async function run(commit: boolean) {
   if (!file.value) return;
   loading.value = true;
   pending.value = commit ? 'commit' : 'preview';
   error.value = null;
+  source.value = 'psc';
   try {
     const form = new FormData();
     form.append('file', file.value);
@@ -180,6 +264,37 @@ async function run(commit: boolean) {
     if (commit) summary.value = null;
   } finally {
     loading.value = false;
+    pending.value = null;
+  }
+}
+
+async function runEss(commit: boolean) {
+  if (!essUrl.value) return;
+  essLoading.value = true;
+  pending.value = commit ? 'commit' : 'preview';
+  error.value = null;
+  source.value = 'ess';
+  try {
+    const res = await api.post<ImportSummary>(
+      '/api/admin/import/ess',
+      { url: essUrl.value },
+      {
+        params: {
+          commit: commit ? 'true' : 'false',
+          in_progress: essInProgress.value ? 'true' : 'false',
+        },
+      }
+    );
+    summary.value = res.data;
+    if (commit) {
+      $q.notify({ type: 'positive', message: 'Match imported', position: 'top' });
+    }
+  } catch (e) {
+    const err = e as { response?: { data?: { message?: string } }; message?: string };
+    error.value = err.response?.data?.message ?? err.message ?? 'Import failed';
+    if (commit) summary.value = null;
+  } finally {
+    essLoading.value = false;
     pending.value = null;
   }
 }

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { importMatchUpload } from './import.controller.js';
+import { importMatchUpload, importMatchFromEss } from './import.controller.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 
 export async function importRoutes(app: FastifyInstance): Promise<void> {
@@ -7,5 +7,11 @@ export async function importRoutes(app: FastifyInstance): Promise<void> {
     '/api/admin/import',
     { preHandler: [authMiddleware] },
     importMatchUpload
+  );
+
+  app.post(
+    '/api/admin/import/ess',
+    { preHandler: [authMiddleware] },
+    importMatchFromEss
   );
 }
