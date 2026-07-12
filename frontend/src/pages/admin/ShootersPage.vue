@@ -149,29 +149,47 @@
           Those are the same record — pick two different shooters.
         </div>
         <div v-else-if="shooterA && shooterB" class="q-mt-md">
-          <div class="row items-center q-gutter-md">
-            <q-btn-toggle
-              v-model="keepSide"
-              no-caps
-              unelevated
-              toggle-color="green-6"
-              color="grey-3"
-              text-color="grey-9"
-              :options="keepToggleOptions"
-            />
-            <q-space />
-            <q-btn
-              color="primary"
-              unelevated
-              icon="merge"
-              label="Merge"
-              :loading="pickerMerging"
-              @click="confirmPickerMerge"
-            />
-          </div>
-          <div class="text-caption text-grey-7 q-mt-xs">
-            The other record's match history moves to the kept one, then it's deleted.
-          </div>
+          <q-banner
+            v-if="bothClaimed"
+            class="bg-orange-1 text-orange-9"
+            rounded
+            dense
+          >
+            Both records have a login, so neither can be deleted. Merge isn't
+            possible — sort out which account should be used directly.
+          </q-banner>
+          <template v-else>
+            <div class="row items-center q-gutter-md">
+              <q-btn-toggle
+                v-model="keepSide"
+                no-caps
+                unelevated
+                toggle-color="green-6"
+                color="grey-3"
+                text-color="grey-9"
+                :disable="lockedKeepSide !== null"
+                :options="keepToggleOptions"
+              />
+              <q-space />
+              <q-btn
+                color="primary"
+                unelevated
+                icon="merge"
+                label="Merge"
+                :loading="pickerMerging"
+                @click="confirmPickerMerge"
+              />
+            </div>
+            <div v-if="lockedKeepSide" class="text-caption text-grey-7 q-mt-xs">
+              <q-icon name="lock" size="14px" />
+              {{ (lockedKeepSide === 'A' ? shooterA : shooterB)?.display_name }}
+              has a login, so it's kept. The other record's history moves to it,
+              then it's deleted.
+            </div>
+            <div v-else class="text-caption text-grey-7 q-mt-xs">
+              The other record's match history moves to the kept one, then it's deleted.
+            </div>
+          </template>
         </div>
       </q-card-section>
     </q-card>
@@ -236,8 +254,17 @@
             emit-value
             map-options
             borderless
+            :disable="!!selectedClaimed"
             style="display: inline-block; min-width: 220px"
           />
+          <q-icon
+            v-if="selectedClaimed"
+            name="lock"
+            size="14px"
+            class="q-ml-xs text-grey-7"
+          >
+            <q-tooltip>Has a login — always kept</q-tooltip>
+          </q-icon>
         </div>
         <q-space />
         <div v-if="selected.length < 2" class="text-caption text-grey-7">
@@ -367,6 +394,18 @@ const keepToggleOptions = computed(() => [
   { label: `Keep ${shooterB.value?.display_name ?? 'B'}`, value: 'B' },
 ]);
 
+const bothClaimed = computed(
+  () => !!(shooterA.value?.claimed && shooterB.value?.claimed),
+);
+
+// A record with a login must always be the one kept. When exactly one side is
+// claimed, that side is forced (the keep toggle is locked to it).
+const lockedKeepSide = computed<'A' | 'B' | null>(() => {
+  if (shooterA.value?.claimed && !shooterB.value?.claimed) return 'A';
+  if (shooterB.value?.claimed && !shooterA.value?.claimed) return 'B';
+  return null;
+});
+
 async function filterShooters(
   val: string,
   update: (fn: () => void) => void,
@@ -393,11 +432,10 @@ async function filterShooters(
   }
 }
 
-// Default the "keep" side to a claimed account (a claimed record can't be the
-// one that's deleted), so the common case is right without extra clicks.
+// A claimed record (has a login) must always be kept — force the keep side to
+// it whenever exactly one side is claimed.
 watch([shooterA, shooterB], () => {
-  if (shooterB.value?.claimed && !shooterA.value?.claimed) keepSide.value = 'B';
-  else if (shooterA.value?.claimed && !shooterB.value?.claimed) keepSide.value = 'A';
+  if (lockedKeepSide.value) keepSide.value = lockedKeepSide.value;
 });
 
 function confirmPickerMerge(): void {
@@ -523,6 +561,15 @@ const keepOptions = computed(() =>
     value: s.id,
   }))
 );
+
+// A claimed record (has a login) must always be kept; lock the keep target to
+// it when one is in the selection.
+const selectedClaimed = computed(
+  () => selected.value.find((s) => s.claimed) ?? null,
+);
+watch(selectedClaimed, (c) => {
+  if (c) keepId.value = c.id;
+});
 
 function isSelected(id: string): boolean {
   return selected.value.some((s) => s.id === id);
