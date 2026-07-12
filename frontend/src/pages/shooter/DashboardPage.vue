@@ -51,17 +51,10 @@
             :key="m.id"
             class="col-12 col-sm-6 col-md-4"
           >
-            <q-card class="cursor-pointer" @click="$router.push(`/shooter/matches/${m.id}`)">
-              <q-card-section>
-                <div class="text-subtitle1 text-weight-bold">{{ m.name }}</div>
-                <div class="text-caption text-grey">{{ formatDate(m.start_date) }}</div>
-                <q-badge
-                  :color="m.status === 'final' ? 'purple' : 'green'"
-                  :label="m.status"
-                  class="q-mt-xs"
-                />
-              </q-card-section>
-            </q-card>
+            <MatchCard
+              :match="m"
+              @click="$router.push(`/shooter/matches/${m.id}`)"
+            />
           </div>
         </div>
       </div>
@@ -95,15 +88,6 @@ const recentMatches = computed(() => {
     .sort((a, b) => b.start_date.localeCompare(a.start_date))
     .slice(0, 6);
 });
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-}
 
 onMounted(async () => {
   db = await whenPowerSyncReady();
