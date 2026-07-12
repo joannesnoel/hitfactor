@@ -5,14 +5,6 @@
     </div>
 
     <template v-else-if="match">
-      <!-- Banner -->
-      <q-img
-        v-if="bannerSrc"
-        :src="bannerSrc"
-        :ratio="16 / 9"
-        class="rounded-borders q-mb-md"
-      />
-
       <!-- Header -->
       <div class="row items-center no-wrap q-mb-md">
         <q-btn flat round icon="arrow_back" @click="back" />
@@ -64,9 +56,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { api, bannerUrl } from 'src/boot/axios';
+import { api } from 'src/boot/axios';
 import type {
   Match,
   Stage,
@@ -82,10 +74,6 @@ const loading = ref(true);
 const match = ref<Match | null>(null);
 const stages = ref<Stage[]>([]);
 const matchResults = ref<MatchResultEntry[]>([]);
-
-const bannerSrc = computed(() =>
-  bannerUrl(props.id, match.value?.banner_updated_at),
-);
 
 function back(): void {
   void router.push('/public/matches');

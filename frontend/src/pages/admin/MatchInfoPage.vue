@@ -7,11 +7,17 @@
     <template v-else-if="match">
       <!-- Banner -->
       <q-card flat bordered class="q-mb-md">
-        <q-img v-if="currentBanner" :src="currentBanner" :ratio="16 / 9" />
         <q-card-section>
           <div class="text-caption text-grey q-mb-sm">
-            Match banner — shown on the public match page, lists, and headers.
+            Match banner — shown on match cards and the match top bar.
           </div>
+          <img
+            v-if="currentBanner"
+            :src="currentBanner"
+            alt="Banner preview"
+            class="q-mb-sm rounded-borders"
+            style="height: 72px; max-width: 220px; object-fit: cover; display: block"
+          />
           <div class="row items-center q-gutter-sm">
             <q-file
               v-model="bannerFile"

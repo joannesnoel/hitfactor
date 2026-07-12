@@ -4,7 +4,7 @@
       <q-card-section class="text-center q-pb-none">
         <img src="/logo.png" alt="HitFactor" style="height: 88px" class="q-mb-xs" />
         <div class="text-h4 text-weight-bold text-primary q-mb-sm">HitFactor</div>
-        <div class="text-subtitle1 text-grey">PSMOC Match Management</div>
+        <div class="text-subtitle1 text-grey">Home for Cebuano practical shooters</div>
       </q-card-section>
 
       <q-card-section>
