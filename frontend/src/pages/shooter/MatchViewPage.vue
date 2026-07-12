@@ -194,12 +194,23 @@ const myDivision = computed(() => myScores.value[0]?.division);
 async function loadStageResults(
   stageId: string,
 ): Promise<StageResultEntry[]> {
-  if (!db) return [];
-  const rows = await db.getAll<{ results: string }>(
-    'SELECT results FROM stage_results WHERE stage_id = ?',
-    [stageId],
-  );
-  return rows.flatMap((r) => JSON.parse(r.results) as StageResultEntry[]);
+  if (db) {
+    const rows = await db.getAll<{ results: string }>(
+      'SELECT results FROM stage_results WHERE stage_id = ?',
+      [stageId],
+    );
+    const local = rows.flatMap((r) => JSON.parse(r.results) as StageResultEntry[]);
+    if (local.length > 0) return local;
+  }
+  // Not a participant → results aren't synced locally. They're public, so fetch.
+  try {
+    const { data } = await api.get<Array<{ results: StageResultEntry[] }>>(
+      `/api/public/matches/${matchId}/stages/${stageId}/results`,
+    );
+    return (Array.isArray(data) ? data : []).flatMap((r) => r.results ?? []);
+  } catch {
+    return [];
+  }
 }
 const activeTab = ref('stages');
 const showRegisterDialog = ref(false);
@@ -329,6 +340,33 @@ onMounted(async () => {
       matchResults.value = resultRows.flatMap((r) => JSON.parse(r.results) as MatchResultEntry[]);
     } catch {
       matchResults.value = [];
+    }
+
+    // For matches the shooter isn't registered in, PowerSync only syncs the
+    // match row (not stages/results). Those are public, so fill the gaps from
+    // the public API so any match's results are viewable.
+    if (stages.value.length === 0 || matchResults.value.length === 0) {
+      try {
+        if (stages.value.length === 0) {
+          const { data } = await api.get<Match & { stages: Stage[] }>(
+            `/api/public/matches/${matchId}`,
+          );
+          if (!match.value) {
+            match.value = { ...data, registration_open: Boolean(data.registration_open) } as Match;
+          }
+          stages.value = data.stages ?? [];
+        }
+        if (matchResults.value.length === 0) {
+          const { data } = await api.get<Array<{ results: MatchResultEntry[] }>>(
+            `/api/public/matches/${matchId}/results`,
+          );
+          matchResults.value = (Array.isArray(data) ? data : []).flatMap(
+            (r) => r.results ?? [],
+          );
+        }
+      } catch {
+        // leave whatever we have
+      }
     }
   } finally {
     loading.value = false;

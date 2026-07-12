@@ -63,15 +63,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import type { PowerSyncDatabase } from '@powersync/web';
-import { whenPowerSyncReady } from 'src/boot/powersync';
-import type { Match } from '@hitfactor/shared';
+import { computed } from 'vue';
+import { useMatch } from 'src/composables/useMatch';
 import MatchCard from 'src/components/match/MatchCard.vue';
 
-let db: PowerSyncDatabase | null = null;
-const loading = ref(true);
-const allMatches = ref<Match[]>([]);
+// useMatch() loads the match list via a reactive db.watch — so matches appear
+// as they sync in after login, without needing to leave and return to the page.
+const { matches: allMatches, loading } = useMatch();
 
 const today = new Date().toISOString().split('T')[0];
 
@@ -87,21 +85,5 @@ const recentMatches = computed(() => {
     .filter((m) => m.start_date < today || m.status === 'final')
     .sort((a, b) => b.start_date.localeCompare(a.start_date))
     .slice(0, 6);
-});
-
-onMounted(async () => {
-  db = await whenPowerSyncReady();
-  if (!db) {
-    loading.value = false;
-    return;
-  }
-
-  try {
-    allMatches.value = await db.getAll<Match>(
-      'SELECT * FROM matches ORDER BY start_date DESC',
-    );
-  } finally {
-    loading.value = false;
-  }
 });
 </script>
