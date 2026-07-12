@@ -42,6 +42,12 @@ spec:
             # S3 (Garage) credentials for match banners — per-namespace Secret.
             - secretRef:
                 name: hitfactor-s3
+            # SMTP (email) credentials — per-namespace Secret. Optional so the
+            # backend still boots where SMTP isn't configured yet (email is then
+            # logged-and-skipped rather than sent).
+            - secretRef:
+                name: hitfactor-smtp
+                optional: true
           env:
             - name: DATABASE_URL
               valueFrom:
