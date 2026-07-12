@@ -15,6 +15,16 @@
           class="match-status-badge q-ml-sm"
         />
       </div>
+      <div v-if="participated" class="q-mb-sm">
+        <q-chip
+          dense
+          size="sm"
+          color="positive"
+          text-color="white"
+          icon="check_circle"
+          label="You participated"
+        />
+      </div>
       <div class="row items-center q-gutter-sm text-grey-7">
         <q-icon name="event" size="16px" />
         <span>{{ formatDateRange(match.start_date, match.end_date) }}</span>
@@ -23,7 +33,14 @@
         <q-icon name="location_on" size="16px" />
         <span>{{ match.location }}</span>
       </div>
-      <div class="row items-center q-gutter-md q-mt-sm">
+      <div class="row items-center q-gutter-sm q-mt-sm">
+        <q-chip
+          dense
+          size="sm"
+          :color="orgColor"
+          text-color="white"
+          :label="match.organization"
+        />
         <q-chip dense size="sm" icon="star" :label="`Level ${match.level}`" />
       </div>
     </q-card-section>
@@ -35,9 +52,13 @@ import { computed } from 'vue';
 import type { Match } from '@hitfactor/shared';
 import { bannerUrl } from 'src/boot/axios';
 
-const props = defineProps<{
-  match: Match;
-}>();
+const props = withDefaults(
+  defineProps<{
+    match: Match;
+    participated?: boolean;
+  }>(),
+  { participated: false },
+);
 
 defineEmits<{
   click: [];
@@ -45,6 +66,11 @@ defineEmits<{
 
 const bannerSrc = computed(() =>
   bannerUrl(props.match.id, props.match.banner_updated_at),
+);
+
+// Distinct colour per federation so PSMOC vs PPSA is scannable at a glance.
+const orgColor = computed(() =>
+  props.match.organization === 'PPSA' ? 'teal-7' : 'indigo-7',
 );
 
 function formatDateRange(start: string, end: string | null): string {

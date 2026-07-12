@@ -33,6 +33,7 @@
           >
             <MatchCard
               :match="m"
+              :participated="participatedIds.has(m.id)"
               @click="$router.push(`/shooter/matches/${m.id}`)"
             />
           </div>
@@ -53,6 +54,7 @@
           >
             <MatchCard
               :match="m"
+              :participated="participatedIds.has(m.id)"
               @click="$router.push(`/shooter/matches/${m.id}`)"
             />
           </div>
@@ -63,13 +65,35 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useMatch } from 'src/composables/useMatch';
+import { whenPowerSyncReady } from 'src/boot/powersync';
+import { useAuthStore } from 'src/stores/auth.store';
 import MatchCard from 'src/components/match/MatchCard.vue';
 
 // useMatch() loads the match list via a reactive db.watch — so matches appear
 // as they sync in after login, without needing to leave and return to the page.
 const { matches: allMatches, loading } = useMatch();
+
+// Matches this shooter is registered in — PowerSync syncs their own
+// registrations, so a reactive watch keeps the "participated" markers current.
+const auth = useAuthStore();
+const participatedIds = ref<Set<string>>(new Set());
+
+onMounted(async () => {
+  const db = await whenPowerSyncReady();
+  if (!db || !auth.user) return;
+  db.watch(
+    'SELECT DISTINCT match_id FROM registrations WHERE user_id = ?',
+    [auth.user.id],
+    {
+      onResult: (result) => {
+        const rows = (result.rows?._array as { match_id: string }[]) ?? [];
+        participatedIds.value = new Set(rows.map((r) => r.match_id));
+      },
+    },
+  );
+});
 
 const today = new Date().toISOString().split('T')[0];
 
