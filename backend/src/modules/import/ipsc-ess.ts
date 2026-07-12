@@ -153,15 +153,17 @@ export function parseEssDqIds(html: string): number[] {
 
 /**
  * Scan a match's division results pages (division=1,2,…) collecting DQ'd shooter
- * ids. Stops after `stopAfterEmpty` consecutive divisions with no results table.
+ * ids. ESS division ids are a sparse, fixed catalog (e.g. this match uses
+ * 1–5, 22, 39) with large gaps, so we tolerate long empty runs — stop only
+ * after `stopAfterEmpty` consecutive empty divisions, bounded by `cap`.
  */
 export async function fetchEssDqIds(
   host: string,
   matchId: number,
   opts: { stopAfterEmpty?: number; cap?: number } = {}
 ): Promise<Set<number>> {
-  const stopAfterEmpty = opts.stopAfterEmpty ?? 3;
-  const cap = opts.cap ?? 30;
+  const stopAfterEmpty = opts.stopAfterEmpty ?? 20;
+  const cap = opts.cap ?? 80;
   const dq = new Set<number>();
   let empty = 0;
   for (let d = 1; d <= cap; d++) {
