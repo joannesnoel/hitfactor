@@ -70,8 +70,114 @@
       below for anything the suggestions miss (e.g. unrelated nicknames).
     </div>
 
+    <!-- Dedicated two-shooter picker -->
+    <q-card flat bordered class="q-mb-lg" style="max-width: 720px">
+      <q-card-section>
+        <div class="text-subtitle1 text-weight-medium q-mb-xs">
+          Merge two shooters
+        </div>
+        <div class="text-caption text-grey-7 q-mb-md">
+          Pick two records that are the same person, choose which to keep, then merge.
+        </div>
+        <div class="row q-col-gutter-md">
+          <div class="col-12 col-sm-6">
+            <q-select
+              v-model="shooterA"
+              :options="optionsA"
+              :option-label="shooterLabel"
+              label="Shooter A"
+              outlined
+              dense
+              clearable
+              use-input
+              input-debounce="300"
+              hide-dropdown-icon
+              @filter="(v, u) => filterShooters(v, u, 'A')"
+            >
+              <template #option="scope">
+                <q-item v-bind="scope.itemProps">
+                  <q-item-section>
+                    <q-item-label>{{ scope.opt.display_name }}</q-item-label>
+                    <q-item-label caption>{{ shooterMeta(scope.opt) }}</q-item-label>
+                  </q-item-section>
+                </q-item>
+              </template>
+              <template #no-option>
+                <q-item><q-item-section class="text-grey">Type a name or member #</q-item-section></q-item>
+              </template>
+            </q-select>
+            <div v-if="shooterA" class="text-caption text-grey-7 q-mt-xs q-ml-xs">
+              {{ shooterMeta(shooterA) }}
+            </div>
+          </div>
+          <div class="col-12 col-sm-6">
+            <q-select
+              v-model="shooterB"
+              :options="optionsB"
+              :option-label="shooterLabel"
+              label="Shooter B"
+              outlined
+              dense
+              clearable
+              use-input
+              input-debounce="300"
+              hide-dropdown-icon
+              @filter="(v, u) => filterShooters(v, u, 'B')"
+            >
+              <template #option="scope">
+                <q-item v-bind="scope.itemProps">
+                  <q-item-section>
+                    <q-item-label>{{ scope.opt.display_name }}</q-item-label>
+                    <q-item-label caption>{{ shooterMeta(scope.opt) }}</q-item-label>
+                  </q-item-section>
+                </q-item>
+              </template>
+              <template #no-option>
+                <q-item><q-item-section class="text-grey">Type a name or member #</q-item-section></q-item>
+              </template>
+            </q-select>
+            <div v-if="shooterB" class="text-caption text-grey-7 q-mt-xs q-ml-xs">
+              {{ shooterMeta(shooterB) }}
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-if="shooterA && shooterB && shooterA.id === shooterB.id"
+          class="text-negative text-caption q-mt-sm"
+        >
+          Those are the same record — pick two different shooters.
+        </div>
+        <div v-else-if="shooterA && shooterB" class="q-mt-md">
+          <div class="row items-center q-gutter-md">
+            <q-btn-toggle
+              v-model="keepSide"
+              no-caps
+              unelevated
+              toggle-color="green-6"
+              color="grey-3"
+              text-color="grey-9"
+              :options="keepToggleOptions"
+            />
+            <q-space />
+            <q-btn
+              color="primary"
+              unelevated
+              icon="merge"
+              label="Merge"
+              :loading="pickerMerging"
+              @click="confirmPickerMerge"
+            />
+          </div>
+          <div class="text-caption text-grey-7 q-mt-xs">
+            The other record's match history moves to the kept one, then it's deleted.
+          </div>
+        </div>
+      </q-card-section>
+    </q-card>
+
     <div class="text-subtitle1 text-weight-medium q-mb-sm">
-      Manually merge shooters
+      Or browse &amp; multi-select
     </div>
     <div class="text-caption text-grey-7 q-mb-sm" style="max-width: 640px">
       Search a name and tick a shooter, then search the other name and tick
@@ -197,7 +303,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useQuasar } from 'quasar';
 import { api } from 'src/boot/axios';
 import type { QTableColumn } from 'quasar';
@@ -233,6 +339,115 @@ const suggestions = ref<SuggestionGroup[]>([]);
 const loadingSuggestions = ref(false);
 // `clearable` sets the model to null on clear, so guard before trimming.
 const trimmedQuery = computed(() => (query.value ?? '').trim());
+
+// ── Dedicated two-shooter picker ────────────────────────────────────────────
+const shooterA = ref<Shooter | null>(null);
+const shooterB = ref<Shooter | null>(null);
+const optionsA = ref<Shooter[]>([]);
+const optionsB = ref<Shooter[]>([]);
+const keepSide = ref<'A' | 'B'>('A');
+const pickerMerging = ref(false);
+
+function shooterLabel(s: Shooter | null): string {
+  if (!s) return '';
+  return s.member_number ? `${s.display_name} (#${s.member_number})` : s.display_name;
+}
+
+function shooterMeta(s: Shooter): string {
+  const parts = [
+    `${s.match_count} match${s.match_count === 1 ? '' : 'es'}`,
+    `${s.registration_count} entries`,
+  ];
+  if (s.claimed) parts.push('claimed');
+  return parts.join(' · ');
+}
+
+const keepToggleOptions = computed(() => [
+  { label: `Keep ${shooterA.value?.display_name ?? 'A'}`, value: 'A' },
+  { label: `Keep ${shooterB.value?.display_name ?? 'B'}`, value: 'B' },
+]);
+
+async function filterShooters(
+  val: string,
+  update: (fn: () => void) => void,
+  which: 'A' | 'B',
+): Promise<void> {
+  const q = (val ?? '').trim();
+  if (q.length < 2) {
+    update(() => {
+      if (which === 'A') optionsA.value = [];
+      else optionsB.value = [];
+    });
+    return;
+  }
+  try {
+    const { data } = await api.get<Shooter[]>('/api/users/shooters', {
+      params: { q },
+    });
+    update(() => {
+      if (which === 'A') optionsA.value = data;
+      else optionsB.value = data;
+    });
+  } catch {
+    update(() => {});
+  }
+}
+
+// Default the "keep" side to a claimed account (a claimed record can't be the
+// one that's deleted), so the common case is right without extra clicks.
+watch([shooterA, shooterB], () => {
+  if (shooterB.value?.claimed && !shooterA.value?.claimed) keepSide.value = 'B';
+  else if (shooterA.value?.claimed && !shooterB.value?.claimed) keepSide.value = 'A';
+});
+
+function confirmPickerMerge(): void {
+  const a = shooterA.value;
+  const b = shooterB.value;
+  if (!a || !b || a.id === b.id) return;
+  const keep = keepSide.value === 'A' ? a : b;
+  const dup = keepSide.value === 'A' ? b : a;
+  if (dup.claimed) {
+    $q.notify({
+      type: 'warning',
+      message: `“${dup.display_name}” is a claimed account — keep that one instead.`,
+    });
+    return;
+  }
+  $q.dialog({
+    title: 'Merge shooters',
+    message:
+      `Merge <b>${dup.display_name}</b> into <b>${keep.display_name}</b>? ` +
+      `Their match history moves to the kept record and the duplicate is deleted. This can't be undone.`,
+    html: true,
+    cancel: true,
+    persistent: true,
+  }).onOk(() => void pickerMerge(keep, dup));
+}
+
+async function pickerMerge(keep: Shooter, dup: Shooter): Promise<void> {
+  pickerMerging.value = true;
+  try {
+    const { data } = await api.post<{ registrations_moved: number }>(
+      `/api/users/${dup.id}/merge`,
+      { into: keep.id },
+    );
+    $q.notify({
+      type: 'positive',
+      message: `Merged ${dup.display_name} into ${keep.display_name} — ${data.registrations_moved} entries moved.`,
+    });
+    shooterA.value = null;
+    shooterB.value = null;
+    if (trimmedQuery.value.length >= 2) await search();
+    await loadSuggestions();
+  } catch (e) {
+    const msg =
+      (e as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+      'Merge failed';
+    $q.notify({ type: 'negative', message: msg });
+  } finally {
+    pickerMerging.value = false;
+  }
+}
 
 onMounted(loadSuggestions);
 
