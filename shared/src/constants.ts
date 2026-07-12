@@ -63,6 +63,9 @@ export const DIVISION_CONFIG: Record<
     { key: 'revolver', label: 'Revolver' },
     { key: 'pcc_optics', label: 'PCC Optics' },
     { key: 'pcc_iron', label: 'PCC Iron' },
+    // Mini Rifle reuses the PRR (rimfire rifle) division keys under PPSA.
+    { key: 'prr_unlimited', label: 'Mini Rifle Open' },
+    { key: 'prr_limited', label: 'Mini Rifle Standard' },
   ],
 };
 
@@ -117,6 +120,12 @@ const PRACTISCORE_DIVISION_ABBREV: Record<string, DivisionKey> = {
   pistolcalibercarbineshortbarrelunlimited: 'pcc_sb_unlimited',
   practicalrimfireriflelimited: 'prr_limited',
   practicalrimfirerifleunlimited: 'prr_unlimited',
+  // IPSC ESS (PPSA) naming: "PC Optics"/"PC Iron" are PCC (a one-C typo), and
+  // Mini Rifle Open/Standard reuse the PRR (rimfire rifle) division keys.
+  pcoptics: 'pcc_optics',
+  pciron: 'pcc_iron',
+  minirifleopen: 'prr_unlimited',
+  miniriflestandard: 'prr_limited',
 };
 
 /** Resolve a PractiScore division string (abbrev, key, or label) to a canonical
