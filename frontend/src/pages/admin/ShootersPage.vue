@@ -70,7 +70,14 @@
       below for anything the suggestions miss (e.g. unrelated nicknames).
     </div>
 
-    <div class="text-subtitle1 text-weight-medium q-mb-sm">Search all shooters</div>
+    <div class="text-subtitle1 text-weight-medium q-mb-sm">
+      Manually merge shooters
+    </div>
+    <div class="text-caption text-grey-7 q-mb-sm" style="max-width: 640px">
+      Search a name and tick a shooter, then search the other name and tick
+      them too — your picks stay selected across searches. Choose which record
+      to keep, then Merge.
+    </div>
     <q-input
       v-model="query"
       label="Search by name or member #"
@@ -84,16 +91,37 @@
       <template #prepend><q-icon name="search" /></template>
     </q-input>
 
-    <!-- Merge action bar -->
+    <!-- Merge action bar — shows every picked shooter, even ones from an
+         earlier search that are no longer in the table below. -->
     <q-banner
-      v-if="selected.length >= 2"
+      v-if="selected.length >= 1"
       class="bg-blue-1 rounded-borders q-mt-md"
-      dense
     >
+      <div class="text-weight-medium q-mb-xs">
+        Selected to merge ({{ selected.length }})
+      </div>
+      <div class="row q-gutter-xs q-mb-sm">
+        <q-chip
+          v-for="s in selected"
+          :key="s.id"
+          removable
+          :color="s.id === keepId ? 'green-6' : 'grey-4'"
+          :text-color="s.id === keepId ? 'white' : 'grey-9'"
+          @remove="toggle(s, false)"
+        >
+          {{ s.display_name }}<span v-if="s.member_number">&nbsp;#{{ s.member_number }}</span>
+          <q-badge
+            v-if="s.id === keepId"
+            color="white"
+            text-color="green-8"
+            class="q-ml-xs"
+            label="keep"
+          />
+        </q-chip>
+      </div>
       <div class="row items-center q-gutter-md">
         <div>
-          <span class="text-weight-medium">{{ selected.length }}</span> selected —
-          keep:
+          Keep:
           <q-select
             v-model="keepId"
             :options="keepOptions"
@@ -106,12 +134,16 @@
           />
         </div>
         <q-space />
+        <div v-if="selected.length < 2" class="text-caption text-grey-7">
+          Pick a second shooter to merge.
+        </div>
         <q-btn
           color="primary"
           unelevated
           dense
           icon="merge"
           :label="`Merge ${selected.length - 1} into this record`"
+          :disable="selected.length < 2"
           :loading="merging"
           @click="confirmMerge"
         />
