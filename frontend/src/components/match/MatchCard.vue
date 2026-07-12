@@ -1,5 +1,6 @@
 <template>
   <q-card class="match-card cursor-pointer" @click="$emit('click')">
+    <q-img v-if="bannerSrc" :src="bannerSrc" :ratio="16 / 5" />
     <q-card-section>
       <div class="row items-center no-wrap q-mb-sm">
         <div
@@ -30,15 +31,21 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { Match } from '@hitfactor/shared';
+import { bannerUrl } from 'src/boot/axios';
 
-defineProps<{
+const props = defineProps<{
   match: Match;
 }>();
 
 defineEmits<{
   click: [];
 }>();
+
+const bannerSrc = computed(() =>
+  bannerUrl(props.match.id, props.match.banner_updated_at),
+);
 
 function formatDateRange(start: string, end: string | null): string {
   const startDate = new Date(start).toLocaleDateString('en-US', {

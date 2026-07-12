@@ -39,6 +39,9 @@ spec:
           envFrom:
             - configMapRef:
                 name: backend-env
+            # S3 (Garage) credentials for match banners — per-namespace Secret.
+            - secretRef:
+                name: hitfactor-s3
           env:
             - name: DATABASE_URL
               valueFrom:

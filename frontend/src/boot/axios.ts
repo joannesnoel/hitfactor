@@ -93,4 +93,18 @@ export default boot(() => {
   // axios instance is configured above, nothing else needed at boot
 });
 
-export { api };
+export { api, baseURL };
+
+/**
+ * Absolute URL for a match's banner image, or null when the match has none.
+ * `bannerUpdatedAt` (synced on the match) both signals a banner exists and
+ * busts the browser cache when the banner is replaced. Used directly as an
+ * <img> src, so it points at the public GET (no auth header needed).
+ */
+export function bannerUrl(
+  matchId: string,
+  bannerUpdatedAt: string | null | undefined,
+): string | null {
+  if (!bannerUpdatedAt) return null;
+  return `${baseURL}/api/matches/${matchId}/banner?v=${encodeURIComponent(bannerUpdatedAt)}`;
+}

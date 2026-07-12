@@ -5,6 +5,49 @@
     </div>
 
     <template v-else-if="match">
+      <!-- Banner -->
+      <q-card flat bordered class="q-mb-md">
+        <q-img v-if="currentBanner" :src="currentBanner" :ratio="16 / 5" />
+        <q-card-section>
+          <div class="text-caption text-grey q-mb-sm">
+            Match banner — shown on the public match page, lists, and headers.
+          </div>
+          <div class="row items-center q-gutter-sm">
+            <q-file
+              v-model="bannerFile"
+              dense
+              outlined
+              accept="image/png,image/jpeg,image/webp"
+              label="Choose image"
+              style="max-width: 280px"
+              :disable="bannerBusy"
+            >
+              <template #prepend><q-icon name="image" /></template>
+            </q-file>
+            <q-btn
+              color="primary"
+              label="Upload"
+              icon="upload"
+              :disable="!bannerFile || bannerBusy"
+              :loading="bannerBusy"
+              @click="uploadBanner"
+            />
+            <q-btn
+              v-if="currentBanner"
+              flat
+              color="negative"
+              label="Remove"
+              icon="delete"
+              :disable="bannerBusy"
+              @click="removeBanner"
+            />
+          </div>
+          <div class="text-caption text-grey q-mt-xs">
+            PNG, JPEG, or WebP. Max 5 MB.
+          </div>
+        </q-card-section>
+      </q-card>
+
       <q-card flat bordered class="q-pa-md">
         <div class="q-gutter-md">
           <div class="row q-gutter-md">
@@ -89,10 +132,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, inject } from 'vue';
+import { ref, reactive, computed, inject } from 'vue';
 import type { Ref } from 'vue';
 import { useQuasar } from 'quasar';
-import { api } from 'src/boot/axios';
+import { api, bannerUrl } from 'src/boot/axios';
 import { MATCH_STATUSES } from '@hitfactor/shared';
 import type { Match, MatchStatus } from '@hitfactor/shared';
 
@@ -108,6 +151,51 @@ const { match, matchId, loading } = ctx;
 
 const showEditDialog = ref(false);
 const newStatus = ref<MatchStatus | null>(null);
+
+// ── Banner ──────────────────────────────────────────────────────────────────
+const bannerFile = ref<File | null>(null);
+const bannerBusy = ref(false);
+const currentBanner = computed(() =>
+  bannerUrl(matchId, match.value?.banner_updated_at),
+);
+
+async function uploadBanner() {
+  if (!bannerFile.value) return;
+  bannerBusy.value = true;
+  try {
+    const form = new FormData();
+    form.append('file', bannerFile.value);
+    const { data } = await api.post<{ banner_updated_at: string }>(
+      `/api/matches/${matchId}/banner`,
+      form,
+      { headers: { 'Content-Type': 'multipart/form-data' } },
+    );
+    if (match.value) match.value.banner_updated_at = data.banner_updated_at;
+    bannerFile.value = null;
+    $q.notify({ type: 'positive', message: 'Banner updated' });
+  } catch (e) {
+    const err = e as { response?: { data?: { message?: string } } };
+    $q.notify({
+      type: 'negative',
+      message: err.response?.data?.message ?? 'Failed to upload banner',
+    });
+  } finally {
+    bannerBusy.value = false;
+  }
+}
+
+async function removeBanner() {
+  bannerBusy.value = true;
+  try {
+    await api.delete(`/api/matches/${matchId}/banner`);
+    if (match.value) match.value.banner_updated_at = null;
+    $q.notify({ type: 'positive', message: 'Banner removed' });
+  } catch {
+    $q.notify({ type: 'negative', message: 'Failed to remove banner' });
+  } finally {
+    bannerBusy.value = false;
+  }
+}
 
 const editForm = reactive({
   name: '',

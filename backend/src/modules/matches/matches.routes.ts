@@ -9,6 +9,11 @@ import {
   listOfficers,
   removeOfficer,
 } from './matches.controller.js';
+import {
+  uploadBanner,
+  getBanner,
+  deleteBanner,
+} from './match-banner.controller.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 import { requireRole } from '../../middleware/role.middleware.js';
 
@@ -47,6 +52,21 @@ export async function matchesRoutes(app: FastifyInstance): Promise<void> {
     '/api/matches/:id',
     { preHandler: [authMiddleware] },
     deleteMatch
+  );
+
+  // Banner (image in Garage/S3). GET is public so <img> tags work.
+  app.post(
+    '/api/matches/:id/banner',
+    { preHandler: [authMiddleware] },
+    uploadBanner
+  );
+
+  app.get('/api/matches/:id/banner', getBanner);
+
+  app.delete(
+    '/api/matches/:id/banner',
+    { preHandler: [authMiddleware] },
+    deleteBanner
   );
 
   // Officer management

@@ -101,6 +101,10 @@ export const matches = pgTable('matches', {
     .notNull(),
   max_shooters: integer('max_shooters'),
   registration_open: boolean('registration_open').default(false).notNull(),
+  // Set when a banner image exists in object storage (Garage) at
+  // matches/<id>/banner. Null = no banner. Doubles as the cache-bust token for
+  // the public GET /api/matches/:id/banner.
+  banner_updated_at: timestamp('banner_updated_at'),
   created_at: timestamp('created_at').defaultNow().notNull(),
   updated_at: timestamp('updated_at').defaultNow().notNull(),
 });

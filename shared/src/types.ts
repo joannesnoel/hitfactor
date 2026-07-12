@@ -49,6 +49,7 @@ export interface Match {
   created_by: string;
   max_shooters: number | null;
   registration_open: boolean;
+  banner_updated_at: string | null;
   created_at: string;
   updated_at: string;
 }

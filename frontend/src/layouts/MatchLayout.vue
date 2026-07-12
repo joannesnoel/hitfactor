@@ -4,6 +4,13 @@
       <q-toolbar>
         <q-btn flat dense round icon="menu" aria-label="Menu" @click="toggleDrawer" />
         <img src="/logo.png" alt="HitFactor" class="q-mr-sm" style="height: 28px" />
+        <img
+          v-if="bannerSrc"
+          :src="bannerSrc"
+          alt=""
+          class="q-mr-sm rounded-borders"
+          style="height: 28px; max-width: 96px; object-fit: cover"
+        />
         <q-toolbar-title class="ellipsis">
           {{ match?.name ?? 'Match' }}
         </q-toolbar-title>
@@ -114,9 +121,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, provide } from 'vue';
+import { ref, computed, provide } from 'vue';
 import { useRoute } from 'vue-router';
 import { useMatch } from 'src/composables/useMatch';
+import { bannerUrl } from 'src/boot/axios';
 import SyncStatusIndicator from 'src/components/common/SyncStatusIndicator.vue';
 
 const route = useRoute();
@@ -124,6 +132,10 @@ const matchId = route.params.id as string;
 const drawerOpen = ref(false);
 
 const { match, stages, registrations, loading } = useMatch(matchId);
+
+const bannerSrc = computed(() =>
+  bannerUrl(matchId, match.value?.banner_updated_at),
+);
 
 // Provide match data to child pages so they don't re-fetch
 provide('matchContext', { match, stages, registrations, loading, matchId });

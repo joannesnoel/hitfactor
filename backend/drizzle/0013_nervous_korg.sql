@@ -1,0 +1,1 @@
+ALTER TABLE "matches" ADD COLUMN "banner_updated_at" timestamp;
