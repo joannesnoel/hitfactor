@@ -10,6 +10,18 @@ const routes: RouteRecordRaw[] = [
     path: '/auth/register',
     component: () => import('src/pages/auth/RegisterPage.vue'),
   },
+  {
+    path: '/auth/forgot-password',
+    component: () => import('src/pages/auth/ForgotPasswordPage.vue'),
+  },
+  {
+    path: '/auth/reset-password',
+    component: () => import('src/pages/auth/ResetPasswordPage.vue'),
+  },
+  {
+    path: '/auth/verify-email',
+    component: () => import('src/pages/auth/VerifyEmailPage.vue'),
+  },
 
   // Admin routes
   {

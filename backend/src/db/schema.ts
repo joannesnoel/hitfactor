@@ -31,12 +31,32 @@ export const users = pgTable(
     phone: varchar('phone', { length: 30 }),
     claimed: boolean('claimed').notNull().default(false),
     claimed_at: timestamp('claimed_at'),
+    email_verified: boolean('email_verified').notNull().default(false),
     roles: text('roles').array().notNull().$default(() => ['shooter']),
     default_division: varchar('default_division', { length: 50 }),
     created_at: timestamp('created_at').defaultNow().notNull(),
     updated_at: timestamp('updated_at').defaultNow().notNull(),
   },
   (table) => [index('users_normalized_name_idx').on(table.normalized_name)]
+);
+
+// ─── Email tokens (verify / password-reset) ──────
+// Single-use, short-TTL tokens. Only the sha256 hash is stored; the plaintext
+// is emailed to the user. Not synced to clients.
+export const emailTokens = pgTable(
+  'email_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    user_id: uuid('user_id')
+      .references(() => users.id, { onDelete: 'cascade' })
+      .notNull(),
+    purpose: varchar('purpose', { length: 20 }).notNull(), // 'verify' | 'reset'
+    token_hash: varchar('token_hash', { length: 64 }).notNull(),
+    expires_at: timestamp('expires_at').notNull(),
+    used_at: timestamp('used_at'),
+    created_at: timestamp('created_at').defaultNow().notNull(),
+  },
+  (table) => [index('email_tokens_hash_idx').on(table.token_hash)]
 );
 
 // ─── User Divisions (classification per division) ─

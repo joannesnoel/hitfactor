@@ -23,6 +23,7 @@
     </q-header>
 
     <q-page-container>
+      <EmailVerifyBanner />
       <router-view />
     </q-page-container>
 
@@ -63,6 +64,7 @@ import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth.store';
 import SyncStatusIndicator from 'src/components/common/SyncStatusIndicator.vue';
+import EmailVerifyBanner from 'src/components/common/EmailVerifyBanner.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();

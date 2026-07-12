@@ -98,6 +98,8 @@ export async function getProfile(
       email: users.email,
       display_name: users.display_name,
       member_number: users.member_number,
+      email_verified: users.email_verified,
+      claimed: users.claimed,
       roles: users.roles,
       default_division: users.default_division,
       created_at: users.created_at,

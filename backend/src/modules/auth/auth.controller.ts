@@ -11,6 +11,8 @@ import {
   verifyJWT,
   getJWKS,
 } from '../../config/jwt.js';
+import { createToken } from './token.service.js';
+import { sendWelcomeVerifyEmail } from '../email/email.service.js';
 
 export async function register(
   request: FastifyRequest,
@@ -56,6 +58,10 @@ export async function register(
     })
     .returning();
 
+  // Welcome + email-verification (best-effort; never blocks signup).
+  const verifyToken = await createToken(user.id, 'verify');
+  void sendWelcomeVerifyEmail(email, user.display_name, verifyToken);
+
   const tokenPayload = {
     sub: user.id,
     email,
@@ -72,6 +78,7 @@ export async function register(
       id: user.id,
       email: user.email,
       display_name: user.display_name,
+      email_verified: user.email_verified,
       roles: user.roles,
     },
   });
@@ -138,6 +145,10 @@ export async function claim(
     .where(eq(users.id, user_id))
     .returning();
 
+  // Welcome + email-verification (best-effort; never blocks the claim).
+  const verifyToken = await createToken(user.id, 'verify');
+  void sendWelcomeVerifyEmail(email, user.display_name, verifyToken);
+
   const tokenPayload = { sub: user.id, email, roles: user.roles as string[] };
   const access_token = await signAccessToken(tokenPayload);
   const refresh_token = await signRefreshToken(tokenPayload);
@@ -148,6 +159,7 @@ export async function claim(
       id: user.id,
       email: user.email,
       display_name: user.display_name,
+      email_verified: user.email_verified,
       roles: user.roles,
     },
   });
@@ -210,6 +222,7 @@ export async function login(
       id: user.id,
       email: user.email,
       display_name: user.display_name,
+      email_verified: user.email_verified,
       roles: user.roles,
     },
   });

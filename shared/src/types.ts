@@ -20,6 +20,7 @@ export interface User {
   member_number: string | null;
   phone: string | null;
   claimed: boolean;
+  email_verified: boolean;
   roles: Role[];
   default_division: Division | null;
   divisions: UserDivision[];

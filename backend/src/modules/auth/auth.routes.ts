@@ -7,6 +7,12 @@ import {
   getPowerSyncToken,
   getJWKSEndpoint,
 } from './auth.controller.js';
+import {
+  forgotPassword,
+  resetPassword,
+  verifyEmail,
+  resendVerification,
+} from './auth-email.controller.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
@@ -19,7 +25,17 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.post('/api/auth/refresh', refresh);
   app.get('/api/auth/keys', getJWKSEndpoint);
 
+  // Email verification + password reset (public — the token authenticates).
+  app.post('/api/auth/forgot-password', forgotPassword);
+  app.post('/api/auth/reset-password', resetPassword);
+  app.post('/api/auth/verify-email', verifyEmail);
+
   // Authenticated routes
+  app.post(
+    '/api/auth/resend-verification',
+    { preHandler: [authMiddleware] },
+    resendVerification
+  );
   app.get(
     '/api/auth/powersync-token',
     { preHandler: [authMiddleware] },

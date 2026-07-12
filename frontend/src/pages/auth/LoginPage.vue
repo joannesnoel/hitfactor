@@ -53,9 +53,14 @@
       </q-card-section>
 
       <q-card-section class="text-center q-pt-none">
-        <router-link to="/auth/register" class="text-primary">
-          Don't have an account? Register
+        <router-link to="/auth/forgot-password" class="text-grey-7">
+          Forgot password?
         </router-link>
+        <div class="q-mt-sm">
+          <router-link to="/auth/register" class="text-primary">
+            Don't have an account? Register
+          </router-link>
+        </div>
         <div class="q-mt-sm">
           <router-link to="/public/matches" class="text-grey-7">
             Browse public results →
