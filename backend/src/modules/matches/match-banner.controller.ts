@@ -9,6 +9,7 @@ import { db } from '../../config/database.js';
 import { matches, matchAdmins } from '../../db/schema.js';
 import { s3, s3Enabled, S3_BUCKET, bannerKey } from '../../config/s3.js';
 import { validateBannerUpload } from './banner-validation.js';
+import { processBanner } from './banner-image.js';
 import type { RequestUser } from '../../middleware/auth.middleware.js';
 
 async function canAdminMatch(
@@ -90,13 +91,25 @@ export async function uploadBanner(
     });
   }
 
+  // Downscale + re-encode server-side (bounds size, normalizes format).
+  let processed;
+  try {
+    processed = await processBanner(buffer);
+  } catch {
+    return reply.status(400).send({
+      statusCode: 400,
+      error: 'Bad Request',
+      message: 'Could not process image — the file may be corrupt.',
+    });
+  }
+
   await s3!.send(
     new PutObjectCommand({
       Bucket: S3_BUCKET,
       Key: bannerKey(id),
-      Body: buffer,
-      ContentType: upload.mimetype,
-      ContentLength: buffer.length,
+      Body: processed.data,
+      ContentType: processed.contentType,
+      ContentLength: processed.data.length,
     })
   );
 
