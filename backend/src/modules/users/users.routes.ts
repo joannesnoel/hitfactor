@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { getProfile, updateProfile, searchUsers, createOfficer, listOfficers, updateUserRoles, deleteUser, listShooters, listShooterSuggestions, listClaimable, mergeShooters } from './users.controller.js';
+import { getProfile, updateProfile, searchUsers, createOfficer, listOfficers, updateUserRoles, deleteUser, listShooters, listShooterSuggestions, listClaimable, mergeShooters, listAccounts, adminUpdateShooter } from './users.controller.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 import { requireRole } from '../../middleware/role.middleware.js';
 
@@ -43,6 +43,19 @@ export async function usersRoutes(app: FastifyInstance): Promise<void> {
     '/api/users/officers',
     { preHandler: [authMiddleware] },
     createOfficer
+  );
+
+  // Admin: account management (list signed-up accounts + edit name)
+  app.get(
+    '/api/users/accounts',
+    { preHandler: [authMiddleware, requireRole('admin')] },
+    listAccounts
+  );
+
+  app.patch(
+    '/api/users/:id',
+    { preHandler: [authMiddleware, requireRole('admin')] },
+    adminUpdateShooter
   );
 
   app.patch(

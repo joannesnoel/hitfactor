@@ -109,6 +109,18 @@
         <q-item
           clickable
           v-ripple
+          :to="'/admin/accounts'"
+          active-class="text-primary"
+        >
+          <q-item-section avatar>
+            <q-icon name="manage_accounts" />
+          </q-item-section>
+          <q-item-section>Accounts</q-item-section>
+        </q-item>
+
+        <q-item
+          clickable
+          v-ripple
           :to="'/admin/ranges'"
           active-class="text-primary"
         >

@@ -50,6 +50,12 @@ export const verifyEmailSchema = z.object({
 });
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
 
+// Admin-editable account fields (name only, for now).
+export const adminUpdateShooterSchema = z.object({
+  display_name: z.string().min(1).max(100),
+});
+export type AdminUpdateShooterInput = z.infer<typeof adminUpdateShooterSchema>;
+
 // ─── Match ───────────────────────────────────────
 
 export const createMatchSchema = z.object({

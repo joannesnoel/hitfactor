@@ -2,11 +2,17 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import { eq, and, or, ilike, sql } from 'drizzle-orm';
-import { updateProfileSchema, createOfficerSchema, ROLES } from '@hitfactor/shared';
+import {
+  updateProfileSchema,
+  createOfficerSchema,
+  adminUpdateShooterSchema,
+  ROLES,
+} from '@hitfactor/shared';
 import type { Role } from '@hitfactor/shared';
 import { db } from '../../config/database.js';
 import { users, userDivisions } from '../../db/schema.js';
 import { suggestDuplicates } from './shooter-suggestions.js';
+import { normalizeShooterName } from '../import/shooter-identity.js';
 
 export async function createOfficer(
   request: FastifyRequest,
@@ -293,6 +299,81 @@ export async function deleteUser(
  * how many matches/registrations they carry) to spot and pick duplicates to
  * merge. Matches on display name or member number.
  */
+/**
+ * GET /api/users/accounts — admin: list shooters who have signed up (claimed a
+ * login). Small set, so no search/pagination.
+ */
+export async function listAccounts(
+  _request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const result = await db
+    .select({
+      id: users.id,
+      display_name: users.display_name,
+      email: users.email,
+      member_number: users.member_number,
+      email_verified: users.email_verified,
+      roles: users.roles,
+      created_at: users.created_at,
+    })
+    .from(users)
+    .where(eq(users.claimed, true))
+    .orderBy(users.display_name);
+
+  return reply.send(result);
+}
+
+/**
+ * PATCH /api/users/:id — admin: edit an account. Name only for now. Also
+ * refreshes normalized_name so a future re-import matches the corrected
+ * identity. Account-level only — does not touch match history/results.
+ */
+export async function adminUpdateShooter(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const { id } = request.params as { id: string };
+  const parsed = adminUpdateShooterSchema.safeParse(request.body);
+  if (!parsed.success) {
+    return reply.status(400).send({
+      statusCode: 400,
+      error: 'Bad Request',
+      message: 'Validation failed',
+      details: parsed.error.flatten(),
+    });
+  }
+  const { display_name } = parsed.data;
+
+  const [updated] = await db
+    .update(users)
+    .set({
+      display_name,
+      normalized_name: normalizeShooterName(display_name),
+      updated_at: new Date(),
+    })
+    .where(eq(users.id, id))
+    .returning({
+      id: users.id,
+      display_name: users.display_name,
+      email: users.email,
+      member_number: users.member_number,
+      email_verified: users.email_verified,
+      claimed: users.claimed,
+      roles: users.roles,
+    });
+
+  if (!updated) {
+    return reply.status(404).send({
+      statusCode: 404,
+      error: 'Not Found',
+      message: 'Account not found',
+    });
+  }
+
+  return reply.send(updated);
+}
+
 export async function listShooters(
   request: FastifyRequest,
   reply: FastifyReply

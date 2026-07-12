@@ -41,6 +41,10 @@ const routes: RouteRecordRaw[] = [
         component: () => import('src/pages/admin/ShootersPage.vue'),
       },
       {
+        path: 'accounts',
+        component: () => import('src/pages/admin/AccountsPage.vue'),
+      },
+      {
         path: 'ranges',
         component: () => import('src/pages/admin/RangesPage.vue'),
       },
