@@ -1,7 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
-import { eq, and, or, ilike, sql } from 'drizzle-orm';
+import { eq, and, or, ilike, sql, isNotNull } from 'drizzle-orm';
 import {
   updateProfileSchema,
   createOfficerSchema,
@@ -316,9 +316,12 @@ export async function listAccounts(
       email_verified: users.email_verified,
       roles: users.roles,
       created_at: users.created_at,
+      claimed: users.claimed,
     })
     .from(users)
-    .where(eq(users.claimed, true))
+    // "Has an account" = has a login, whether self-registered (claimed=false)
+    // or claimed from an imported record (claimed=true).
+    .where(isNotNull(users.password_hash))
     .orderBy(users.display_name);
 
   return reply.send(result);
