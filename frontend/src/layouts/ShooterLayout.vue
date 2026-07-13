@@ -7,9 +7,32 @@
         <SyncStatusIndicator />
         <q-btn flat round dense icon="account_circle">
           <q-menu>
-            <q-list style="min-width: 150px">
+            <q-list style="min-width: 180px">
               <q-item-label header>{{ userName }}</q-item-label>
               <q-separator />
+              <q-item
+                v-if="authStore.isAdmin"
+                clickable
+                v-close-popup
+                to="/admin/dashboard"
+              >
+                <q-item-section avatar>
+                  <q-icon name="shield" />
+                </q-item-section>
+                <q-item-section>Admin Dashboard</q-item-section>
+              </q-item>
+              <q-item
+                v-if="authStore.isOfficer"
+                clickable
+                v-close-popup
+                to="/officer/dashboard"
+              >
+                <q-item-section avatar>
+                  <q-icon name="sports_score" />
+                </q-item-section>
+                <q-item-section>Officer Dashboard</q-item-section>
+              </q-item>
+              <q-separator v-if="authStore.isAdmin || authStore.isOfficer" />
               <q-item clickable v-close-popup @click="handleLogout">
                 <q-item-section avatar>
                   <q-icon name="logout" />
