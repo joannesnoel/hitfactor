@@ -85,10 +85,14 @@
       <!-- Comparison to Stage Winner -->
       <q-card v-if="stageResults.length > 0" class="q-mb-md">
         <q-card-section>
-          <div class="text-h6 q-mb-md">Stage Winner Comparison</div>
+          <div class="text-h6 q-mb-md">
+            {{ myStageResult ? 'Stage Winner Comparison' : 'Stage Winner' }}
+          </div>
           <div v-if="stageWinner" class="row q-gutter-md">
             <div class="col-12 col-sm-6">
-              <div class="text-caption text-grey">Stage Winner</div>
+              <div class="text-caption text-grey">
+                {{ myStageResult ? 'Stage Winner' : 'Overall Stage Winner' }}
+              </div>
               <div class="text-subtitle1 text-weight-bold">{{ stageWinner.shooter_name }}</div>
               <div class="text-h6 text-green">HF: {{ stageWinner.hit_factor.toFixed(4) }}</div>
             </div>
@@ -209,12 +213,14 @@ const myStageResult = computed(() => {
 });
 
 // stage_results holds one entry-set per division plus a cross-division 'combined'
-// pool, all flattened together. Scope to my best entry's division so the winner
-// reflects that division — not another division or the combined pool.
+// pool, all flattened together. A participant is scoped to their own division so
+// the winner reflects that division. A non-participant has no "my division", so
+// fall back to the overall (combined) ranking — otherwise `.find(place===1)`
+// would return whichever division happens to be first in the list.
 const divisionResults = computed(() => {
   const div = myStageResult.value?.division ?? null;
-  return stageResults.value.filter(
-    (r) => !r.combined && (!div || r.division === div)
+  return stageResults.value.filter((r) =>
+    div ? !r.combined && r.division === div : r.combined,
   );
 });
 
