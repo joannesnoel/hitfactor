@@ -77,7 +77,9 @@
 
       <!-- No Score -->
       <q-banner v-else class="bg-blue-1 q-mb-lg" rounded>
-        No score recorded yet for this stage.
+        {{ myRegIds.length
+          ? 'No score recorded yet for this stage.'
+          : 'You didn\'t compete in this match — showing the stage standings below.' }}
       </q-banner>
 
       <!-- Comparison to Stage Winner -->
@@ -176,6 +178,7 @@ import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import type { PowerSyncDatabase } from '@powersync/web';
 import { whenPowerSyncReady } from 'src/boot/powersync';
+import { api } from 'src/boot/axios';
 import type { Stage, Score, StageResultEntry, Organization } from '@hitfactor/shared';
 import { DEFAULT_ORGANIZATION } from '@hitfactor/shared';
 import { useAuthStore } from 'src/stores/auth.store';
@@ -253,37 +256,50 @@ function scoringLabel(type: string): string {
 
 onMounted(async () => {
   db = await whenPowerSyncReady();
-  if (!db) {
-    loading.value = false;
-    return;
-  }
 
   try {
-    // Load stage
-    const stageRow = await db.get<Stage>('SELECT * FROM stages WHERE id = ?', [stageId]);
-    stage.value = {
-      ...stageRow,
-      stage_number: Number(stageRow.stage_number),
-      min_rounds: Number(stageRow.min_rounds),
-      max_points: Number(stageRow.max_points),
-      is_classifier: Boolean(stageRow.is_classifier),
-    } as Stage;
-
-    // Load match organization (for division labels)
-    try {
-      const matchRow = await db.get<{ organization: string }>(
-        'SELECT organization FROM matches WHERE id = ?',
-        [matchId],
-      );
-      if (matchRow?.organization) {
-        organization.value = matchRow.organization as Organization;
+    // ── Stage ── Prefer the locally-synced row; fall back to the public API for
+    // a match the shooter didn't compete in (its stages aren't synced locally).
+    // Use getAll (returns []) rather than get (throws "Result set is empty").
+    let stageRow: Stage | null = null;
+    if (db) {
+      const rows = await db.getAll<Stage>('SELECT * FROM stages WHERE id = ?', [stageId]);
+      stageRow = rows[0] ?? null;
+      if (stageRow) {
+        try {
+          const m = await db.getAll<{ organization: string }>(
+            'SELECT organization FROM matches WHERE id = ?',
+            [matchId],
+          );
+          if (m[0]?.organization) organization.value = m[0].organization as Organization;
+        } catch {
+          // keep default organization
+        }
       }
-    } catch {
-      // keep default organization
+    }
+    if (!stageRow) {
+      try {
+        const { data } = await api.get<{ organization?: string; stages?: Stage[] }>(
+          `/api/public/matches/${matchId}`,
+        );
+        if (data.organization) organization.value = data.organization as Organization;
+        stageRow = (data.stages ?? []).find((s) => s.id === stageId) ?? null;
+      } catch {
+        // leave stage null → template shows its empty state
+      }
+    }
+    if (stageRow) {
+      stage.value = {
+        ...stageRow,
+        stage_number: Number(stageRow.stage_number),
+        min_rounds: Number(stageRow.min_rounds),
+        max_points: Number(stageRow.max_points),
+        is_classifier: Boolean(stageRow.is_classifier),
+      } as Stage;
     }
 
-    // My registration ids (could be several — two divisions or a re-entry).
-    if (authStore.user) {
+    // My registration ids (local only; empty when I didn't participate).
+    if (db && authStore.user) {
       const myRegs = await db.getAll<{ id: string }>(
         'SELECT id FROM registrations WHERE match_id = ? AND user_id = ?',
         [matchId, authStore.user.id],
@@ -291,20 +307,34 @@ onMounted(async () => {
       myRegIds.value = myRegs.map((r) => r.id);
     }
 
-    // Load stage results (drives which of my entries is my best).
-    try {
-      const resultRows = await db.getAll<{ results: string }>(
-        'SELECT results FROM stage_results WHERE stage_id = ?',
-        [stageId],
-      );
-      stageResults.value = resultRows.flatMap((r) => JSON.parse(r.results) as StageResultEntry[]);
-    } catch {
-      stageResults.value = [];
+    // ── Stage results ── local if synced, else the public API.
+    let results: StageResultEntry[] = [];
+    if (db) {
+      try {
+        const resultRows = await db.getAll<{ results: string }>(
+          'SELECT results FROM stage_results WHERE stage_id = ?',
+          [stageId],
+        );
+        results = resultRows.flatMap((r) => JSON.parse(r.results) as StageResultEntry[]);
+      } catch {
+        results = [];
+      }
     }
+    if (results.length === 0) {
+      try {
+        const { data } = await api.get<Array<{ results: StageResultEntry[] }>>(
+          `/api/public/matches/${matchId}/stages/${stageId}/results`,
+        );
+        results = (Array.isArray(data) ? data : []).flatMap((r) => r.results ?? []);
+      } catch {
+        // leave empty
+      }
+    }
+    stageResults.value = results;
 
-    // Raw score for the "Your Score" card — my best entry's (or first if unscored).
+    // Raw score for the "Your Score" card — my best entry's (local only).
     const myRegId = myStageResult.value?.registration_id ?? myRegIds.value[0];
-    if (myRegId) {
+    if (db && myRegId) {
       const scoreRows = await db.getAll<Score>(
         'SELECT * FROM scores WHERE stage_id = ? AND registration_id = ?',
         [stageId, myRegId],
