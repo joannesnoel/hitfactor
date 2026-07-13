@@ -15,9 +15,20 @@
         <SyncStatusIndicator />
         <q-btn flat round dense icon="account_circle">
           <q-menu>
-            <q-list style="min-width: 150px">
+            <q-list style="min-width: 190px">
               <q-item-label header>{{ userName }}</q-item-label>
               <q-separator />
+              <q-item
+                v-for="t in switchTargets"
+                :key="t.key"
+                clickable
+                v-close-popup
+                :to="t.to"
+              >
+                <q-item-section avatar><q-icon :name="t.icon" /></q-item-section>
+                <q-item-section>{{ t.label }}</q-item-section>
+              </q-item>
+              <q-separator v-if="switchTargets.length" />
               <q-item clickable v-close-popup @click="goToProfile">
                 <q-item-section avatar>
                   <q-icon name="person" />
@@ -42,138 +53,45 @@
       bordered
       class="bg-grey-1"
     >
-      <q-list>
-        <q-item-label header class="text-grey-8">Navigation</q-item-label>
-
-        <!-- Admin Section -->
-        <q-item
-          clickable
-          v-ripple
-          :to="'/admin/dashboard'"
-          active-class="text-primary"
-        >
-          <q-item-section avatar>
-            <q-icon name="dashboard" />
-          </q-item-section>
-          <q-item-section>Admin Dashboard</q-item-section>
-        </q-item>
-
-        <q-item
-          clickable
-          v-ripple
-          :to="'/admin/matches/create'"
-          active-class="text-primary"
-        >
-          <q-item-section avatar>
-            <q-icon name="add_circle" />
-          </q-item-section>
-          <q-item-section>Create Match</q-item-section>
-        </q-item>
-
-        <q-item
-          clickable
-          v-ripple
-          :to="'/admin/import'"
-          active-class="text-primary"
-        >
-          <q-item-section avatar>
-            <q-icon name="upload_file" />
-          </q-item-section>
-          <q-item-section>Import Results</q-item-section>
-        </q-item>
-
-        <q-item
-          clickable
-          v-ripple
-          :to="'/admin/officers'"
-          active-class="text-primary"
-        >
-          <q-item-section avatar>
-            <q-icon name="badge" />
-          </q-item-section>
-          <q-item-section>Match Officials</q-item-section>
-        </q-item>
-
-        <q-item
-          clickable
-          v-ripple
-          :to="'/admin/shooters'"
-          active-class="text-primary"
-        >
-          <q-item-section avatar>
-            <q-icon name="people" />
-          </q-item-section>
-          <q-item-section>Shooters</q-item-section>
-        </q-item>
-
-        <q-item
-          clickable
-          v-ripple
-          :to="'/admin/accounts'"
-          active-class="text-primary"
-        >
-          <q-item-section avatar>
-            <q-icon name="manage_accounts" />
-          </q-item-section>
-          <q-item-section>Accounts</q-item-section>
-        </q-item>
-
-        <q-item
-          clickable
-          v-ripple
-          :to="'/admin/ranges'"
-          active-class="text-primary"
-        >
-          <q-item-section avatar>
-            <q-icon name="location_on" />
-          </q-item-section>
-          <q-item-section>Shooting Ranges</q-item-section>
-        </q-item>
-
-        <q-separator spaced />
-
-        <!-- Officer Section -->
+      <!-- Officer area: only officer items -->
+      <q-list v-if="currentArea === 'officer'">
         <q-item-label header class="text-grey-8">Officer</q-item-label>
-
-        <q-item
-          clickable
-          v-ripple
-          :to="'/officer/dashboard'"
-          active-class="text-primary"
-        >
-          <q-item-section avatar>
-            <q-icon name="sports_score" />
-          </q-item-section>
+        <q-item clickable v-ripple to="/officer/dashboard" exact active-class="text-primary">
+          <q-item-section avatar><q-icon name="sports_score" /></q-item-section>
           <q-item-section>Scoring Dashboard</q-item-section>
         </q-item>
+      </q-list>
 
-        <q-separator spaced />
-
-        <!-- Shooter Section -->
-        <q-item-label header class="text-grey-8">Shooter</q-item-label>
-
-        <q-item
-          clickable
-          v-ripple
-          :to="'/shooter/dashboard'"
-          active-class="text-primary"
-        >
-          <q-item-section avatar>
-            <q-icon name="home" />
-          </q-item-section>
-          <q-item-section>Shooter Dashboard</q-item-section>
+      <!-- Admin area: only admin items -->
+      <q-list v-else>
+        <q-item-label header class="text-grey-8">Admin</q-item-label>
+        <q-item clickable v-ripple to="/admin/dashboard" active-class="text-primary">
+          <q-item-section avatar><q-icon name="dashboard" /></q-item-section>
+          <q-item-section>Dashboard</q-item-section>
         </q-item>
-
-        <q-item
-          clickable
-          v-ripple
-          :to="'/shooter/profile'"
-          active-class="text-primary"
-        >
-          <q-item-section avatar>
-            <q-icon name="person" />
-          </q-item-section>
-          <q-item-section>Profile</q-item-section>
+        <q-item clickable v-ripple to="/admin/matches/create" active-class="text-primary">
+          <q-item-section avatar><q-icon name="add_circle" /></q-item-section>
+          <q-item-section>Create Match</q-item-section>
+        </q-item>
+        <q-item clickable v-ripple to="/admin/import" active-class="text-primary">
+          <q-item-section avatar><q-icon name="upload_file" /></q-item-section>
+          <q-item-section>Import Results</q-item-section>
+        </q-item>
+        <q-item clickable v-ripple to="/admin/officers" active-class="text-primary">
+          <q-item-section avatar><q-icon name="badge" /></q-item-section>
+          <q-item-section>Match Officials</q-item-section>
+        </q-item>
+        <q-item clickable v-ripple to="/admin/shooters" active-class="text-primary">
+          <q-item-section avatar><q-icon name="people" /></q-item-section>
+          <q-item-section>Shooters</q-item-section>
+        </q-item>
+        <q-item clickable v-ripple to="/admin/accounts" active-class="text-primary">
+          <q-item-section avatar><q-icon name="manage_accounts" /></q-item-section>
+          <q-item-section>Accounts</q-item-section>
+        </q-item>
+        <q-item clickable v-ripple to="/admin/ranges" active-class="text-primary">
+          <q-item-section avatar><q-icon name="location_on" /></q-item-section>
+          <q-item-section>Shooting Ranges</q-item-section>
         </q-item>
       </q-list>
     </q-drawer>
@@ -189,11 +107,13 @@
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth.store';
+import { useRoleSwitch } from 'src/composables/useRoleSwitch';
 import SyncStatusIndicator from 'src/components/common/SyncStatusIndicator.vue';
 import EmailVerifyBanner from 'src/components/common/EmailVerifyBanner.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();
+const { currentArea, switchTargets } = useRoleSwitch();
 const leftDrawerOpen = ref(false);
 
 const userName = computed(() => authStore.user?.display_name ?? 'User');

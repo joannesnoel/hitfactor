@@ -11,28 +11,16 @@
               <q-item-label header>{{ userName }}</q-item-label>
               <q-separator />
               <q-item
-                v-if="authStore.isAdmin"
+                v-for="t in switchTargets"
+                :key="t.key"
                 clickable
                 v-close-popup
-                to="/admin/dashboard"
+                :to="t.to"
               >
-                <q-item-section avatar>
-                  <q-icon name="shield" />
-                </q-item-section>
-                <q-item-section>Admin Dashboard</q-item-section>
+                <q-item-section avatar><q-icon :name="t.icon" /></q-item-section>
+                <q-item-section>{{ t.label }}</q-item-section>
               </q-item>
-              <q-item
-                v-if="authStore.isOfficer"
-                clickable
-                v-close-popup
-                to="/officer/dashboard"
-              >
-                <q-item-section avatar>
-                  <q-icon name="sports_score" />
-                </q-item-section>
-                <q-item-section>Officer Dashboard</q-item-section>
-              </q-item>
-              <q-separator v-if="authStore.isAdmin || authStore.isOfficer" />
+              <q-separator v-if="switchTargets.length" />
               <q-item clickable v-close-popup @click="handleLogout">
                 <q-item-section avatar>
                   <q-icon name="logout" />
@@ -86,8 +74,11 @@
 import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth.store';
+import { useRoleSwitch } from 'src/composables/useRoleSwitch';
 import SyncStatusIndicator from 'src/components/common/SyncStatusIndicator.vue';
 import EmailVerifyBanner from 'src/components/common/EmailVerifyBanner.vue';
+
+const { switchTargets } = useRoleSwitch();
 
 const router = useRouter();
 const authStore = useAuthStore();
