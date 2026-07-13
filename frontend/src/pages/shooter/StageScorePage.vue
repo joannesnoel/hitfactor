@@ -82,21 +82,33 @@
           : 'You didn\'t compete in this match — showing the stage standings below.' }}
       </q-banner>
 
+      <!-- Division selector — drives the winner card AND the results table -->
+      <q-select
+        v-if="availableDivisions.length > 1"
+        v-model="activeDivision"
+        :options="divisionOptions"
+        label="Division"
+        emit-value
+        map-options
+        outlined
+        dense
+        class="q-mb-md"
+        style="max-width: 300px"
+      />
+
       <!-- Comparison to Stage Winner -->
       <q-card v-if="stageResults.length > 0" class="q-mb-md">
         <q-card-section>
           <div class="text-h6 q-mb-md">
-            {{ myStageResult ? 'Stage Winner Comparison' : 'Stage Winner' }}
+            {{ viewingMyDivision ? 'Stage Winner Comparison' : 'Stage Winner' }}
           </div>
           <div v-if="stageWinner" class="row q-gutter-md">
             <div class="col-12 col-sm-6">
-              <div class="text-caption text-grey">
-                {{ myStageResult ? 'Stage Winner' : 'Overall Stage Winner' }}
-              </div>
+              <div class="text-caption text-grey">Stage Winner</div>
               <div class="text-subtitle1 text-weight-bold">{{ stageWinner.shooter_name }}</div>
               <div class="text-h6 text-green">HF: {{ stageWinner.hit_factor.toFixed(4) }}</div>
             </div>
-            <div v-if="myStageResult" class="col-12 col-sm-6">
+            <div v-if="viewingMyDivision" class="col-12 col-sm-6">
               <div class="text-caption text-grey">Your Stage %</div>
               <div class="text-h5 text-weight-bold text-primary">
                 {{ myStageResult.stage_percentage.toFixed(2) }}%
@@ -170,7 +182,7 @@
         <StageResultsTable
           :results="stageResults"
           :organization="organization"
-          :default-division="myStageResult?.division"
+          :division="activeDivision"
         />
       </div>
     </template>
@@ -178,13 +190,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch, watchEffect, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import type { PowerSyncDatabase } from '@powersync/web';
 import { whenPowerSyncReady } from 'src/boot/powersync';
 import { api } from 'src/boot/axios';
 import type { Stage, Score, StageResultEntry, Organization } from '@hitfactor/shared';
-import { DEFAULT_ORGANIZATION } from '@hitfactor/shared';
+import { DEFAULT_ORGANIZATION, getDivisionLabel } from '@hitfactor/shared';
+import {
+  usePreferredDivision,
+  pickInitialDivision,
+} from 'src/composables/usePreferredDivision';
 import { useAuthStore } from 'src/stores/auth.store';
 import StageResultsTable from 'src/components/results/StageResultsTable.vue';
 
@@ -212,17 +228,47 @@ const myStageResult = computed(() => {
   return mine.sort((a, b) => a.place - b.place)[0] ?? null;
 });
 
-// stage_results holds one entry-set per division plus a cross-division 'combined'
-// pool, all flattened together. A participant is scoped to their own division so
-// the winner reflects that division. A non-participant has no "my division", so
-// fall back to the overall (combined) ranking — otherwise `.find(place===1)`
-// would return whichever division happens to be first in the list.
-const divisionResults = computed(() => {
-  const div = myStageResult.value?.division ?? null;
-  return stageResults.value.filter((r) =>
-    div ? !r.combined && r.division === div : r.combined,
-  );
+// The stage winner is division-specific, so the page carries a single division
+// selection that drives BOTH the winner card and the results table. Defaults to
+// the shooter's own division (participant) or the sticky/first division
+// (non-participant); the user can switch it.
+const { remember } = usePreferredDivision();
+
+const availableDivisions = computed(() =>
+  Array.from(
+    new Set(stageResults.value.filter((r) => !r.combined).map((r) => r.division)),
+  ).sort(),
+);
+
+const activeDivision = ref('');
+watchEffect(() => {
+  const avail = availableDivisions.value;
+  if (avail.length && !avail.includes(activeDivision.value)) {
+    activeDivision.value = pickInitialDivision(avail, myStageResult.value?.division);
+  }
 });
+watch(activeDivision, (v) => {
+  if (v) remember(v);
+});
+
+const divisionOptions = computed(() =>
+  availableDivisions.value.map((d) => ({
+    label: getDivisionLabel(organization.value, d),
+    value: d,
+  })),
+);
+
+// True only when the selected division is the shooter's own — gates the personal
+// comparison (your % / where-you-lost).
+const viewingMyDivision = computed(
+  () => !!myStageResult.value && myStageResult.value.division === activeDivision.value,
+);
+
+// stage_results holds one entry-set per division plus a cross-division 'combined'
+// pool; scope the winner to the selected division.
+const divisionResults = computed(() =>
+  stageResults.value.filter((r) => !r.combined && r.division === activeDivision.value),
+);
 
 const stageWinner = computed(
   () => divisionResults.value.find((r) => r.place === 1) ?? null
@@ -233,6 +279,7 @@ const stageWinner = computed(
 // — matching the winner's pace makes stage% = accuracy×100; matching the winner's
 // points makes it speed×100 — so the bigger gain is the bigger opportunity.
 const lossBreakdown = computed(() => {
+  if (!viewingMyDivision.value) return null;
   const me = myStageResult.value;
   const w = stageWinner.value;
   if (!me || !w || me.place === 1 || me.dqed || me.dnf) return null;
