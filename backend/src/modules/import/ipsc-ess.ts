@@ -187,7 +187,7 @@ export async function fetchEssDqIds(
   opts: { cap?: number; concurrency?: number } = {}
 ): Promise<Set<number>> {
   const cap = opts.cap ?? 80;
-  const concurrency = opts.concurrency ?? 10;
+  const concurrency = opts.concurrency ?? 20;
   const dq = new Set<number>();
   for (let start = 1; start <= cap; start += concurrency) {
     const ids: number[] = [];
@@ -314,7 +314,7 @@ export async function fetchEssShooters(
 ): Promise<EssFetchResult> {
   const stopAfterMisses = opts.stopAfterMisses ?? 15;
   const cap = opts.cap ?? 800;
-  const concurrency = opts.concurrency ?? 10;
+  const concurrency = opts.concurrency ?? 20;
   const shooters: EssShooter[] = [];
   let matchName = '';
   let consecutiveMisses = 0;
