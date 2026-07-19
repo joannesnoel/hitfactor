@@ -152,48 +152,59 @@ export function parseEssDqIds(html: string): number[] {
 }
 
 /**
- * Scan a match's division results pages (division=1,2,…) collecting DQ'd shooter
- * ids. ESS division ids are a sparse, fixed catalog (e.g. this match uses
- * 1–5, 22, 39) with large gaps, so we tolerate long empty runs — stop only
- * after `stopAfterEmpty` consecutive empty divisions, bounded by `cap`.
+ * GET a page's text with a hard per-request timeout, returning null on any
+ * failure (non-2xx, network error, or timeout). A hung ESS page must never
+ * stall the whole import — native fetch has no default timeout.
+ */
+async function fetchPageText(
+  url: string,
+  timeoutMs = 15000
+): Promise<string | null> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      headers: { 'user-agent': 'HitFactor-Import/1.0' },
+      signal: ctrl.signal,
+    });
+    if (!res.ok) return null;
+    return await res.text();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Scan a match's division results pages (division=1..cap) collecting DQ'd
+ * shooter ids. ESS division ids are a sparse catalog, so we fetch the whole
+ * small range in parallel batches (fast + complete) rather than stopping early.
  */
 export async function fetchEssDqIds(
   host: string,
   matchId: number,
-  opts: { stopAfterEmpty?: number; cap?: number } = {}
+  opts: { cap?: number; concurrency?: number } = {}
 ): Promise<Set<number>> {
-  const stopAfterEmpty = opts.stopAfterEmpty ?? 20;
   const cap = opts.cap ?? 80;
+  const concurrency = opts.concurrency ?? 10;
   const dq = new Set<number>();
-  let empty = 0;
-  for (let d = 1; d <= cap; d++) {
-    const url = `https://${host}/portal/results/${matchId}?division=${d}`;
-    let html: string;
-    try {
-      const res = await fetch(url, {
-        headers: { 'user-agent': 'HitFactor-Import/1.0' },
-      });
-      if (!res.ok) {
-        empty++;
-        if (empty >= stopAfterEmpty) break;
-        continue;
-      }
-      html = await res.text();
-    } catch {
-      empty++;
-      if (empty >= stopAfterEmpty) break;
-      continue;
+  for (let start = 1; start <= cap; start += concurrency) {
+    const ids: number[] = [];
+    for (let i = 0; i < concurrency && start + i <= cap; i++) ids.push(start + i);
+    const pages = await Promise.all(
+      ids.map((d) =>
+        fetchPageText(`https://${host}/portal/results/${matchId}?division=${d}`)
+      )
+    );
+    for (const html of pages) {
+      if (!html) continue;
+      // A populated division has an <h3>Name</h3> heading + a results table.
+      const populated =
+        /<tbody>[\s\S]*<tr>/.test(html) && /<h3>[^<]+<\/h3>/.test(html);
+      if (!populated) continue;
+      for (const id of parseEssDqIds(html)) dq.add(id);
     }
-    // A populated division has an <h3>Name</h3> heading + a results table.
-    const populated = /<tbody>[\s\S]*<tr>/.test(html) && /<h3>[^<]+<\/h3>/.test(html);
-    if (!populated) {
-      empty++;
-      if (empty >= stopAfterEmpty) break;
-      continue;
-    }
-    empty = 0;
-    for (const id of parseEssDqIds(html)) dq.add(id);
-    await new Promise((r) => setTimeout(r, 60));
   }
   return dq;
 }
@@ -290,49 +301,55 @@ export interface EssFetchResult {
 }
 
 /**
- * Fetch verify pages for shooter ids 1,2,3… on a validated ESS host, stopping
- * after `stopAfterMisses` consecutive not-found pages (tolerating id gaps) or a
- * hard `cap`. Sequential + a small delay to be polite. Uses native fetch.
+ * Fetch verify pages for shooter ids 1,2,3… on a validated ESS host in parallel
+ * batches (bounded `concurrency`), stopping after `stopAfterMisses` consecutive
+ * not-found pages (tolerating id gaps) or a hard `cap`. Parallelism keeps a
+ * several-hundred-shooter match well under proxy timeouts; each page has its own
+ * timeout via fetchPageText.
  */
 export async function fetchEssShooters(
   host: string,
   matchId: number,
-  opts: { stopAfterMisses?: number; cap?: number } = {}
+  opts: { stopAfterMisses?: number; cap?: number; concurrency?: number } = {}
 ): Promise<EssFetchResult> {
   const stopAfterMisses = opts.stopAfterMisses ?? 15;
   const cap = opts.cap ?? 800;
+  const concurrency = opts.concurrency ?? 10;
   const shooters: EssShooter[] = [];
-  let misses = 0;
   let matchName = '';
-  let n = 0;
-  for (n = 1; n <= cap; n++) {
-    const url = `https://${host}/portal/verify/${matchId}?shooter=${n}`;
-    let html: string;
-    try {
-      const res = await fetch(url, {
-        headers: { 'user-agent': 'HitFactor-Import/1.0' },
-      });
-      if (!res.ok) {
-        misses++;
-        if (misses >= stopAfterMisses) break;
-        continue;
+  let consecutiveMisses = 0;
+  let scanned = 0;
+
+  for (let start = 1; start <= cap; start += concurrency) {
+    const ids: number[] = [];
+    for (let i = 0; i < concurrency && start + i <= cap; i++) ids.push(start + i);
+
+    // Fetch this window of shooter ids in parallel.
+    const parsedPages = await Promise.all(
+      ids.map((id) =>
+        fetchPageText(`https://${host}/portal/verify/${matchId}?shooter=${id}`)
+          .then((html) => (html ? parseEssVerify(html) : null))
+          .catch(() => null)
+      )
+    );
+
+    // Process in id order so the consecutive-miss end-detection is preserved
+    // (parallelism only over-scans by at most one window past the real end).
+    let stop = false;
+    for (let i = 0; i < parsedPages.length; i++) {
+      scanned = ids[i];
+      const parsed = parsedPages[i];
+      if (parsed) {
+        consecutiveMisses = 0;
+        if (parsed.matchName) matchName = parsed.matchName;
+        shooters.push(parsed);
+      } else if (++consecutiveMisses >= stopAfterMisses) {
+        stop = true;
+        break;
       }
-      html = await res.text();
-    } catch {
-      misses++;
-      if (misses >= stopAfterMisses) break;
-      continue;
     }
-    const parsed = parseEssVerify(html);
-    if (!parsed) {
-      misses++;
-      if (misses >= stopAfterMisses) break;
-      continue;
-    }
-    misses = 0;
-    if (parsed.matchName) matchName = parsed.matchName;
-    shooters.push(parsed);
-    await new Promise((r) => setTimeout(r, 60));
+    if (stop) break;
   }
-  return { shooters, scanned: n - 1, matchName };
+
+  return { shooters, scanned, matchName };
 }
