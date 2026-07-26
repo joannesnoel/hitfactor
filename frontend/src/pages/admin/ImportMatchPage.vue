@@ -115,8 +115,11 @@
           @click="runEss(true)"
         />
       </div>
-      <div v-if="essLoading" class="text-caption text-grey q-mt-sm">
-        Fetching shooters from ESS — a large match takes a moment…
+      <div v-if="essLoading" class="row items-center q-gutter-sm text-caption text-grey q-mt-sm">
+        <q-spinner size="16px" />
+        <span>
+          Scraping ESS<span v-if="essScraped"> — {{ essScraped }} shooters so far</span>… a large match can take a couple of minutes.
+        </span>
       </div>
 
       <q-banner v-if="error && source === 'ess'" class="bg-red-1 text-red-9 q-mt-md" rounded dense>
@@ -202,6 +205,7 @@ const source = ref<'psc' | 'ess' | null>(null);
 const essUrl = ref<string | null>(null);
 const essInProgress = ref(false);
 const essLoading = ref(false);
+const essScraped = ref(0);
 
 // Import is enabled only after a successful preview from the matching source.
 const canCommit = computed(
@@ -274,8 +278,11 @@ async function runEss(commit: boolean) {
   pending.value = commit ? 'commit' : 'preview';
   error.value = null;
   source.value = 'ess';
+  essScraped.value = 0;
   try {
-    const res = await api.post<ImportSummary>(
+    // The import runs as a background job (a big match can take minutes, longer
+    // than an HTTP request may live); start it, then poll for the result.
+    const start = await api.post<{ jobId: string }>(
       '/api/admin/import/ess',
       { url: essUrl.value },
       {
@@ -285,7 +292,7 @@ async function runEss(commit: boolean) {
         },
       }
     );
-    summary.value = res.data;
+    summary.value = await pollEssJob(start.data.jobId);
     if (commit) {
       $q.notify({ type: 'positive', message: 'Match imported', position: 'top' });
     }
@@ -297,5 +304,22 @@ async function runEss(commit: boolean) {
     essLoading.value = false;
     pending.value = null;
   }
+}
+
+async function pollEssJob(jobId: string): Promise<ImportSummary> {
+  // Poll every 2s until the job finishes (cap ~10 min for a very large match).
+  for (let i = 0; i < 300; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    const { data } = await api.get<{
+      status: 'running' | 'done' | 'error';
+      scraped: number;
+      summary: ImportSummary | null;
+      message: string | null;
+    }>(`/api/admin/import/ess/${jobId}`);
+    essScraped.value = data.scraped ?? 0;
+    if (data.status === 'done' && data.summary) return data.summary;
+    if (data.status === 'error') throw new Error(data.message ?? 'Import failed');
+  }
+  throw new Error('Import is taking too long — please check the match and retry.');
 }
 </script>

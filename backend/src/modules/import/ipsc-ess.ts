@@ -187,7 +187,7 @@ export async function fetchEssDqIds(
   opts: { cap?: number; concurrency?: number } = {}
 ): Promise<Set<number>> {
   const cap = opts.cap ?? 80;
-  const concurrency = opts.concurrency ?? 20;
+  const concurrency = opts.concurrency ?? 10;
   const dq = new Set<number>();
   for (let start = 1; start <= cap; start += concurrency) {
     const ids: number[] = [];
@@ -230,12 +230,20 @@ export function buildEssMatch(
   // Union of stage numbers; paper rounds per stage = max(a+c+d+mi) seen, so
   // max_points = rounds×5 (same trick as the .psc parser's stageStats).
   const paperByStage = new Map<number, number>();
+  const nsByStage = new Map<number, number>();
   for (const s of shooters) {
     for (const st of s.stages) {
       const rounds = st.a + st.c + st.d + st.mi;
       paperByStage.set(
         st.stageNo,
         Math.max(paperByStage.get(st.stageNo) ?? 0, rounds)
+      );
+      // No-shoot targets aren't on the verify page, but per-shooter NS hits are.
+      // The most any shooter took is a lower-bound estimate of NS targets — at
+      // least it reflects that the stage HAS no-shoots (not "turned off").
+      nsByStage.set(
+        st.stageNo,
+        Math.max(nsByStage.get(st.stageNo) ?? 0, st.ns)
       );
     }
   }
@@ -248,7 +256,7 @@ export function buildEssMatch(
       number_of_targets: Math.ceil((paperByStage.get(stageNo) ?? 0) / 2),
       paper_target_rounds: undefined,
       number_of_steel: 0,
-      number_of_no_shoots: 0,
+      number_of_no_shoots: nsByStage.get(stageNo) ?? 0,
     }));
 
   const entries: ParsedEntry[] = [];
@@ -310,11 +318,16 @@ export interface EssFetchResult {
 export async function fetchEssShooters(
   host: string,
   matchId: number,
-  opts: { stopAfterMisses?: number; cap?: number; concurrency?: number } = {}
+  opts: {
+    stopAfterMisses?: number;
+    cap?: number;
+    concurrency?: number;
+    onProgress?: (found: number) => void;
+  } = {}
 ): Promise<EssFetchResult> {
   const stopAfterMisses = opts.stopAfterMisses ?? 15;
   const cap = opts.cap ?? 800;
-  const concurrency = opts.concurrency ?? 20;
+  const concurrency = opts.concurrency ?? 10;
   const shooters: EssShooter[] = [];
   let matchName = '';
   let consecutiveMisses = 0;
@@ -348,6 +361,7 @@ export async function fetchEssShooters(
         break;
       }
     }
+    opts.onProgress?.(shooters.length);
     if (stop) break;
   }
 

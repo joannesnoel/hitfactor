@@ -1,7 +1,29 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
+import { randomUUID } from 'node:crypto';
 import { parsePsc } from './practiscore-psc.js';
 import { importMatch } from './import.service.js';
 import { fetchEssShooters, fetchEssDqIds, buildEssMatch } from './ipsc-ess.js';
+import type { ImportSummary } from './types.js';
+
+// ─── Async ESS import jobs ───────────────────────────────────────────────────
+// ESS scraping of a big match can take longer than an HTTP request may live
+// (Cloudflare caps at ~100s), so the import runs as a background job and the
+// client polls for the result. In-memory is fine: the backend is single-replica
+// and a lost job on restart just means the admin re-runs it.
+interface EssImportJob {
+  id: string;
+  status: 'running' | 'done' | 'error';
+  scraped: number;
+  summary?: ImportSummary;
+  message?: string;
+  createdAt: number;
+}
+const essJobs = new Map<string, EssImportJob>();
+
+function pruneEssJobs(): void {
+  const cutoff = Date.now() - 30 * 60 * 1000; // keep 30 min
+  for (const [id, j] of essJobs) if (j.createdAt < cutoff) essJobs.delete(id);
+}
 
 /**
  * POST /api/admin/import?commit=true — upload a PractiScore .psc file.
@@ -129,29 +151,82 @@ export async function importMatchFromEss(
     });
   }
 
-  const { shooters, scanned } = await fetchEssShooters(host, matchId);
-  if (shooters.length === 0) {
+  // Start the scrape+import in the background and return a job id to poll — the
+  // whole thing can outlive an HTTP request for a large match.
+  pruneEssJobs();
+  const job: EssImportJob = {
+    id: randomUUID(),
+    status: 'running',
+    scraped: 0,
+    createdAt: Date.now(),
+  };
+  essJobs.set(job.id, job);
+  const userId = request.user.id;
+
+  void (async () => {
+    try {
+      const { shooters, scanned } = await fetchEssShooters(host, matchId, {
+        onProgress: (found) => {
+          job.scraped = found;
+        },
+      });
+      if (shooters.length === 0) {
+        job.status = 'error';
+        job.message = `No shooters found for match ${matchId} on ${host} (scanned ${scanned} ids)`;
+        return;
+      }
+      // DQ is hidden on the verify pages — pull it from the division results.
+      const dqIds = await fetchEssDqIds(host, matchId);
+      const date = new Date().toISOString().slice(0, 10);
+      const parsed = buildEssMatch(host, matchId, shooters, date, dqIds);
+      const summary = await importMatch(parsed, userId, {
+        dryRun: !commit,
+        status,
+      });
+      summary.warnings.unshift(
+        `Scraped ${shooters.length} shooter(s) from ${host} (scanned ${scanned} ids); ` +
+          `${dqIds.size} DQ'd (from division results). No steel data in ESS pages; ` +
+          `date defaulted to ${date}.`
+      );
+      job.summary = summary;
+      job.status = 'done';
+    } catch (err) {
+      job.status = 'error';
+      job.message = err instanceof Error ? err.message : 'Import failed';
+    }
+  })();
+
+  return reply.status(202).send({ jobId: job.id });
+}
+
+/**
+ * GET /api/admin/import/ess/:jobId — poll an ESS import job. Returns its status,
+ * a live scraped count while running, and the ImportSummary when done. Admin.
+ */
+export async function getEssImportStatus(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  if (!request.user.roles.includes('admin')) {
+    return reply.status(403).send({
+      statusCode: 403,
+      error: 'Forbidden',
+      message: 'Admin access required',
+    });
+  }
+  const { jobId } = request.params as { jobId: string };
+  const job = essJobs.get(jobId);
+  if (!job) {
     return reply.status(404).send({
       statusCode: 404,
       error: 'Not Found',
-      message: `No shooters found for match ${matchId} on ${host} (scanned ${scanned} ids)`,
+      message: 'Import job not found (it may have expired).',
     });
   }
-
-  // DQ is hidden on the verify pages — pull it from the division results pages.
-  const dqIds = await fetchEssDqIds(host, matchId);
-
-  const date = new Date().toISOString().slice(0, 10);
-  const parsed = buildEssMatch(host, matchId, shooters, date, dqIds);
-
-  const summary = await importMatch(parsed, request.user.id, {
-    dryRun: !commit,
-    status,
+  return reply.send({
+    status: job.status,
+    scraped: job.scraped,
+    summary: job.summary ?? null,
+    message: job.message ?? null,
   });
-  summary.warnings.unshift(
-    `Scraped ${shooters.length} shooter(s) from ${host} (scanned ${scanned} ids); ` +
-      `${dqIds.size} DQ'd (from division results). No steel data in ESS pages; ` +
-      `date defaulted to ${date}.`
-  );
-  return reply.send(summary);
 }
