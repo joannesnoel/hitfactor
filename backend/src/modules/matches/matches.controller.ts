@@ -1,14 +1,18 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, isNull } from 'drizzle-orm';
 import {
   createMatchSchema,
   updateMatchSchema,
   assignMatchOfficerSchema,
   assignStageOfficerSchema,
+  addRegistrationSchema,
+  isValidDivisionForOrg,
   MATCH_LEVEL_OFFICIAL_ROLES,
 } from '@hitfactor/shared';
+import type { Organization } from '@hitfactor/shared';
 import { db } from '../../config/database.js';
-import { matches, stages, matchAdmins, matchOfficers, stageOfficers, users } from '../../db/schema.js';
+import { matches, stages, matchAdmins, matchOfficers, stageOfficers, users, registrations } from '../../db/schema.js';
+import { normalizeShooterName, cleanDisplayName } from '../import/shooter-identity.js';
 
 async function isMatchAdmin(
   matchId: string,
@@ -351,6 +355,190 @@ export async function removeOfficer(
     .delete(matchOfficers)
     .where(
       and(eq(matchOfficers.match_id, id), eq(matchOfficers.user_id, userId))
+    );
+
+  return reply.status(204).send();
+}
+
+// ─── Registrations (admin manual add / remove) ──────────────────────────────
+
+/**
+ * Manually register a shooter into a match. Used to populate private matches
+ * (which shooters can't self-discover) and to add walk-ins to any match.
+ * Links an existing account when `user_id` is given; otherwise resolves or
+ * creates an unclaimed shooter from the name (same identity model as import).
+ */
+export async function addRegistration(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const { id: matchId } = request.params as { id: string };
+
+  const isAdmin =
+    (await isMatchAdmin(matchId, request.user.id)) ||
+    request.user.roles.includes('admin');
+
+  const parsed = addRegistrationSchema.safeParse(request.body);
+  if (!parsed.success) {
+    return reply.status(400).send({
+      statusCode: 400,
+      error: 'Bad Request',
+      message: 'Validation failed',
+      details: parsed.error.flatten(),
+    });
+  }
+  const { user_id, shooter_name, division, power_factor, member_number, classification } =
+    parsed.data;
+
+  const [match] = await db
+    .select({
+      organization: matches.organization,
+      registration_open: matches.registration_open,
+    })
+    .from(matches)
+    .where(eq(matches.id, matchId))
+    .limit(1);
+  if (!match) {
+    return reply.status(404).send({
+      statusCode: 404,
+      error: 'Not Found',
+      message: 'Match not found',
+    });
+  }
+
+  // Non-admins may only self-register, and only while registration is open.
+  // (Private matches never reach here for a stranger — they can't load the
+  // match to call this.) Admins can add anyone, any time.
+  if (!isAdmin && !match.registration_open) {
+    return reply.status(403).send({
+      statusCode: 403,
+      error: 'Forbidden',
+      message: 'Registration is closed for this match',
+    });
+  }
+
+  if (!isValidDivisionForOrg(match.organization as Organization, division)) {
+    return reply.status(400).send({
+      statusCode: 400,
+      error: 'Bad Request',
+      message: `Division "${division}" is not offered by ${match.organization}`,
+    });
+  }
+
+  // Resolve the shooter account. A non-admin can only register themselves. An
+  // admin may pass an existing user_id, or omit it to resolve/create an
+  // unclaimed shooter from the name (same identity model as import).
+  let userId: string;
+  if (!isAdmin) {
+    userId = request.user.id;
+  } else if (user_id) {
+    const [u] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, user_id))
+      .limit(1);
+    if (!u) {
+      return reply.status(404).send({
+        statusCode: 404,
+        error: 'Not Found',
+        message: 'Shooter account not found',
+      });
+    }
+    userId = u.id;
+  } else {
+    const norm = normalizeShooterName(shooter_name);
+    const [existing] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.normalized_name, norm))
+      .limit(1);
+    if (existing) {
+      userId = existing.id;
+    } else {
+      const [created] = await db
+        .insert(users)
+        .values({
+          display_name: cleanDisplayName(shooter_name),
+          normalized_name: norm,
+          member_number: member_number ?? null,
+          email: null,
+          password_hash: null,
+          claimed: false,
+          roles: ['shooter'],
+        })
+        .returning({ id: users.id });
+      userId = created.id;
+    }
+  }
+
+  // A shooter can't be entered twice in the same division with the same member
+  // number (matches the DB unique constraint).
+  const [dupe] = await db
+    .select({ id: registrations.id })
+    .from(registrations)
+    .where(
+      and(
+        eq(registrations.match_id, matchId),
+        eq(registrations.user_id, userId),
+        eq(registrations.division, division),
+        member_number
+          ? eq(registrations.member_number, member_number)
+          : isNull(registrations.member_number)
+      )
+    )
+    .limit(1);
+  if (dupe) {
+    return reply.status(409).send({
+      statusCode: 409,
+      error: 'Conflict',
+      message: 'This shooter is already registered in that division',
+    });
+  }
+
+  const [registration] = await db
+    .insert(registrations)
+    .values({
+      match_id: matchId,
+      user_id: userId,
+      shooter_name: cleanDisplayName(shooter_name),
+      member_number: member_number ?? null,
+      division,
+      power_factor,
+      classification: classification ?? null,
+    })
+    .returning();
+
+  return reply.status(201).send(registration);
+}
+
+/** Remove a registration (e.g. an accidentally-added shooter). Cascades to the
+ * shooter's scores for this match. */
+export async function removeRegistration(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const { id: matchId, registrationId } = request.params as {
+    id: string;
+    registrationId: string;
+  };
+
+  const isAdmin = await isMatchAdmin(matchId, request.user.id);
+  const isGlobalAdmin = request.user.roles.includes('admin');
+  if (!isAdmin && !isGlobalAdmin) {
+    return reply.status(403).send({
+      statusCode: 403,
+      error: 'Forbidden',
+      message: 'Not authorized to remove shooters from this match',
+    });
+  }
+
+  await db
+    .delete(registrations)
+    .where(
+      and(
+        eq(registrations.id, registrationId),
+        eq(registrations.match_id, matchId)
+      )
     );
 
   return reply.status(204).send();

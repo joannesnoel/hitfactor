@@ -86,6 +86,20 @@ export const updateMatchSchema = createMatchSchema.partial().extend({
 });
 export type UpdateMatchInput = z.infer<typeof updateMatchSchema>;
 
+// Admin manually registers a shooter into a match. `user_id` links an existing
+// shooter account; when omitted, the backend resolves/creates an unclaimed
+// shooter from `shooter_name` (same as an import). Division must be offered by
+// the match's organization (validated server-side).
+export const addRegistrationSchema = z.object({
+  user_id: z.string().uuid().optional(),
+  shooter_name: z.string().min(1).max(100),
+  division: z.enum(DIVISIONS),
+  power_factor: z.enum(POWER_FACTORS),
+  member_number: z.string().max(20).optional(),
+  classification: z.enum(CLASSIFICATIONS).optional(),
+});
+export type AddRegistrationInput = z.infer<typeof addRegistrationSchema>;
+
 // ─── Stage ───────────────────────────────────────
 
 export const createStageSchema = z.object({

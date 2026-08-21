@@ -8,6 +8,8 @@ import {
   assignOfficer,
   listOfficers,
   removeOfficer,
+  addRegistration,
+  removeRegistration,
 } from './matches.controller.js';
 import {
   uploadBanner,
@@ -86,5 +88,18 @@ export async function matchesRoutes(app: FastifyInstance): Promise<void> {
     '/api/matches/:id/officers/:userId',
     { preHandler: [authMiddleware] },
     removeOfficer
+  );
+
+  // Registrations (admin manual add / remove; per-match admin guard in handler)
+  app.post(
+    '/api/matches/:id/registrations',
+    { preHandler: [authMiddleware] },
+    addRegistration
+  );
+
+  app.delete(
+    '/api/matches/:id/registrations/:registrationId',
+    { preHandler: [authMiddleware] },
+    removeRegistration
   );
 }
