@@ -55,6 +55,11 @@ export async function register(
       display_name,
       member_number: member_number ?? null,
       roles: ['shooter'],
+      // A self-registered account owns its login, so it is claimed by
+      // definition. Without this it would keep the default claimed=false and
+      // leak into the /auth/register "claim your record" search.
+      claimed: true,
+      claimed_at: new Date(),
     })
     .returning();
 

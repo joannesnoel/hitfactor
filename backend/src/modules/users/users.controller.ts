@@ -1,7 +1,7 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
-import { eq, and, or, ilike, sql, isNotNull } from 'drizzle-orm';
+import { eq, and, or, ilike, sql, isNull, isNotNull } from 'drizzle-orm';
 import {
   updateProfileSchema,
   createOfficerSchema,
@@ -429,6 +429,10 @@ export async function listClaimable(
     .where(
       and(
         eq(users.claimed, false),
+        // Never surface a record that already has a login — a claimed account
+        // whose flag was left stale would otherwise appear here (and can't be
+        // claimed anyway, since claim rejects records with a password).
+        isNull(users.password_hash),
         or(ilike(users.display_name, pattern), ilike(users.member_number, pattern))
       )
     )
