@@ -68,13 +68,17 @@
       <!-- Current Shooter -->
       <div class="row items-center no-wrap q-mb-md">
         <q-btn
+          v-if="currentRegistration"
           round
           flat
           icon="chevron_left"
           :disable="currentShooterIndex <= 0"
           @click="prevShooter"
         />
+
+        <!-- Active shooter -->
         <q-card
+          v-if="currentRegistration"
           flat
           class="current-shooter-card col q-mx-sm text-white text-center"
           :class="existingScore ? 'bg-green-7' : 'bg-primary'"
@@ -91,7 +95,6 @@
                 class="q-ml-xs"
               />
               <q-badge
-                v-if="currentRegistration"
                 color="white"
                 :text-color="
                   currentRegistration.power_factor === 'Major'
@@ -102,11 +105,10 @@
                 class="q-ml-xs"
               />
             </div>
-            <div v-if="currentRegistration" class="text-h6 text-weight-bold ellipsis">
+            <div class="text-h6 text-weight-bold ellipsis">
               {{ currentRegistration.shooter_name }}
             </div>
-            <div v-else class="text-subtitle1 q-py-xs">No shooters registered</div>
-            <div v-if="currentRegistration" class="text-caption">
+            <div class="text-caption">
               {{ getDivisionLabel(organization, currentRegistration.division) }}
               <template v-if="currentRegistration.classification">
                 · {{ currentRegistration.classification }}
@@ -118,7 +120,22 @@
             </div>
           </q-card-section>
         </q-card>
+
+        <!-- Empty state -->
+        <q-card v-else flat bordered class="col text-center bg-grey-1">
+          <q-card-section class="q-py-lg text-grey-7">
+            <q-icon name="person_off" size="28px" class="q-mb-xs" />
+            <div class="text-subtitle1">
+              {{ selectedSquadId ? 'No shooters in this squad' : 'No shooters registered yet' }}
+            </div>
+            <div class="text-caption">
+              {{ selectedSquadId ? 'Clear the squad filter or pick another squad.' : 'Shooters will appear here once they register for this match.' }}
+            </div>
+          </q-card-section>
+        </q-card>
+
         <q-btn
+          v-if="currentRegistration"
           round
           flat
           icon="chevron_right"
@@ -127,6 +144,8 @@
         />
       </div>
 
+      <!-- Scoring form — only when a shooter is selected -->
+      <template v-if="currentRegistration">
       <q-separator class="q-mb-md" />
 
       <!-- DQ / DNF Toggles -->
@@ -198,7 +217,7 @@
 
       <!-- Save Button -->
       <div
-        v-if="currentRegistration && !isComplete"
+        v-if="!isComplete"
         class="text-center text-orange-9 text-caption q-mb-xs"
       >
         <q-icon name="warning" size="14px" /> Incomplete — {{ incompleteReason }}
@@ -209,7 +228,7 @@
         class="full-width q-mb-md"
         size="xl"
         unelevated
-        :disable="!currentRegistration || !isComplete"
+        :disable="!isComplete"
         :loading="saving"
         icon="save"
         @click="handleSave"
@@ -219,6 +238,7 @@
       <q-banner v-if="existingScore" class="bg-blue-1 q-mt-sm" rounded>
         Score already exists for this shooter. Saving will update it.
       </q-banner>
+      </template>
     </div>
   </q-page>
 </template>
