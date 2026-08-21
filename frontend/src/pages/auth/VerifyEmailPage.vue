@@ -51,7 +51,10 @@ onMounted(async () => {
   }
   try {
     await api.post('/api/auth/verify-email', { token });
+    // Reflect it immediately, and persist via a server refresh when signed in
+    // (so the verify banner doesn't reappear on the next load).
     if (auth.user) auth.user.email_verified = true;
+    void auth.refreshUser();
     state.value = 'ok';
   } catch (e) {
     const err = e as { response?: { data?: { message?: string } } };

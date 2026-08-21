@@ -74,6 +74,21 @@ export const useAuthStore = defineStore('auth', () => {
     disconnectPowerSync().catch(() => {});
   }
 
+  // Re-fetch the current user from the server and persist it. Keeps fields that
+  // change server-side after login — notably email_verified (so the "verify your
+  // email" banner clears once verification lands) plus roles / name — in sync,
+  // since the cached user is otherwise only written at login.
+  async function refreshUser() {
+    if (!accessToken.value) return;
+    try {
+      const { data } = await api.get<User>('/api/users/me');
+      user.value = data;
+      localStorage.setItem('user', JSON.stringify(data));
+    } catch {
+      // Best-effort: keep the cached user if the refresh fails.
+    }
+  }
+
   async function refreshTokens() {
     try {
       const response = await api.post<AuthTokens>('/api/auth/refresh', {
@@ -109,6 +124,9 @@ export const useAuthStore = defineStore('auth', () => {
       connectPowerSync().catch((err) =>
         console.warn('[PowerSync] Connect after restore failed:', err),
       );
+      // Refresh the cached user so server-side changes (email_verified, roles,
+      // name) reflect on every app load, not just at login.
+      void refreshUser();
     }
   }
 
@@ -125,6 +143,7 @@ export const useAuthStore = defineStore('auth', () => {
     claim,
     logout,
     refreshTokens,
+    refreshUser,
     loadFromStorage,
   };
 });
