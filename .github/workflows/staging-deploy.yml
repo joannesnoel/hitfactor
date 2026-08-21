@@ -30,10 +30,17 @@ jobs:
 
       - name: Install kubectl
         run: |
-          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-          chmod +x kubectl
-          sudo mv kubectl /usr/local/bin/
-          kubectl version --client
+          # The self-hosted runner is long-lived, so kubectl persists between
+          # runs — skip the (slow, occasionally-hanging) re-download when present.
+          if command -v kubectl >/dev/null 2>&1; then
+            echo "kubectl already installed: $(kubectl version --client 2>/dev/null | head -1)"
+          else
+            VER="$(curl -sL --retry 3 --max-time 20 https://dl.k8s.io/release/stable.txt)"
+            curl -LO --retry 3 --max-time 120 "https://dl.k8s.io/release/${VER}/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            sudo mv kubectl /usr/local/bin/
+            kubectl version --client
+          fi
 
       - name: Configure kubectl
         run: |
