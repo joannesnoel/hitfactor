@@ -40,6 +40,15 @@
             </template>
           </q-input>
 
+          <div class="text-right" style="margin-top: -8px">
+            <router-link
+              to="/auth/forgot-password"
+              class="text-primary text-caption"
+            >
+              Forgot password?
+            </router-link>
+          </div>
+
           <q-btn
             type="submit"
             color="primary"
@@ -53,10 +62,7 @@
       </q-card-section>
 
       <q-card-section class="text-center q-pt-none">
-        <router-link to="/auth/forgot-password" class="text-grey-7">
-          Forgot password?
-        </router-link>
-        <div class="q-mt-sm">
+        <div>
           <router-link to="/auth/register" class="text-primary">
             Don't have an account? Register
           </router-link>
