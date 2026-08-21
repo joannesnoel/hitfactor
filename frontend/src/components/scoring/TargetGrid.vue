@@ -12,12 +12,10 @@
           v-for="z in ZONES"
           :key="z.k"
           :label="z.label"
-          :style="{ backgroundColor: z.color }"
-          :text-color="z.textColor"
+          :style="pillStyle(z, countOf(hits, z.k), scoringCount(hits) >= roundsFor(i))"
           dense
           unelevated
           class="zone-btn"
-          :disable="z.k !== 'ns' && scoringCount(hits) >= roundsFor(i)"
           @click="add(i, z.k)"
         />
       </div>
@@ -58,13 +56,17 @@ const emit = defineEmits<{ 'update:modelValue': [string[][]] }>();
 // A/C/D/M are scoring hits (limited to the target's round count); NS is a
 // no-shoot penalty tagged to the target — it doesn't consume a scoring round.
 // Colors: A green, C yellow, D orange, M red, NS red (deeper, to stay distinct).
+// `edge` is a readable-on-white variant used for the outline/text before the
+// zone is scored (plain yellow is illegible on white).
 const ZONES = [
-  { k: 'a', label: 'A', color: '#21ba45', textColor: 'white' },
-  { k: 'c', label: 'C', color: '#fdd835', textColor: 'black' },
-  { k: 'd', label: 'D', color: '#f57c00', textColor: 'white' },
-  { k: 'm', label: 'M', color: '#e53935', textColor: 'white' },
-  { k: 'ns', label: 'NS', color: '#b71c1c', textColor: 'white' },
+  { k: 'a', label: 'A', color: '#21ba45', textColor: 'white', edge: '#1a9c39' },
+  { k: 'c', label: 'C', color: '#fdd835', textColor: 'black', edge: '#c9a400' },
+  { k: 'd', label: 'D', color: '#f57c00', textColor: 'white', edge: '#e06f00' },
+  { k: 'm', label: 'M', color: '#e53935', textColor: 'white', edge: '#d32f2f' },
+  { k: 'ns', label: 'NS', color: '#b71c1c', textColor: 'white', edge: '#b71c1c' },
 ];
+
+type Zone = (typeof ZONES)[number];
 
 function roundsFor(i: number): number {
   return props.rounds?.[i] ?? props.defaultRounds;
@@ -73,6 +75,26 @@ function roundsFor(i: number): number {
 // Scoring hits only (excludes no-shoots), which is what the round limit counts.
 function scoringCount(hits: string[]): number {
   return hits.filter((h) => h !== 'ns').length;
+}
+
+function countOf(hits: string[], k: string): number {
+  return hits.filter((h) => h === k).length;
+}
+
+// Pills are white/outlined until that zone is scored on the target, then they
+// fill with the zone color. Unscored A/C/D/M dim once the row's rounds are full.
+function pillStyle(z: Zone, count: number, full: boolean): Record<string, string> {
+  const border = `1px solid ${z.edge}`;
+  if (count > 0) {
+    return { backgroundColor: z.color, color: z.textColor, border };
+  }
+  const base: Record<string, string> = {
+    backgroundColor: '#fff',
+    color: z.edge,
+    border,
+  };
+  if (full && z.k !== 'ns') base.opacity = '0.4';
+  return base;
 }
 
 function clone(): string[][] {
