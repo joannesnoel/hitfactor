@@ -4,6 +4,7 @@
       v-for="(hits, i) in modelValue"
       :key="i"
       class="target-row row items-center no-wrap q-py-xs"
+      v-touch-hold:500.mouse="() => clearRow(i)"
     >
       <div class="target-label text-weight-bold">T{{ i + 1 }}</div>
       <div class="row q-gutter-xs no-wrap q-ml-sm">
@@ -35,6 +36,9 @@
         :disable="hits.length === 0"
         @click="undo(i)"
       />
+    </div>
+    <div class="text-caption text-grey-6 q-mt-xs">
+      Tip: press &amp; hold a row to clear it.
     </div>
   </div>
 </template>
@@ -75,10 +79,27 @@ function clone(): string[][] {
   return props.modelValue.map((t) => [...t]);
 }
 
+// A long-press fires touch-hold and then a trailing click; suppress that click
+// (briefly) so holding a pill clears the row instead of also adding a hit.
+let suppressClick = false;
+
 function add(i: number, zone: string) {
+  if (suppressClick) return;
   if (zone !== 'ns' && scoringCount(props.modelValue[i]) >= roundsFor(i)) return;
   const next = clone();
   next[i].push(zone);
+  emit('update:modelValue', next);
+}
+
+// Press-and-hold anywhere on a target row clears all its hits (A/C/D/M/NS).
+function clearRow(i: number) {
+  suppressClick = true;
+  window.setTimeout(() => {
+    suppressClick = false;
+  }, 400);
+  if (props.modelValue[i].length === 0) return;
+  const next = clone();
+  next[i] = [];
   emit('update:modelValue', next);
 }
 
