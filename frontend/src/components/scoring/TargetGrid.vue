@@ -12,11 +12,11 @@
           :key="z.k"
           :label="z.label"
           :style="{ backgroundColor: z.color }"
-          text-color="white"
+          :text-color="z.textColor"
           dense
           unelevated
           class="zone-btn"
-          :disable="hits.length >= roundsFor(i)"
+          :disable="z.k !== 'ns' && scoringCount(hits) >= roundsFor(i)"
           @click="add(i, z.k)"
         />
       </div>
@@ -24,7 +24,7 @@
         {{ tally(hits) || '—' }}
       </div>
       <q-space />
-      <div class="text-caption text-grey q-mr-xs">{{ hits.length }}/{{ roundsFor(i) }}</div>
+      <div class="text-caption text-grey q-mr-xs">{{ scoringCount(hits) }}/{{ roundsFor(i) }}</div>
       <q-btn
         flat
         dense
@@ -51,15 +51,24 @@ const props = withDefaults(
 
 const emit = defineEmits<{ 'update:modelValue': [string[][]] }>();
 
+// A/C/D/M are scoring hits (limited to the target's round count); NS is a
+// no-shoot penalty tagged to the target — it doesn't consume a scoring round.
+// Colors: A green, C yellow, D orange, M red, NS red (deeper, to stay distinct).
 const ZONES = [
-  { k: 'a', label: 'A', color: '#4caf50' },
-  { k: 'c', label: 'C', color: '#ff9800' },
-  { k: 'd', label: 'D', color: '#f44336' },
-  { k: 'm', label: 'M', color: '#9c27b0' },
+  { k: 'a', label: 'A', color: '#21ba45', textColor: 'white' },
+  { k: 'c', label: 'C', color: '#fdd835', textColor: 'black' },
+  { k: 'd', label: 'D', color: '#f57c00', textColor: 'white' },
+  { k: 'm', label: 'M', color: '#e53935', textColor: 'white' },
+  { k: 'ns', label: 'NS', color: '#b71c1c', textColor: 'white' },
 ];
 
 function roundsFor(i: number): number {
   return props.rounds?.[i] ?? props.defaultRounds;
+}
+
+// Scoring hits only (excludes no-shoots), which is what the round limit counts.
+function scoringCount(hits: string[]): number {
+  return hits.filter((h) => h !== 'ns').length;
 }
 
 function clone(): string[][] {
@@ -67,7 +76,7 @@ function clone(): string[][] {
 }
 
 function add(i: number, zone: string) {
-  if (props.modelValue[i].length >= roundsFor(i)) return;
+  if (zone !== 'ns' && scoringCount(props.modelValue[i]) >= roundsFor(i)) return;
   const next = clone();
   next[i].push(zone);
   emit('update:modelValue', next);
@@ -83,7 +92,7 @@ function undo(i: number) {
 function tally(hits: string[]): string {
   const counts: Record<string, number> = {};
   for (const h of hits) counts[h] = (counts[h] ?? 0) + 1;
-  return ['a', 'c', 'd', 'm']
+  return ['a', 'c', 'd', 'm', 'ns']
     .filter((z) => counts[z])
     .map((z) => `${counts[z]}${z.toUpperCase()}`)
     .join(' ');

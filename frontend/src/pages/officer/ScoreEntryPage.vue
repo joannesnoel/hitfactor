@@ -145,7 +145,16 @@
         />
       </div>
 
-      <!-- Per-target paper scoring -->
+      <!-- Steel (at top) — each plate is Hit (A) by default, tap to Miss (M) -->
+      <div v-if="hasSteel" class="q-mb-md" :class="{ 'disabled-section': form.dqed || form.dnf }">
+        <div class="row items-center justify-between q-mb-xs">
+          <div class="text-subtitle2">Steel ({{ steelState.length }})</div>
+          <div class="text-caption text-grey">{{ steelSummary }}</div>
+        </div>
+        <SteelGrid v-model="steelState" />
+      </div>
+
+      <!-- Per-target paper scoring (A/C/D/M plus per-row NS) -->
       <div class="q-mb-md" :class="{ 'disabled-section': form.dqed || form.dnf }">
         <div class="row items-center justify-between q-mb-xs">
           <div class="text-subtitle2">Targets ({{ targetCount }})</div>
@@ -154,38 +163,16 @@
         <TargetGrid v-model="targetHits" :rounds="paperRounds" />
       </div>
 
-      <!-- No-shoots / Procedurals -->
+      <!-- Procedurals -->
       <div
         class="row justify-center q-gutter-md q-mb-md"
         :class="{ 'disabled-section': form.dqed || form.dnf }"
       >
         <ZoneCounter
-          label="NS"
-          :count="form.no_shoot_count"
-          color="#607d8b"
-          @update:count="form.no_shoot_count = $event"
-        />
-        <ZoneCounter
           label="Proc"
           :count="form.procedural_count"
           color="#795548"
           @update:count="form.procedural_count = $event"
-        />
-      </div>
-
-      <!-- Steel Counters -->
-      <div v-if="hasSteel" class="row justify-center q-gutter-md q-mb-md" :class="{ 'disabled-section': form.dqed || form.dnf }">
-        <ZoneCounter
-          label="Steel Hits"
-          :count="form.steel_hits"
-          color="#4caf50"
-          @update:count="form.steel_hits = $event"
-        />
-        <ZoneCounter
-          label="Steel Misses"
-          :count="form.steel_misses"
-          color="#f44336"
-          @update:count="form.steel_misses = $event"
         />
       </div>
 
@@ -247,6 +234,7 @@ import { computeScore, getDivisionLabel, DEFAULT_ORGANIZATION } from '@hitfactor
 import { useAuthStore } from 'src/stores/auth.store';
 import ZoneCounter from 'src/components/scoring/ZoneCounter.vue';
 import TargetGrid from 'src/components/scoring/TargetGrid.vue';
+import SteelGrid from 'src/components/scoring/SteelGrid.vue';
 import TimeInput from 'src/components/scoring/TimeInput.vue';
 import SyncStatusIndicator from 'src/components/common/SyncStatusIndicator.vue';
 
@@ -270,14 +258,16 @@ const selectedRegistrationId = ref<string | null>(null);
 const currentShooterIndex = ref(0);
 const shooterSearchOptions = ref<{ label: string; value: string; caption: string; scored: boolean }[]>([]);
 
-// Per-target paper hits: one ordered array of zones ('a'|'c'|'d'|'m') per target.
+// Per-target paper hits: one ordered array of zones ('a'|'c'|'d'|'m'|'ns') per
+// target. No-shoots ('ns') are penalty hits tagged to a target — they don't
+// consume a scoring round.
 const targetHits = ref<string[][]>([]);
 
+// Steel plates: true = hit (A), false = miss (M). Defaults to all hit.
+const steelState = ref<boolean[]>([]);
+
 const form = reactive({
-  no_shoot_count: 0,
   procedural_count: 0,
-  steel_hits: 0,
-  steel_misses: 0,
   time: 0,
   dqed: false,
   dnf: false,
@@ -301,9 +291,9 @@ const paperRounds = computed<number[] | null>(() => {
   return null;
 });
 
-// Aggregate paper zone counts derived from the per-target grid.
+// Aggregate paper zone counts derived from the per-target grid (incl. no-shoots).
 const paperCounts = computed(() => {
-  const c = { a: 0, c: 0, d: 0, m: 0 };
+  const c = { a: 0, c: 0, d: 0, m: 0, ns: 0 };
   for (const t of targetHits.value) {
     for (const h of t) {
       if (h in c) c[h as keyof typeof c]++;
@@ -314,11 +304,20 @@ const paperCounts = computed(() => {
 
 const paperSummary = computed(() => {
   const c = paperCounts.value;
-  const parts = (['a', 'c', 'd', 'm'] as const)
+  const parts = (['a', 'c', 'd', 'm', 'ns'] as const)
     .filter((z) => c[z])
     .map((z) => `${c[z]}${z.toUpperCase()}`);
   return parts.length ? parts.join('  ') : 'No hits';
 });
+
+// Steel hit/miss counts derived from the plate toggles.
+const steelHitCount = computed(() => steelState.value.filter(Boolean).length);
+const steelMissCount = computed(() => steelState.value.filter((h) => !h).length);
+const steelSummary = computed(() =>
+  steelMissCount.value > 0
+    ? `${steelHitCount.value}A  ${steelMissCount.value}M`
+    : 'all hit',
+);
 
 // ── Completeness: every required round (paper + steel) must be accounted for,
 // and timed stages need a time. DQ/DNF are exempt. ───────────────────────────
@@ -328,10 +327,15 @@ const requiredPaper = computed(() =>
     : targetCount.value * 2,
 );
 const enteredPaper = computed(() =>
-  targetHits.value.reduce((sum, t) => sum + t.length, 0),
+  targetHits.value.reduce(
+    (sum, t) => sum + t.filter((h) => h !== 'ns').length,
+    0,
+  ),
 );
 const steelRequired = computed(() => stage.value?.number_of_steel ?? 0);
-const enteredSteel = computed(() => form.steel_hits + form.steel_misses);
+// Every steel plate always carries a value (default hit), so steel is complete
+// as soon as the plates are rendered.
+const enteredSteel = computed(() => steelState.value.length);
 const needsTime = computed(() => stage.value?.scoring_type !== 'fixed_time');
 
 const incompleteReason = computed<string>(() => {
@@ -360,6 +364,7 @@ function gridFromCounts(counts: {
   charlie_count: number;
   delta_count: number;
   miss_count: number;
+  no_shoot_count: number;
 }): string[][] {
   const pool: string[] = [
     ...Array<string>(counts.alpha_count).fill('a'),
@@ -375,8 +380,21 @@ function gridFromCounts(counts: {
   }
   if (grid.length > 0) {
     while (p < pool.length) grid[grid.length - 1].push(pool[p++]);
+    // No-shoots don't consume a scoring round, so append them separately.
+    for (let n = 0; n < counts.no_shoot_count; n++) grid[0].push('ns');
   }
   return grid;
+}
+
+// Rebuild the steel plate toggles from stored hit/miss counts, padded to the
+// stage's plate count (all-hit for the remainder / a fresh score).
+function steelFromCounts(hits: number, misses: number): boolean[] {
+  const arr = [
+    ...Array<boolean>(hits).fill(true),
+    ...Array<boolean>(misses).fill(false),
+  ];
+  while (arr.length < steelRequired.value) arr.push(true);
+  return arr;
 }
 
 const hasSteel = computed(() => {
@@ -420,10 +438,10 @@ const scoreInput = computed<ScoreInput>(() => ({
   charlie_count: paperCounts.value.c,
   delta_count: paperCounts.value.d,
   miss_count: paperCounts.value.m,
-  no_shoot_count: form.no_shoot_count,
+  no_shoot_count: paperCounts.value.ns,
   procedural_count: form.procedural_count,
-  steel_hits: form.steel_hits,
-  steel_misses: form.steel_misses,
+  steel_hits: steelHitCount.value,
+  steel_misses: steelMissCount.value,
   time: form.time,
   power_factor: currentPowerFactor.value,
   dqed: form.dqed,
@@ -483,10 +501,8 @@ watch(currentRegistration, (reg) => {
   );
   if (existing) {
     targetHits.value = gridFromCounts(existing);
-    form.no_shoot_count = existing.no_shoot_count;
+    steelState.value = steelFromCounts(existing.steel_hits, existing.steel_misses);
     form.procedural_count = existing.procedural_count;
-    form.steel_hits = existing.steel_hits;
-    form.steel_misses = existing.steel_misses;
     form.time = existing.time;
     form.dqed = existing.dqed;
     form.dnf = existing.dnf;
@@ -497,10 +513,8 @@ watch(currentRegistration, (reg) => {
 
 function resetForm() {
   targetHits.value = freshGrid();
-  form.no_shoot_count = 0;
+  steelState.value = Array<boolean>(steelRequired.value).fill(true);
   form.procedural_count = 0;
-  form.steel_hits = 0;
-  form.steel_misses = 0;
   form.time = 0;
   form.dqed = false;
   form.dnf = false;
@@ -538,7 +552,7 @@ async function handleSave() {
         WHERE id = ?`,
         [
           paperCounts.value.a, paperCounts.value.c, paperCounts.value.d, paperCounts.value.m,
-          form.no_shoot_count, form.procedural_count, form.steel_hits, form.steel_misses,
+          paperCounts.value.ns, form.procedural_count, steelHitCount.value, steelMissCount.value,
           form.time, computed.raw_points, computed.penalty_points, computed.total_points,
           computed.hit_factor, form.dqed ? 1 : 0, form.dnf ? 1 : 0, now, authStore.user.id,
           existing.id,
@@ -560,7 +574,7 @@ async function handleSave() {
           currentRegistration.value.shooter_name, currentRegistration.value.division,
           currentRegistration.value.power_factor,
           paperCounts.value.a, paperCounts.value.c, paperCounts.value.d, paperCounts.value.m,
-          form.no_shoot_count, form.procedural_count, form.steel_hits, form.steel_misses,
+          paperCounts.value.ns, form.procedural_count, steelHitCount.value, steelMissCount.value,
           form.time, computed.raw_points, computed.penalty_points, computed.total_points,
           computed.hit_factor, authStore.user.id, now, 0, form.dqed ? 1 : 0, form.dnf ? 1 : 0,
         ],
@@ -615,8 +629,9 @@ onMounted(async () => {
       is_classifier: Boolean(stageRow.is_classifier),
     } as Stage;
 
-    // Initialise an empty per-target grid for the loaded stage.
+    // Initialise an empty per-target grid + all-hit steel for the loaded stage.
     targetHits.value = freshGrid();
+    steelState.value = Array<boolean>(stage.value.number_of_steel).fill(true);
 
     // Load match organization (for division labels)
     try {
