@@ -11,16 +11,23 @@ const routes: RouteRecordRaw[] = [
     component: () => import('src/pages/auth/RegisterPage.vue'),
   },
   {
+    // Public so logged-out users can reach it (and the guard doesn't bounce
+    // them back to /auth/login).
     path: '/auth/forgot-password',
     component: () => import('src/pages/auth/ForgotPasswordPage.vue'),
+    meta: { public: true },
   },
   {
+    // Public: reached from an emailed link, typically while logged out.
     path: '/auth/reset-password',
     component: () => import('src/pages/auth/ResetPasswordPage.vue'),
+    meta: { public: true },
   },
   {
+    // Public: a logged-in user clicking their verify link must reach it too.
     path: '/auth/verify-email',
     component: () => import('src/pages/auth/VerifyEmailPage.vue'),
+    meta: { public: true },
   },
 
   // Admin routes
