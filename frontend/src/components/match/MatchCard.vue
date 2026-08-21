@@ -9,6 +9,15 @@
         >
           {{ match.name }}
         </div>
+        <q-icon
+          v-if="match.is_private"
+          name="lock"
+          color="deep-purple"
+          size="18px"
+          class="q-ml-xs"
+        >
+          <q-tooltip>Private — only registered shooters can see it</q-tooltip>
+        </q-icon>
         <q-badge
           :color="statusColor(match.status)"
           :label="match.status"

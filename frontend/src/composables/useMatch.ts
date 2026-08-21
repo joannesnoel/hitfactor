@@ -174,6 +174,7 @@ export function useMatch(matchId?: string) {
     return {
       ...row,
       registration_open: Boolean(row.registration_open),
+      is_private: Boolean(row.is_private),
       max_shooters:
         row.max_shooters != null ? Number(row.max_shooters) : null,
     } as Match;

@@ -145,6 +145,16 @@
             outlined
           />
 
+          <q-toggle
+            v-model="form.is_private"
+            label="Private match"
+            color="deep-purple"
+          />
+          <div class="text-caption text-grey q-mt-none">
+            Hidden from the public list and everyone's dashboard — only
+            registered shooters, assigned officers, and admins can see it.
+          </div>
+
           <!-- Match Officials Section -->
           <q-separator class="q-my-sm" />
           <div class="text-subtitle1 text-weight-medium">
@@ -367,6 +377,7 @@ const form = reactive<{
   level: MatchLevel;
   organization: Organization;
   max_shooters: number | undefined;
+  is_private: boolean;
 }>({
   name: '',
   start_date: '',
@@ -375,6 +386,7 @@ const form = reactive<{
   level: 'I',
   organization: DEFAULT_ORGANIZATION,
   max_shooters: undefined,
+  is_private: false,
 });
 
 // Location (shooting range)
@@ -521,6 +533,7 @@ async function handleCreate() {
     if (form.end_date) input.end_date = form.end_date;
     if (form.description) input.description = form.description;
     if (form.max_shooters) input.max_shooters = form.max_shooters;
+    if (form.is_private) input.is_private = true;
 
     const response = await api.post('/api/matches', input);
     const matchId = response.data.id;

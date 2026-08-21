@@ -67,6 +67,7 @@ export const createMatchSchema = z.object({
   level: z.enum(MATCH_LEVELS),
   organization: z.enum(ORGANIZATIONS),
   max_shooters: z.number().int().min(1).max(500).optional(),
+  is_private: z.boolean().optional(),
 });
 export type CreateMatchInput = z.infer<typeof createMatchSchema>;
 

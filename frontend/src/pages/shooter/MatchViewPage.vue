@@ -312,6 +312,7 @@ onMounted(async () => {
     match.value = {
       ...matchRow,
       registration_open: Boolean(matchRow.registration_open),
+      is_private: Boolean(matchRow.is_private),
     } as Match;
 
     // Load stages

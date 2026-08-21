@@ -13,6 +13,9 @@ import type {
 } from '@hitfactor/shared';
 import { db } from '../../config/database.js';
 import {
+  matches,
+  registrations,
+  matchOfficers,
   scores,
   stages,
   stageResults,
@@ -32,6 +35,55 @@ async function isMatchAdmin(
     )
     .limit(1);
   return !!admin;
+}
+
+/**
+ * Whether the requester may read this match's results. Public matches are
+ * visible to anyone (incl. unauthenticated); a private match is visible only to
+ * a global admin, or a user registered in / officiating / admin of that match.
+ * Used to gate both the public and authenticated results endpoints.
+ */
+async function canViewMatchResults(
+  matchId: string,
+  request: FastifyRequest
+): Promise<boolean> {
+  const [m] = await db
+    .select({ is_private: matches.is_private })
+    .from(matches)
+    .where(eq(matches.id, matchId))
+    .limit(1);
+  if (!m) return false;
+  if (!m.is_private) return true;
+
+  const user = request.user;
+  if (!user) return false;
+  if (user.roles?.includes('admin')) return true;
+
+  const [reg] = await db
+    .select({ id: registrations.id })
+    .from(registrations)
+    .where(
+      and(
+        eq(registrations.match_id, matchId),
+        eq(registrations.user_id, user.id)
+      )
+    )
+    .limit(1);
+  if (reg) return true;
+
+  const [off] = await db
+    .select({ id: matchOfficers.id })
+    .from(matchOfficers)
+    .where(
+      and(
+        eq(matchOfficers.match_id, matchId),
+        eq(matchOfficers.user_id, user.id)
+      )
+    )
+    .limit(1);
+  if (off) return true;
+
+  return isMatchAdmin(matchId, user.id);
 }
 
 export async function computeResultsForMatch(
@@ -267,6 +319,12 @@ export async function getMatchResults(
   const { id: matchId } = request.params as { id: string };
   const { division } = request.query as { division?: string };
 
+  if (!(await canViewMatchResults(matchId, request))) {
+    return reply
+      .status(404)
+      .send({ statusCode: 404, error: 'Not Found', message: 'Match not found' });
+  }
+
   const whereClause = division
     ? and(eq(matchResults.match_id, matchId), eq(matchResults.division, division))
     : eq(matchResults.match_id, matchId);
@@ -288,6 +346,12 @@ export async function getStageResults(
     stageId: string;
   };
   const { division } = request.query as { division?: string };
+
+  if (!(await canViewMatchResults(matchId, request))) {
+    return reply
+      .status(404)
+      .send({ statusCode: 404, error: 'Not Found', message: 'Match not found' });
+  }
 
   let whereClause = and(
     eq(stageResults.match_id, matchId),

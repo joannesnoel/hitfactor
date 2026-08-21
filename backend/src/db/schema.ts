@@ -121,6 +121,10 @@ export const matches = pgTable('matches', {
     .notNull(),
   max_shooters: integer('max_shooters'),
   registration_open: boolean('registration_open').default(false).notNull(),
+  // Private matches are hidden from the public list + the global PowerSync
+  // bucket; only registered shooters, assigned officers, and match admins see
+  // them (via their per-user sync buckets).
+  is_private: boolean('is_private').default(false).notNull(),
   // Set when a banner image exists in object storage (Garage) at
   // matches/<id>/banner. Null = no banner. Doubles as the cache-bust token for
   // the public GET /api/matches/:id/banner.

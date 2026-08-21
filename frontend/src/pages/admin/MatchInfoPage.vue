@@ -77,6 +77,20 @@
               <div class="text-caption text-grey">Registration</div>
               <div>{{ match.registration_open ? 'Open' : 'Closed' }}</div>
             </div>
+            <div class="col-12 col-sm-6">
+              <div class="text-caption text-grey">Visibility</div>
+              <div>
+                <q-chip
+                  v-if="match.is_private"
+                  dense
+                  color="deep-purple"
+                  text-color="white"
+                  icon="lock"
+                  label="Private"
+                />
+                <span v-else>Public</span>
+              </div>
+            </div>
           </div>
           <div v-if="match.description">
             <div class="text-caption text-grey">Description</div>
@@ -126,6 +140,14 @@
             <q-input v-model="editForm.end_date" label="End Date (optional)" type="date" outlined dense clearable />
             <q-input v-model="editForm.location" label="Location" outlined dense />
             <q-input v-model="editForm.description" label="Description" type="textarea" outlined dense autogrow />
+            <q-toggle
+              v-model="editForm.is_private"
+              label="Private match"
+              color="deep-purple"
+            />
+            <div class="text-caption text-grey">
+              Only registered shooters, assigned officers, and admins can see it.
+            </div>
           </q-form>
         </q-card-section>
         <q-card-actions align="right">
@@ -209,6 +231,7 @@ const editForm = reactive({
   end_date: '' as string | null,
   location: '',
   description: '',
+  is_private: false,
 });
 
 const statusOptions = MATCH_STATUSES.map((s) => ({ label: s, value: s }));
@@ -220,6 +243,7 @@ function openEditDialog() {
     editForm.end_date = match.value.end_date;
     editForm.location = match.value.location;
     editForm.description = match.value.description ?? '';
+    editForm.is_private = match.value.is_private ?? false;
   }
   showEditDialog.value = true;
 }
@@ -265,6 +289,7 @@ async function saveEdit() {
       match.value.end_date = editForm.end_date || null;
       match.value.location = editForm.location;
       match.value.description = editForm.description || null;
+      match.value.is_private = editForm.is_private;
     }
     $q.notify({ type: 'positive', message: 'Match updated' });
   } catch {
