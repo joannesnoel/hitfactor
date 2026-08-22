@@ -3,7 +3,7 @@
     <div class="row items-center q-mb-lg">
       <div class="text-h6">Match Officials</div>
       <q-space />
-      <q-btn color="primary" icon="person_add" label="Assign Official" unelevated @click="openAssignDialog" />
+      <q-btn color="primary" icon="person_add" label="Assign Official" unelevated @click="openAssignDialog()" />
     </div>
 
     <div v-if="loading" class="flex flex-center q-pa-xl">
@@ -362,13 +362,14 @@ async function loadData() {
 }
 
 function openAssignDialog(stageId?: string) {
-  assignRole.value = stageId ? 'MO' : 'MO';
+  // Guard against a call site passing the click Event instead of a stage id
+  // (e.g. @click="openAssignDialog") — an event object would otherwise seed
+  // stage_ids and get serialized into the request.
+  const preset = typeof stageId === 'string' ? stageId : undefined;
+  assignRole.value = 'MO';
   assignUserId.value = null;
-  assignStageIds.value = stageId ? [stageId] : [];
-  preselectedStageId.value = stageId ?? null;
-  if (stageId) {
-    assignRole.value = 'MO';
-  }
+  assignStageIds.value = preset ? [preset] : [];
+  preselectedStageId.value = preset ?? null;
   showAssignDialog.value = true;
 }
 
