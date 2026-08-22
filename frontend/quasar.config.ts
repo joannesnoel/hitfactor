@@ -6,7 +6,7 @@ import topLevelAwait from 'vite-plugin-top-level-await';
 
 export default configure(() => {
   return {
-    boot: ['axios', 'powersync', 'auth'],
+    boot: ['axios', 'powersync', 'auth', 'no-swipe-back'],
 
     css: ['app.scss'],
 

@@ -1,5 +1,12 @@
 // App-wide SCSS
 
+// Stop horizontal overscroll/gesture chaining to the browser's back/forward
+// history (complements the edge-swipe guard in boot/no-swipe-back.ts).
+html,
+body {
+  overscroll-behavior-x: none;
+}
+
 body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   -webkit-font-smoothing: antialiased;
