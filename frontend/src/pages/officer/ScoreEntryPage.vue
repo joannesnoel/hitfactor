@@ -244,7 +244,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue';
+import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
 import type { PowerSyncDatabase } from '@powersync/web';
@@ -531,9 +531,17 @@ watch(selectedRegistrationId, (regId) => {
   }
 });
 
-// Load existing score when shooter changes
-watch(currentRegistration, (reg) => {
-  if (!reg) return;
+// Whether the officer has unsaved edits for the currently-shown shooter. Guards
+// the auto-refresh below so incoming synced data never clobbers in-progress work.
+const dirty = ref(false);
+// Set while we're programmatically loading a shooter's score so the dirty watcher
+// doesn't count those writes as user edits.
+let applying = false;
+
+// Load a shooter's latest score into the form. `existingScores` is kept live by
+// db.watch, so this always reflects the freshest data synced from the server.
+function applyExisting(reg: Registration) {
+  applying = true;
   const existing = existingScores.value.find(
     (s) => s.registration_id === reg.id && s.stage_id === stageId,
   );
@@ -551,7 +559,34 @@ watch(currentRegistration, (reg) => {
   } else {
     resetForm();
   }
+  dirty.value = false;
+  void nextTick(() => {
+    applying = false;
+  });
+}
+
+// Navigating to a shooter always loads their latest score.
+watch(currentRegistration, (reg) => {
+  if (reg) applyExisting(reg);
 });
+
+// While viewing a shooter, if a newer score for them syncs in from another
+// officer/device, refresh the form to the latest — unless the officer has
+// unsaved edits (never overwrite in-progress scoring) or a save is in flight.
+watch(existingScores, () => {
+  const reg = currentRegistration.value;
+  if (reg && !dirty.value && !saving.value) applyExisting(reg);
+});
+
+// Any change the officer makes marks the form dirty (skipped during programmatic
+// loads), which pauses auto-refresh until they save or move on.
+watch(
+  [targetHits, steelState, form],
+  () => {
+    if (!applying) dirty.value = true;
+  },
+  { deep: true },
+);
 
 function resetForm() {
   targetHits.value = freshGrid();
@@ -628,6 +663,9 @@ async function handleSave() {
         ],
       );
     }
+
+    // Saved — no unsaved edits remain, so auto-refresh may resume.
+    dirty.value = false;
 
     // Reload existing scores
     const scores = await db.getAll<Score>(
