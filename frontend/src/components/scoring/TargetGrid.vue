@@ -11,16 +11,17 @@
         <q-btn
           v-for="z in ZONES"
           :key="z.k"
-          :label="z.label"
           :style="pillStyle(z, countOf(hits, z.k), scoringCount(hits) >= roundsFor(i))"
           dense
           unelevated
           class="zone-btn"
           @click="add(i, z.k)"
-        />
-      </div>
-      <div class="target-tally text-caption text-weight-medium q-ml-sm">
-        {{ tally(hits) || '—' }}
+        >
+          {{ z.label
+          }}<span v-if="countOf(hits, z.k) > 1" class="zone-count">{{
+            countOf(hits, z.k)
+          }}</span>
+        </q-btn>
       </div>
     </div>
     <div class="text-caption text-grey-6 q-mt-xs">
@@ -113,14 +114,6 @@ function clearRow(i: number) {
   emit('update:modelValue', next);
 }
 
-function tally(hits: string[]): string {
-  const counts: Record<string, number> = {};
-  for (const h of hits) counts[h] = (counts[h] ?? 0) + 1;
-  return ['a', 'c', 'd', 'm', 'ns']
-    .filter((z) => counts[z])
-    .map((z) => `${counts[z]}${z.toUpperCase()}`)
-    .join(' ');
-}
 </script>
 
 <style scoped>
@@ -145,10 +138,13 @@ function tally(hits: string[]): string {
   font-size: 1.05rem;
   font-weight: 700;
 }
-.target-tally {
-  flex: 0 0 auto;
-  min-width: 2.75rem;
-  text-align: right;
-  white-space: nowrap;
+/* Count of repeat hits (e.g. two A's) shown as a small superscript on the pill,
+   so double-hits are visible without a separate tally column stealing width. */
+.zone-count {
+  font-size: 0.7em;
+  font-weight: 700;
+  vertical-align: super;
+  margin-left: 1px;
+  opacity: 0.9;
 }
 </style>
