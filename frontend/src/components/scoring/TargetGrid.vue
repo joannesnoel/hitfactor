@@ -7,7 +7,7 @@
       v-touch-hold:500.mouse="() => clearRow(i)"
     >
       <div class="target-label text-weight-bold">T{{ i + 1 }}</div>
-      <div class="row q-gutter-xs no-wrap q-ml-sm">
+      <div class="zone-group col row q-gutter-xs no-wrap q-ml-sm">
         <q-btn
           v-for="z in ZONES"
           :key="z.k"
@@ -19,21 +19,9 @@
           @click="add(i, z.k)"
         />
       </div>
-      <div class="target-tally text-weight-medium q-ml-md">
+      <div class="target-tally text-caption text-weight-medium q-ml-sm">
         {{ tally(hits) || '—' }}
       </div>
-      <q-space />
-      <div class="text-caption text-grey q-mr-xs">{{ scoringCount(hits) }}/{{ roundsFor(i) }}</div>
-      <q-btn
-        flat
-        dense
-        round
-        icon="backspace"
-        size="sm"
-        color="grey-7"
-        :disable="hits.length === 0"
-        @click="undo(i)"
-      />
     </div>
     <div class="text-caption text-grey-6 q-mt-xs">
       Tip: press &amp; hold a row to clear it.
@@ -125,13 +113,6 @@ function clearRow(i: number) {
   emit('update:modelValue', next);
 }
 
-function undo(i: number) {
-  if (props.modelValue[i].length === 0) return;
-  const next = clone();
-  next[i].pop();
-  emit('update:modelValue', next);
-}
-
 function tally(hits: string[]): string {
   const counts: Record<string, number> = {};
   for (const h of hits) counts[h] = (counts[h] ?? 0) + 1;
@@ -147,13 +128,27 @@ function tally(hits: string[]): string {
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 .target-label {
-  width: 2.5rem;
+  width: 2rem;
+  flex: 0 0 auto;
+}
+/* Pills stretch to fill the row so they're as large as possible for tapping
+   with a phone in portrait — equal width, tall, no fixed min-width. */
+.zone-group {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 .zone-btn {
-  min-width: 2.5rem;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 3rem;
+  padding: 0;
+  font-size: 1.05rem;
   font-weight: 700;
 }
 .target-tally {
-  min-width: 4rem;
+  flex: 0 0 auto;
+  min-width: 2.75rem;
+  text-align: right;
+  white-space: nowrap;
 }
 </style>
