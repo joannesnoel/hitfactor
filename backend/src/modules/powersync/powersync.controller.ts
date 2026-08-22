@@ -110,6 +110,29 @@ async function assertValidDivisionForMatch(
   }
 }
 
+// The client stores jsonb columns as JSON strings in local SQLite, so target_hits
+// arrives as a string on upload. Parse it to an object so drizzle's jsonb column
+// stores it correctly (a raw string would get double-encoded).
+function parseTargetHits(
+  v: unknown
+): { paper: string[][]; steel: boolean[] } | null {
+  if (v == null) return null;
+  if (typeof v === 'string') {
+    try {
+      const o = JSON.parse(v);
+      return o && typeof o === 'object'
+        ? (o as { paper: string[][]; steel: boolean[] })
+        : null;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof v === 'object') {
+    return v as { paper: string[][]; steel: boolean[] };
+  }
+  return null;
+}
+
 async function handleScorePut(
   data: Record<string, unknown>,
   id: string,
@@ -186,6 +209,7 @@ async function handleScorePut(
     scored_by: userId,
     dqed: (data.dqed as boolean) ?? false,
     dnf: (data.dnf as boolean) ?? false,
+    target_hits: parseTargetHits(data.target_hits),
     modified_at: new Date(),
     modified_by: userId,
   };
@@ -277,13 +301,22 @@ async function handleScorePatch(
     return; // Existing is newer, skip
   }
 
-  // Strip any client-supplied division so it can never be patched.
-  const { division: _ignoredDivision, ...patchData } = data;
+  // Strip any client-supplied division so it can never be patched. Pull
+  // target_hits out too so we can parse it (jsonb) instead of spreading the raw
+  // JSON string, which would double-encode.
+  const {
+    division: _ignoredDivision,
+    target_hits: rawTargetHits,
+    ...patchData
+  } = data;
 
   await db
     .update(scores)
     .set({
       ...patchData,
+      ...(rawTargetHits !== undefined
+        ? { target_hits: parseTargetHits(rawTargetHits) }
+        : {}),
       raw_points: computed.raw_points,
       penalty_points: computed.penalty_points,
       total_points: computed.total_points,

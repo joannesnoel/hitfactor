@@ -108,6 +108,16 @@ export interface Registration {
 }
 
 // ─── Score ───────────────────────────────────────
+// The exact per-target layout the officer entered — persisted so a re-opened
+// score shows M/NS/etc. on the targets they were tapped on, not a reconstruction.
+// `paper` is one array of zone keys ('a'|'c'|'d'|'m'|'ns') per paper target;
+// `steel` is one hit/miss flag per plate. Stored as jsonb; the client reads it
+// back as a JSON string.
+export interface ScoreTargetHits {
+  paper: string[][];
+  steel: boolean[];
+}
+
 export interface Score {
   id: string;
   match_id: string;
@@ -137,6 +147,9 @@ export interface Score {
   dnf: boolean;
   modified_at: string | null;
   modified_by: string | null;
+  // Exact per-target layout (jsonb on the server, JSON string on the client);
+  // null for legacy scores saved before this was tracked.
+  target_hits?: ScoreTargetHits | string | null;
 }
 
 // ─── Score Input (what the officer enters) ───────

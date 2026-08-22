@@ -406,6 +406,24 @@ function gridFromCounts(counts: {
   return grid;
 }
 
+// The exact per-target layout saved with the score (jsonb → JSON string on the
+// client). Returns null for legacy scores so the caller reconstructs from counts.
+function layoutFromScore(
+  existing: Score,
+): { paper: string[][]; steel: boolean[] } | null {
+  const raw = (existing as { target_hits?: unknown }).target_hits;
+  if (raw == null) return null;
+  try {
+    const o = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (o && Array.isArray(o.paper) && Array.isArray(o.steel)) {
+      return o as { paper: string[][]; steel: boolean[] };
+    }
+  } catch {
+    // fall through to reconstruction
+  }
+  return null;
+}
+
 // Rebuild the steel plate toggles from stored hit/miss counts, padded to the
 // stage's plate count (all-hit for the remainder / a fresh score).
 function steelFromCounts(hits: number, misses: number): boolean[] {
@@ -520,8 +538,12 @@ watch(currentRegistration, (reg) => {
     (s) => s.registration_id === reg.id && s.stage_id === stageId,
   );
   if (existing) {
-    targetHits.value = gridFromCounts(existing);
-    steelState.value = steelFromCounts(existing.steel_hits, existing.steel_misses);
+    // Prefer the exact saved layout; fall back to reconstruction for legacy
+    // scores saved before target_hits was tracked.
+    const layout = layoutFromScore(existing);
+    targetHits.value = layout?.paper ?? gridFromCounts(existing);
+    steelState.value =
+      layout?.steel ?? steelFromCounts(existing.steel_hits, existing.steel_misses);
     form.procedural_count = existing.procedural_count;
     form.time = existing.time;
     form.dqed = existing.dqed;
@@ -560,6 +582,12 @@ async function handleSave() {
     const computed = computeScore(scoreInput.value, stage.value.scoring_type as ScoringType);
     const now = new Date().toISOString();
     const existing = existingScore.value;
+    // Persist the exact per-target layout so a re-opened score shows M/NS on the
+    // targets they were entered on (not a reconstruction from aggregate counts).
+    const targetHitsJson = JSON.stringify({
+      paper: targetHits.value,
+      steel: steelState.value,
+    });
 
     if (existing) {
       // Update existing score
@@ -568,13 +596,13 @@ async function handleSave() {
           alpha_count = ?, charlie_count = ?, delta_count = ?, miss_count = ?,
           no_shoot_count = ?, procedural_count = ?, steel_hits = ?, steel_misses = ?,
           time = ?, raw_points = ?, penalty_points = ?, total_points = ?,
-          hit_factor = ?, dqed = ?, dnf = ?, modified_at = ?, modified_by = ?
+          hit_factor = ?, dqed = ?, dnf = ?, target_hits = ?, modified_at = ?, modified_by = ?
         WHERE id = ?`,
         [
           paperCounts.value.a, paperCounts.value.c, paperCounts.value.d, paperCounts.value.m,
           paperCounts.value.ns, form.procedural_count, steelHitCount.value, steelMissCount.value,
           form.time, computed.raw_points, computed.penalty_points, computed.total_points,
-          computed.hit_factor, form.dqed ? 1 : 0, form.dnf ? 1 : 0, now, authStore.user.id,
+          computed.hit_factor, form.dqed ? 1 : 0, form.dnf ? 1 : 0, targetHitsJson, now, authStore.user.id,
           existing.id,
         ],
       );
@@ -587,8 +615,8 @@ async function handleSave() {
           power_factor, alpha_count, charlie_count, delta_count, miss_count,
           no_shoot_count, procedural_count, steel_hits, steel_misses,
           time, raw_points, penalty_points, total_points, hit_factor,
-          scored_by, scored_at, verified, dqed, dnf
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          scored_by, scored_at, verified, dqed, dnf, target_hits
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           id, matchId, stageId, currentRegistration.value.id,
           currentRegistration.value.shooter_name, currentRegistration.value.division,
@@ -596,7 +624,7 @@ async function handleSave() {
           paperCounts.value.a, paperCounts.value.c, paperCounts.value.d, paperCounts.value.m,
           paperCounts.value.ns, form.procedural_count, steelHitCount.value, steelMissCount.value,
           form.time, computed.raw_points, computed.penalty_points, computed.total_points,
-          computed.hit_factor, authStore.user.id, now, 0, form.dqed ? 1 : 0, form.dnf ? 1 : 0,
+          computed.hit_factor, authStore.user.id, now, 0, form.dqed ? 1 : 0, form.dnf ? 1 : 0, targetHitsJson,
         ],
       );
     }

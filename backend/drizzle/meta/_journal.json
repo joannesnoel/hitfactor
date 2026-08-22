@@ -113,6 +113,13 @@
       "when": 1787316682119,
       "tag": "0015_white_madrox",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1787375474267,
+      "tag": "0016_curly_exiles",
+      "breakpoints": true
     }
   ]
 }

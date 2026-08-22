@@ -333,6 +333,10 @@ export const scores = pgTable(
     dnf: boolean('dnf').default(false).notNull(),
     modified_at: timestamp('modified_at'),
     modified_by: uuid('modified_by').references(() => users.id),
+    // Exact per-target layout the officer entered (one zone array per paper
+    // target + one flag per steel plate), so a re-opened score shows M/NS on the
+    // targets they were tapped on. Null for scores saved before this was added.
+    target_hits: jsonb('target_hits').$type<{ paper: string[][]; steel: boolean[] }>(),
   },
   (table) => [
     unique('scores_stage_registration_unique').on(

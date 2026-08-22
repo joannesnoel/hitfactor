@@ -101,6 +101,7 @@ const scores = new Table({
   dnf: column.integer,
   modified_at: column.text,
   modified_by: column.text,
+  target_hits: column.text, // JSON: { paper: string[][], steel: boolean[] }
 });
 
 const stage_results = new Table({
