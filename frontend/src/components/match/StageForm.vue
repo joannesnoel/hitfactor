@@ -393,8 +393,10 @@ watchEffect(() => {
     form.number_of_targets = props.stage.number_of_targets;
     form.number_of_steel = props.stage.number_of_steel;
     form.number_of_no_shoots = props.stage.number_of_no_shoots;
-    form.paper_target_rounds = props.stage.paper_target_rounds
-      ?? Array(props.stage.number_of_targets).fill(2);
+    form.paper_target_rounds = parsePaperRounds(
+      props.stage.paper_target_rounds,
+      props.stage.number_of_targets,
+    );
     form.fixed_time = props.stage.fixed_time ?? undefined;
     form.is_classifier = props.stage.is_classifier;
     form.classifier_number = props.stage.classifier_number ?? '';
@@ -404,6 +406,23 @@ watchEffect(() => {
     assignedOfficers.value = [...props.existingOfficers];
   }
 });
+
+// PowerSync stores jsonb columns as JSON strings in local SQLite, so an existing
+// stage's paper_target_rounds can arrive as "[2, 2, 2]" rather than a parsed
+// array. Iterating a string would render its characters ('[', ',', ...), so parse
+// defensively and fall back to a sensible default per target.
+function parsePaperRounds(raw: unknown, targetCount: number): number[] {
+  let arr: unknown = raw;
+  if (typeof raw === 'string') {
+    try {
+      arr = JSON.parse(raw);
+    } catch {
+      arr = null;
+    }
+  }
+  if (Array.isArray(arr) && arr.length) return arr.map((n) => Number(n));
+  return Array(targetCount).fill(2);
+}
 
 function onPaperCountChange(val: number | null) {
   const count = val ?? 0;
