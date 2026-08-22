@@ -82,9 +82,11 @@
           : 'You didn\'t compete in this match — showing the stage standings below.' }}
       </q-banner>
 
-      <!-- Division selector — drives the winner card AND the results table -->
+      <!-- Division selector — drives the winner card AND the results table.
+           Includes a "Combined" option that pools all divisions and scores
+           against the single best hit factor on the stage. -->
       <q-select
-        v-if="availableDivisions.length > 1"
+        v-if="divisionOptions.length > 1"
         v-model="activeDivision"
         :options="divisionOptions"
         label="Division"
@@ -99,21 +101,34 @@
       <!-- Comparison to Stage Winner -->
       <q-card v-if="stageResults.length > 0" class="q-mb-md">
         <q-card-section>
-          <div class="text-h6 q-mb-md">
-            {{ viewingMyDivision ? 'Stage Winner Comparison' : 'Stage Winner' }}
+          <div class="text-h6" :class="isCombined ? 'q-mb-xs' : 'q-mb-md'">
+            {{ isCombined ? 'Combined Stage Winner' : showMyComparison ? 'Stage Winner Comparison' : 'Stage Winner' }}
+          </div>
+          <div v-if="isCombined" class="text-caption text-grey q-mb-md">
+            All divisions pooled and ranked by hit factor, scored against the
+            single best HF on the stage.
           </div>
           <div v-if="stageWinner" class="row q-gutter-md">
             <div class="col-12 col-sm-6">
-              <div class="text-caption text-grey">Stage Winner</div>
+              <div class="text-caption text-grey">
+                {{ isCombined ? 'Overall Stage Winner' : 'Stage Winner' }}
+              </div>
               <div class="text-subtitle1 text-weight-bold">{{ stageWinner.shooter_name }}</div>
+              <div class="text-caption text-grey-7" v-if="isCombined">
+                {{ getDivisionLabel(organization, stageWinner.division) }}
+              </div>
               <div class="text-h6 text-green">HF: {{ stageWinner.hit_factor.toFixed(4) }}</div>
             </div>
-            <div v-if="viewingMyDivision" class="col-12 col-sm-6">
-              <div class="text-caption text-grey">Your Stage %</div>
-              <div class="text-h5 text-weight-bold text-primary">
-                {{ myStageResult.stage_percentage.toFixed(2) }}%
+            <div v-if="showMyComparison" class="col-12 col-sm-6">
+              <div class="text-caption text-grey">
+                {{ isCombined ? 'Your Combined %' : 'Your Stage %' }}
               </div>
-              <div class="text-caption text-grey">Place: {{ myStageResult.place }}</div>
+              <div class="text-h5 text-weight-bold text-primary">
+                {{ myEntryInView.stage_percentage.toFixed(2) }}%
+              </div>
+              <div class="text-caption text-grey">
+                {{ isCombined ? 'Overall place' : 'Place' }}: {{ myEntryInView.place }}
+              </div>
             </div>
           </div>
 
@@ -234,6 +249,12 @@ const myStageResult = computed(() => {
 // (non-participant); the user can switch it.
 const { remember } = usePreferredDivision();
 
+// Pseudo-division that pools every division against the single best HF on the
+// stage. The backend already computes and stores this entry-set (combined=true).
+const COMBINED = 'combined';
+const isCombined = computed(() => activeDivision.value === COMBINED);
+const hasCombined = computed(() => stageResults.value.some((r) => r.combined));
+
 const availableDivisions = computed(() =>
   Array.from(
     new Set(stageResults.value.filter((r) => !r.combined).map((r) => r.division)),
@@ -243,32 +264,42 @@ const availableDivisions = computed(() =>
 const activeDivision = ref('');
 watchEffect(() => {
   const avail = availableDivisions.value;
-  if (avail.length && !avail.includes(activeDivision.value)) {
+  // Leave an explicit Combined selection alone; otherwise settle on a real one.
+  if (avail.length && activeDivision.value !== COMBINED && !avail.includes(activeDivision.value)) {
     activeDivision.value = pickInitialDivision(avail, myStageResult.value?.division);
   }
 });
 watch(activeDivision, (v) => {
-  if (v) remember(v);
+  if (v && v !== COMBINED) remember(v); // don't stick Combined as a preference
 });
 
-const divisionOptions = computed(() =>
-  availableDivisions.value.map((d) => ({
+const divisionOptions = computed(() => {
+  const opts = availableDivisions.value.map((d) => ({
     label: getDivisionLabel(organization.value, d),
     value: d,
-  })),
-);
+  }));
+  if (hasCombined.value) {
+    opts.push({ label: 'Combined (all divisions)', value: COMBINED });
+  }
+  return opts;
+});
 
-// True only when the selected division is the shooter's own — gates the personal
-// comparison (your % / where-you-lost).
-const viewingMyDivision = computed(
-  () => !!myStageResult.value && myStageResult.value.division === activeDivision.value,
-);
-
-// stage_results holds one entry-set per division plus a cross-division 'combined'
-// pool; scope the winner to the selected division.
+// Results for the current selection: the Combined pool, or a single division.
 const divisionResults = computed(() =>
-  stageResults.value.filter((r) => !r.combined && r.division === activeDivision.value),
+  isCombined.value
+    ? stageResults.value.filter((r) => r.combined)
+    : stageResults.value.filter((r) => !r.combined && r.division === activeDivision.value),
 );
+
+// My run within the current pool (my division entry, or my Combined entry) —
+// drives the personal comparison (your % / place / where-you-lost).
+const myEntryInView = computed(() => {
+  const mine = divisionResults.value.filter((r) =>
+    myRegIds.value.includes(r.registration_id),
+  );
+  return mine.sort((a, b) => a.place - b.place)[0] ?? null;
+});
+const showMyComparison = computed(() => !!myEntryInView.value);
 
 const stageWinner = computed(
   () => divisionResults.value.find((r) => r.place === 1) ?? null
@@ -279,8 +310,7 @@ const stageWinner = computed(
 // — matching the winner's pace makes stage% = accuracy×100; matching the winner's
 // points makes it speed×100 — so the bigger gain is the bigger opportunity.
 const lossBreakdown = computed(() => {
-  if (!viewingMyDivision.value) return null;
-  const me = myStageResult.value;
+  const me = myEntryInView.value;
   const w = stageWinner.value;
   if (!me || !w || me.place === 1 || me.dqed || me.dnf) return null;
   if (me.time <= 0 || w.time <= 0 || w.total_points <= 0) return null;
