@@ -14,6 +14,15 @@
       <q-spinner color="primary" size="3em" />
     </div>
 
+    <!-- Not assigned to score this stage -->
+    <div v-else-if="!authorized" class="q-pa-md">
+      <q-banner class="bg-orange-1 text-orange-10" rounded>
+        <template #avatar><q-icon name="lock" color="orange-9" /></template>
+        You're not assigned to score this stage. Ask a match admin to add you as
+        an officer for it, then reopen this page.
+      </q-banner>
+    </div>
+
     <div v-else class="q-pa-md">
       <!-- Shooter Search -->
       <q-select
@@ -250,7 +259,7 @@ import { useQuasar } from 'quasar';
 import type { PowerSyncDatabase } from '@powersync/web';
 import { whenPowerSyncReady } from 'src/boot/powersync';
 import type { Stage, Registration, Score, ScoreInput, ScoringType, PowerFactor, Organization } from '@hitfactor/shared';
-import { computeScore, getDivisionLabel, DEFAULT_ORGANIZATION } from '@hitfactor/shared';
+import { computeScore, getDivisionLabel, DEFAULT_ORGANIZATION, MATCH_LEVEL_OFFICIAL_ROLES } from '@hitfactor/shared';
 import { useAuthStore } from 'src/stores/auth.store';
 import ZoneCounter from 'src/components/scoring/ZoneCounter.vue';
 import TargetGrid from 'src/components/scoring/TargetGrid.vue';
@@ -268,6 +277,10 @@ const stageId = route.params.stageId as string;
 
 const loading = ref(true);
 const saving = ref(false);
+// Whether this user may actually score this stage (assigned officer / match-level
+// official / match admin / global admin). Mirrors the server's canUserScoreStage
+// so we don't let them enter scores that would be rejected on push.
+const authorized = ref(true);
 const stage = ref<Stage | null>(null);
 const organization = ref<Organization>(DEFAULT_ORGANIZATION);
 const allRegistrations = ref<Registration[]>([]);
@@ -688,6 +701,32 @@ async function handleSave() {
   }
 }
 
+// Client-side mirror of the server's canUserScoreStage: global admin, match
+// admin, a match-level official, or a stage officer for THIS stage. If the local
+// db isn't ready we don't block (the server still enforces on push).
+async function isAuthorizedToScore(): Promise<boolean> {
+  if (authStore.isAdmin) return true;
+  if (!db || !authStore.user) return true;
+  const uid = authStore.user.id;
+  const admin = await db.getAll(
+    'SELECT 1 FROM match_admins WHERE match_id = ? AND user_id = ? LIMIT 1',
+    [matchId, uid],
+  );
+  if (admin.length) return true;
+  const mo = await db.getAll<{ role: string }>(
+    'SELECT role FROM match_officers WHERE match_id = ? AND user_id = ?',
+    [matchId, uid],
+  );
+  if (mo.some((r) => (MATCH_LEVEL_OFFICIAL_ROLES as readonly string[]).includes(r.role))) {
+    return true;
+  }
+  const so = await db.getAll(
+    'SELECT 1 FROM stage_officers WHERE stage_id = ? AND user_id = ? LIMIT 1',
+    [stageId, uid],
+  );
+  return so.length > 0;
+}
+
 onMounted(async () => {
   // PowerSync connects asynchronously after login; inject('powerSyncDb') only
   // ever yields the boot-time null, so wait for the real connected db here.
@@ -696,6 +735,17 @@ onMounted(async () => {
     loading.value = false;
     return;
   }
+
+  // Gate scoring on an actual assignment (mirrors the server check). Re-runs when
+  // an assignment syncs in, so an officer assigned moments earlier isn't blocked.
+  authorized.value = await isAuthorizedToScore();
+  db.watch(
+    'SELECT 1 FROM stage_officers WHERE stage_id = ? AND user_id = ? UNION ALL ' +
+      'SELECT 1 FROM match_officers WHERE match_id = ? AND user_id = ? UNION ALL ' +
+      'SELECT 1 FROM match_admins WHERE match_id = ? AND user_id = ?',
+    [stageId, authStore.user?.id ?? '', matchId, authStore.user?.id ?? '', matchId, authStore.user?.id ?? ''],
+    { onResult: () => { void isAuthorizedToScore().then((v) => { authorized.value = v; }); } },
+  );
 
   try {
     // Load stage

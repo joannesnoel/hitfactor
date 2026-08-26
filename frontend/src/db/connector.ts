@@ -2,6 +2,7 @@ import {
   type AbstractPowerSyncDatabase,
   type PowerSyncBackendConnector,
 } from '@powersync/web';
+import { Notify } from 'quasar';
 import { api } from 'src/boot/axios';
 
 export class PowerSyncConnector implements PowerSyncBackendConnector {
@@ -34,9 +35,23 @@ export class PowerSyncConnector implements PowerSyncBackendConnector {
       const res = await api.put('/api/powersync/data', { operations });
 
       // 207 (partial success): surface rejected ops but still clear the queue so a
-      // single permanently-rejected op can't wedge sync forever.
+      // single permanently-rejected op can't wedge sync forever. Rejections are
+      // usually a permission problem (e.g. scoring a stage you're not assigned to),
+      // so tell the user rather than failing silently — their write did NOT persist.
       if (res.data?.errors?.length) {
         console.error('[PowerSync] Some operations were rejected:', res.data.errors);
+        const first = res.data.errors[0]?.error;
+        Notify.create({
+          type: 'negative',
+          position: 'top',
+          timeout: 8000,
+          message:
+            typeof first === 'string' && first
+              ? `Not saved to the server: ${first}`
+              : 'Some changes could not be saved to the server.',
+          caption:
+            'Your change was not synced. If this is a scoring stage, ask an admin to assign you as an officer, then re-enter it.',
+        });
       }
 
       await transaction.complete();

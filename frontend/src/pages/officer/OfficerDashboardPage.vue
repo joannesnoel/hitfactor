@@ -129,8 +129,11 @@ async function loadAssignedMatches(db: PowerSyncDatabase, userId: string): Promi
       result.push({ match: matchRow as Match, stages: stageRows });
     }
 
-    // Fallback: if no officer assignments, show active/scoring matches
-    if (result.length === 0) {
+    // Fallback: only a global admin (who can score any stage) sees all active/
+    // scoring matches when they have no explicit assignments. A regular officer
+    // must be assigned — otherwise the match would look scoreable here but the
+    // server would reject their pushes (they aren't an assigned officer).
+    if (result.length === 0 && authStore.isAdmin) {
       const activeMatches = await db.getAll<Match>(
         'SELECT * FROM matches WHERE status IN (?, ?) ORDER BY start_date DESC',
         ['active', 'scoring'],
