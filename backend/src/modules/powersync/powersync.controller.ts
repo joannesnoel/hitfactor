@@ -90,23 +90,15 @@ async function canUserModifyScore(
 }
 
 /**
- * Who may re-enable scoring on a locked score: a global admin, a Match Admin
- * (MA), or a Match Master (MM). Only these can modify a locked score.
+ * Who may re-enable scoring on a locked score: only a user holding the Match
+ * Admin (MA) or Match Master (MM) OFFICER role on this match. Deliberately NOT a
+ * global admin, nor the match's created-by admin, unless they hold one of those
+ * match roles — re-enabling a score is a per-match workflow control.
  */
 async function canUnlockScore(
   matchId: string,
-  userId: string,
-  isGlobalAdmin: boolean
+  userId: string
 ): Promise<boolean> {
-  if (isGlobalAdmin) return true;
-  const [admin] = await db
-    .select({ id: matchAdmins.id })
-    .from(matchAdmins)
-    .where(
-      and(eq(matchAdmins.match_id, matchId), eq(matchAdmins.user_id, userId))
-    )
-    .limit(1);
-  if (admin) return true;
   const [mo] = await db
     .select({ role: matchOfficers.role })
     .from(matchOfficers)
@@ -171,8 +163,7 @@ function parseTargetHits(
 async function handleScorePut(
   data: Record<string, unknown>,
   id: string,
-  userId: string,
-  isGlobalAdmin: boolean
+  userId: string
 ): Promise<void> {
   const matchId = data.match_id as string;
   const stageId = data.stage_id as string;
@@ -266,7 +257,7 @@ async function handleScorePut(
 
   if (existing) {
     // A locked score can only be modified by a Match Admin/Master (or admin).
-    if (existing.locked && !(await canUnlockScore(matchId, userId, isGlobalAdmin))) {
+    if (existing.locked && !(await canUnlockScore(matchId, userId))) {
       throw new Error(LOCKED_MESSAGE);
     }
 
@@ -290,8 +281,7 @@ async function handleScorePut(
 async function handleScorePatch(
   data: Record<string, unknown>,
   id: string,
-  userId: string,
-  isGlobalAdmin: boolean
+  userId: string
 ): Promise<void> {
   // Get existing score
   const [existing] = await db
@@ -304,7 +294,7 @@ async function handleScorePatch(
 
   // A locked score can only be modified (including re-enabling scoring) by a
   // Match Admin/Master (or admin).
-  if (existing.locked && !(await canUnlockScore(existing.match_id, userId, isGlobalAdmin))) {
+  if (existing.locked && !(await canUnlockScore(existing.match_id, userId))) {
     throw new Error(LOCKED_MESSAGE);
   }
 
@@ -415,7 +405,7 @@ export async function handleUploadData(
             errors.push({ op, error: 'Not authorized to score this stage' });
             continue;
           }
-          await handleScorePut(op.data, op.id, request.user.id, isSystemAdmin);
+          await handleScorePut(op.data, op.id, request.user.id);
         } else if (op.op === 'PATCH' && op.data) {
           if (
             !isSystemAdmin &&
@@ -424,7 +414,7 @@ export async function handleUploadData(
             errors.push({ op, error: 'Not authorized to edit this score' });
             continue;
           }
-          await handleScorePatch(op.data, op.id, request.user.id, isSystemAdmin);
+          await handleScorePatch(op.data, op.id, request.user.id);
         } else if (op.op === 'DELETE') {
           if (
             !isSystemAdmin &&

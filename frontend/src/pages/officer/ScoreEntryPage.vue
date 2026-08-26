@@ -969,11 +969,11 @@ async function isAuthorizedToScore(): Promise<boolean> {
   return so.length > 0;
 }
 
-// Whether the user may re-enable scoring on a locked score: global admin, or a
-// Match Admin (MA) / Match Master (MM) for this match. (match_officers for the
-// whole match sync to any officer, so this is reliable.)
+// Whether the user may re-enable scoring on a locked score: ONLY a Match Admin
+// (MA) or Match Master (MM) officer on this match — not a global admin or the
+// match creator. Re-enabling a score is a per-match workflow control. (Mirrors
+// the server's canUnlockScore.)
 async function isUnlockAllowed(): Promise<boolean> {
-  if (authStore.isAdmin) return true;
   if (!db || !authStore.user) return false;
   const rows = await db.getAll(
     "SELECT 1 FROM match_officers WHERE match_id = ? AND user_id = ? AND role IN ('MA', 'MM') LIMIT 1",
