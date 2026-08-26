@@ -250,11 +250,6 @@
       <div class="text-center q-mb-md">
         <div class="text-caption text-grey">Hit Factor</div>
         <div class="hf-display text-primary">{{ liveHitFactor }}</div>
-        <div class="row justify-center q-gutter-md text-caption text-grey q-mt-xs">
-          <span>Raw: {{ liveScore.raw_points }}</span>
-          <span>Penalty: {{ liveScore.penalty_points }}</span>
-          <span>Total: {{ liveScore.total_points }}</span>
-        </div>
       </div>
 
       <!-- Save Button -->
