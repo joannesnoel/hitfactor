@@ -129,12 +129,14 @@ const match_admins = new Table({
 const match_officers = new Table({
   match_id: column.text,
   user_id: column.text,
+  role: column.text,
 });
 
 const stage_officers = new Table({
   match_id: column.text,
   stage_id: column.text,
   user_id: column.text,
+  role: column.text,
 });
 
 export const powerSyncSchema = new Schema({

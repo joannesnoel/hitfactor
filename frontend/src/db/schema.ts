@@ -139,6 +139,7 @@ export const match_officers = sqliteTable('match_officers', {
   id: text('id').primaryKey(),
   match_id: text('match_id').notNull(),
   user_id: text('user_id').notNull(),
+  role: text('role'),
 });
 
 export const stage_officers = sqliteTable('stage_officers', {
@@ -146,4 +147,5 @@ export const stage_officers = sqliteTable('stage_officers', {
   match_id: text('match_id').notNull(),
   stage_id: text('stage_id').notNull(),
   user_id: text('user_id').notNull(),
+  role: text('role'),
 });
