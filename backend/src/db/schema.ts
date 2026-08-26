@@ -400,3 +400,15 @@ export const matchResults = pgTable(
     ),
   ]
 );
+
+// Server-side bookkeeping for the auto-recompute scheduler. NOT synced to
+// clients (kept off the matches table so per-score bumps don't fan out via
+// PowerSync). A match is "dirty" (needs recompute) when scores_changed_at is
+// newer than results_computed_at.
+export const matchRecomputeState = pgTable('match_recompute_state', {
+  match_id: uuid('match_id')
+    .primaryKey()
+    .references(() => matches.id, { onDelete: 'cascade' }),
+  scores_changed_at: timestamp('scores_changed_at').defaultNow().notNull(),
+  results_computed_at: timestamp('results_computed_at'),
+});

@@ -127,6 +127,13 @@
       "when": 1787746149357,
       "tag": "0017_bizarre_mimic",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1787754674355,
+      "tag": "0018_vengeful_mimic",
+      "breakpoints": true
     }
   ]
 }

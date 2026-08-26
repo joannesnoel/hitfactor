@@ -1,0 +1,56 @@
+# Auto-recompute scheduler. Runs the backend image's dist/jobs/recompute-dirty.js
+# once a minute; it recomputes results only for ACTIVE matches whose scores
+# changed since the last recompute (cheap dirty-check on match_recompute_state).
+#
+# NOT applied by CI (which only does `kubectl set image` + migrate). Apply
+# manually per environment, adjusting namespace + image tag:
+#   prod:    namespace hitfactor          image …/hitfactor-backend:prod
+#   staging: namespace hitfactor-staging  image …/hitfactor-backend:staging
+# e.g.  kubectl -n hitfactor apply -f k8s/recompute-cronjob.yaml
+#
+# The floating :prod/:staging tag means it always runs the latest deployed
+# backend without a per-deploy edit.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: hitfactor-recompute
+  namespace: hitfactor
+  labels:
+    app.kubernetes.io/name: recompute
+    app.kubernetes.io/part-of: hitfactor
+spec:
+  schedule: "* * * * *" # every minute
+  concurrencyPolicy: Forbid # never overlap ticks
+  startingDeadlineSeconds: 30
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 55 # must finish within the minute
+      ttlSecondsAfterFinished: 120
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: recompute
+            app.kubernetes.io/part-of: hitfactor
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: recompute
+              image: registry.lan:5000/hitfactor-backend:prod
+              imagePullPolicy: Always
+              workingDir: /app/backend
+              command: ["node", "dist/jobs/recompute-dirty.js"]
+              env:
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: hitfactor-db
+                      key: DATABASE_URL
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi

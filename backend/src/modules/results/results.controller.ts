@@ -1,5 +1,5 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import {
   computeStageResults,
   computeMatchResults,
@@ -10,6 +10,8 @@ import type {
   PowerFactor,
   StageScoreData,
   StageResultsForMatch,
+  StageResultEntry,
+  MatchResultEntry,
 } from '@hitfactor/shared';
 import { db } from '../../config/database.js';
 import {
@@ -21,7 +23,25 @@ import {
   stageResults,
   matchResults,
   matchAdmins,
+  matchRecomputeState,
 } from '../../db/schema.js';
+
+// Canonical JSON (recursively sorted keys) so a freshly-computed results array
+// can be compared against the stored jsonb, which Postgres returns with
+// normalized (unordered) keys. Used to skip writing unchanged result rows so
+// PowerSync only re-syncs standings that actually moved.
+function canonicalJson(v: unknown): string {
+  return JSON.stringify(v, (_k, val) =>
+    val && typeof val === 'object' && !Array.isArray(val)
+      ? Object.keys(val as Record<string, unknown>)
+          .sort()
+          .reduce<Record<string, unknown>>((acc, k) => {
+            acc[k] = (val as Record<string, unknown>)[k];
+            return acc;
+          }, {})
+      : val,
+  );
+}
 
 async function isMatchAdmin(
   matchId: string,
@@ -114,33 +134,45 @@ export async function computeResultsForMatch(
 }
 
 /**
- * Recompute and upsert stage_results + match_results for a match from its
- * scores. Reusable by the compute endpoint and the match importer.
+ * Recompute stage_results + match_results for a match from its scores. Reusable
+ * by the compute endpoint, the auto-recompute scheduler, and the importer.
+ *
+ * Computes everything in memory, then reconciles under a per-match advisory lock
+ * writing ONLY the rows that actually changed (and deleting ones no longer
+ * present) — so concurrent recomputes are safe and PowerSync only re-syncs
+ * standings that moved.
  */
 export async function recomputeMatchResults(
   matchId: string
 ): Promise<{ stagesComputed: number; divisions: string[] }> {
-  // Get all stages for this match
+  // The point-in-time we're computing up to. Anything that changes scores after
+  // this stays dirty for the next tick (scores_changed_at will be newer).
+  const [state] = await db
+    .select({ changed: matchRecomputeState.scores_changed_at })
+    .from(matchRecomputeState)
+    .where(eq(matchRecomputeState.match_id, matchId))
+    .limit(1);
+  const computedUpTo = state?.changed ?? new Date();
+
   const matchStages = await db
     .select()
     .from(stages)
     .where(eq(stages.match_id, matchId));
 
-  // Get all scores for this match
   const allScores = await db
     .select()
     .from(scores)
     .where(eq(scores.match_id, matchId));
 
-  // Rebuild results from scratch so a division or shooter no longer present
-  // (reconciled away on re-import) doesn't leave a stale standings row.
-  await db.delete(stageResults).where(eq(stageResults.match_id, matchId));
-  await db.delete(matchResults).where(eq(matchResults.match_id, matchId));
-
-  const now = new Date();
+  // ── Pure computation (no DB writes) ──
   const allStageResultsForMatch: StageResultsForMatch[] = [];
+  const newStageRows: Array<{
+    stage_id: string;
+    division: string;
+    hf: string;
+    results: StageResultEntry[];
+  }> = [];
 
-  // Compute stage results per division per stage
   for (const stage of matchStages) {
     const stageScores: StageScoreData[] = allScores
       .filter((s) => s.stage_id === stage.id)
@@ -163,11 +195,7 @@ export async function recomputeMatchResults(
         dnf: s.dnf,
       }));
 
-    // Find which divisions have scores for this stage
-    const divisionsInStage = [
-      ...new Set(stageScores.map((s) => s.division)),
-    ];
-
+    const divisionsInStage = [...new Set(stageScores.map((s) => s.division))];
     for (const division of divisionsInStage) {
       const { stageWinnerHF, results } = computeStageResults(
         stageScores,
@@ -175,44 +203,13 @@ export async function recomputeMatchResults(
         division,
         stage.max_points
       );
-
-      // Upsert stage result
-      const [existing] = await db
-        .select({ id: stageResults.id })
-        .from(stageResults)
-        .where(
-          and(
-            eq(stageResults.stage_id, stage.id),
-            eq(stageResults.division, division)
-          )
-        )
-        .limit(1);
-
-      if (existing) {
-        await db
-          .update(stageResults)
-          .set({
-            stage_winner_hit_factor: stageWinnerHF.toString(),
-            results: results,
-            computed_at: now,
-          })
-          .where(eq(stageResults.id, existing.id));
-      } else {
-        await db.insert(stageResults).values({
-          match_id: matchId,
-          stage_id: stage.id,
-          division,
-          stage_winner_hit_factor: stageWinnerHF.toString(),
-          results: results,
-          computed_at: now,
-        });
-      }
-
-      allStageResultsForMatch.push({
+      newStageRows.push({
         stage_id: stage.id,
         division,
+        hf: stageWinnerHF.toString(),
         results,
       });
+      allStageResultsForMatch.push({ stage_id: stage.id, division, results });
     }
 
     // Combined (cross-division) — one pool, scored vs the single overall best HF.
@@ -224,38 +221,12 @@ export async function recomputeMatchResults(
         stage.max_points,
         true
       );
-
-      const [existingCombined] = await db
-        .select({ id: stageResults.id })
-        .from(stageResults)
-        .where(
-          and(
-            eq(stageResults.stage_id, stage.id),
-            eq(stageResults.division, 'combined')
-          )
-        )
-        .limit(1);
-
-      if (existingCombined) {
-        await db
-          .update(stageResults)
-          .set({
-            stage_winner_hit_factor: stageWinnerHF.toString(),
-            results: results,
-            computed_at: now,
-          })
-          .where(eq(stageResults.id, existingCombined.id));
-      } else {
-        await db.insert(stageResults).values({
-          match_id: matchId,
-          stage_id: stage.id,
-          division: 'combined',
-          stage_winner_hit_factor: stageWinnerHF.toString(),
-          results: results,
-          computed_at: now,
-        });
-      }
-
+      newStageRows.push({
+        stage_id: stage.id,
+        division: 'combined',
+        hf: stageWinnerHF.toString(),
+        results,
+      });
       allStageResultsForMatch.push({
         stage_id: stage.id,
         division: 'combined',
@@ -264,50 +235,110 @@ export async function recomputeMatchResults(
     }
   }
 
-  // Compute match results per division
   const allDivisions = [
     ...new Set(allStageResultsForMatch.map((sr) => sr.division)),
   ];
+  const newMatchRows: Array<{ division: string; results: MatchResultEntry[] }> =
+    allDivisions.map((division) => ({
+      division,
+      results: computeMatchResults(
+        allStageResultsForMatch.filter((sr) => sr.division === division),
+        division
+      ),
+    }));
 
-  for (const division of allDivisions) {
-    const divisionStageResults = allStageResultsForMatch.filter(
-      (sr) => sr.division === division
+  // ── Reconcile: diff-only writes under a per-match advisory lock ──
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtext(${matchId})::bigint)`
     );
 
-    const matchResultEntries = computeMatchResults(
-      divisionStageResults,
-      division
-    );
-
-    // Upsert match result
-    const [existing] = await db
-      .select({ id: matchResults.id })
+    const existingStage = await tx
+      .select()
+      .from(stageResults)
+      .where(eq(stageResults.match_id, matchId));
+    const existingMatch = await tx
+      .select()
       .from(matchResults)
-      .where(
-        and(
-          eq(matchResults.match_id, matchId),
-          eq(matchResults.division, division)
-        )
-      )
-      .limit(1);
+      .where(eq(matchResults.match_id, matchId));
+    const exStage = new Map(
+      existingStage.map((r) => [`${r.stage_id}|${r.division}`, r])
+    );
+    const exMatch = new Map(existingMatch.map((r) => [r.division, r]));
 
-    if (existing) {
-      await db
-        .update(matchResults)
-        .set({
-          results: matchResultEntries,
+    const seenStage = new Set<string>();
+    for (const row of newStageRows) {
+      const key = `${row.stage_id}|${row.division}`;
+      seenStage.add(key);
+      const ex = exStage.get(key);
+      if (!ex) {
+        await tx.insert(stageResults).values({
+          match_id: matchId,
+          stage_id: row.stage_id,
+          division: row.division,
+          stage_winner_hit_factor: row.hf,
+          results: row.results,
           computed_at: now,
-        })
-        .where(eq(matchResults.id, existing.id));
-    } else {
-      await db.insert(matchResults).values({
-        match_id: matchId,
-        division,
-        results: matchResultEntries,
-        computed_at: now,
-      });
+        });
+      } else if (
+        ex.stage_winner_hit_factor !== row.hf ||
+        canonicalJson(ex.results) !== canonicalJson(row.results)
+      ) {
+        await tx
+          .update(stageResults)
+          .set({
+            stage_winner_hit_factor: row.hf,
+            results: row.results,
+            computed_at: now,
+          })
+          .where(eq(stageResults.id, ex.id));
+      }
     }
-  }
+    for (const ex of existingStage) {
+      if (!seenStage.has(`${ex.stage_id}|${ex.division}`)) {
+        await tx.delete(stageResults).where(eq(stageResults.id, ex.id));
+      }
+    }
+
+    const seenMatch = new Set<string>();
+    for (const row of newMatchRows) {
+      seenMatch.add(row.division);
+      const ex = exMatch.get(row.division);
+      if (!ex) {
+        await tx.insert(matchResults).values({
+          match_id: matchId,
+          division: row.division,
+          results: row.results,
+          computed_at: now,
+        });
+      } else if (canonicalJson(ex.results) !== canonicalJson(row.results)) {
+        await tx
+          .update(matchResults)
+          .set({ results: row.results, computed_at: now })
+          .where(eq(matchResults.id, ex.id));
+      }
+    }
+    for (const ex of existingMatch) {
+      if (!seenMatch.has(ex.division)) {
+        await tx.delete(matchResults).where(eq(matchResults.id, ex.id));
+      }
+    }
+
+    // Mark results computed up to the captured point (leave scores_changed_at so
+    // a score that landed mid-compute keeps the match dirty for the next tick).
+    await tx
+      .insert(matchRecomputeState)
+      .values({
+        match_id: matchId,
+        scores_changed_at: computedUpTo,
+        results_computed_at: computedUpTo,
+      })
+      .onConflictDoUpdate({
+        target: matchRecomputeState.match_id,
+        set: { results_computed_at: computedUpTo },
+      });
+  });
 
   return { stagesComputed: matchStages.length, divisions: allDivisions };
 }

@@ -20,7 +20,21 @@ import {
   matchOfficers,
   stageOfficers,
   matchAdmins,
+  matchRecomputeState,
 } from '../../db/schema.js';
+
+// Mark a match dirty so the auto-recompute scheduler picks it up. Kept in a
+// separate (non-synced) table so this per-score write doesn't fan out to clients.
+async function markScoresChanged(matchId: string): Promise<void> {
+  const now = new Date();
+  await db
+    .insert(matchRecomputeState)
+    .values({ match_id: matchId, scores_changed_at: now })
+    .onConflictDoUpdate({
+      target: matchRecomputeState.match_id,
+      set: { scores_changed_at: now },
+    });
+}
 
 /**
  * Whether a user may score a specific stage:
@@ -276,6 +290,8 @@ async function handleScorePut(
   } else {
     await db.insert(scores).values(scoreData);
   }
+
+  await markScoresChanged(matchId);
 }
 
 async function handleScorePatch(
@@ -368,10 +384,18 @@ async function handleScorePatch(
       modified_by: userId,
     })
     .where(eq(scores.id, id));
+
+  await markScoresChanged(existing.match_id);
 }
 
 async function handleScoreDelete(id: string): Promise<void> {
+  const [s] = await db
+    .select({ match_id: scores.match_id })
+    .from(scores)
+    .where(eq(scores.id, id))
+    .limit(1);
   await db.delete(scores).where(eq(scores.id, id));
+  if (s) await markScoresChanged(s.match_id);
 }
 
 export async function handleUploadData(
