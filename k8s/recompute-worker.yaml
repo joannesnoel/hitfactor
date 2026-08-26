@@ -1,0 +1,53 @@
+# Long-running auto-recompute worker (single replica). Recomputes results for
+# active matches whose scores changed, on an internal interval — no pod churn.
+#
+# NOT applied by CI's manifest step, but CI's "Deploy to k3s" DOES `kubectl set
+# image` this deployment (guarded to skip if absent), so it always runs the
+# latest backend code. Apply manually once per environment, adjusting namespace
+# + image tag:
+#   prod:    namespace hitfactor          image …/hitfactor-backend:prod
+#   staging: namespace hitfactor-staging  image …/hitfactor-backend:staging
+#   kubectl -n hitfactor apply -f k8s/recompute-worker.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: recompute-worker
+  namespace: hitfactor
+  labels:
+    app.kubernetes.io/name: recompute-worker
+    app.kubernetes.io/part-of: hitfactor
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # single worker — never run two at once, even during a rollout
+  selector:
+    matchLabels:
+      app: recompute-worker
+  template:
+    metadata:
+      labels:
+        app: recompute-worker
+        app.kubernetes.io/name: recompute-worker
+        app.kubernetes.io/part-of: hitfactor
+    spec:
+      containers:
+        - name: recompute-worker
+          image: registry.lan:5000/hitfactor-backend:prod
+          imagePullPolicy: Always
+          workingDir: /app/backend
+          command: ["node", "dist/jobs/recompute-worker.js"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: hitfactor-db
+                  key: DATABASE_URL
+            # Optional: override the sweep interval (default 60000ms).
+            # - name: RECOMPUTE_INTERVAL_MS
+            #   value: "60000"
+          resources:
+            requests:
+              cpu: 25m
+              memory: 96Mi
+            limits:
+              memory: 256Mi

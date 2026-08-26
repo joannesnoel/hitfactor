@@ -108,8 +108,11 @@ jobs:
         run: |
           kubectl set image deployment/backend  backend=${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.tag }}   -n ${{ env.NAMESPACE }}
           kubectl set image deployment/frontend frontend=${{ env.REGISTRY }}/${{ env.FRONTEND_IMAGE }}:${{ steps.tag.outputs.tag }} -n ${{ env.NAMESPACE }}
+          # Auto-recompute worker (applied manually; skip if not present)
+          kubectl set image deployment/recompute-worker recompute-worker=${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.tag }} -n ${{ env.NAMESPACE }} 2>/dev/null || echo "recompute-worker not deployed; skipping"
           kubectl rollout status deployment/backend  -n ${{ env.NAMESPACE }} --timeout=300s
           kubectl rollout status deployment/frontend -n ${{ env.NAMESPACE }} --timeout=300s
+          kubectl rollout status deployment/recompute-worker -n ${{ env.NAMESPACE }} --timeout=120s 2>/dev/null || true
 
       - name: Verify health check
         run: |
