@@ -935,6 +935,10 @@ async function handleSave() {
     $q.notify({ type: 'positive', message: 'Score saved!', position: 'top' });
 
     advanceAfterSave();
+    // Scroll back to the top so the officer sees the next shooter's name.
+    void nextTick(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
   } catch (err) {
     console.error('Save score error:', err);
     $q.notify({ type: 'negative', message: 'Failed to save score', position: 'top' });
