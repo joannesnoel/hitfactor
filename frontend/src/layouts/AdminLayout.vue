@@ -12,7 +12,7 @@
           @click="goBack"
         />
         <q-btn
-          v-else
+          v-else-if="showDrawer"
           flat
           dense
           round
@@ -20,7 +20,13 @@
           aria-label="Menu"
           @click="toggleLeftDrawer"
         />
-        <img src="/logo.png" alt="HitFactor" class="q-mr-sm" style="height: 30px" />
+        <img
+          src="/logo.png"
+          alt="HitFactor"
+          class="q-mr-sm cursor-pointer"
+          style="height: 30px"
+          @click="goHome"
+        />
         <q-toolbar-title class="ellipsis">{{ pageHeaderTitle || 'HitFactor' }}</q-toolbar-title>
         <SyncStatusIndicator />
         <q-btn flat round dense icon="account_circle">
@@ -57,7 +63,10 @@
       </q-toolbar>
     </q-header>
 
+    <!-- Officers have a single destination (the dashboard), reachable from the
+         logo — so no drawer for them; keep it for the admin area's many pages. -->
     <q-drawer
+      v-if="showDrawer"
       v-model="leftDrawerOpen"
       show-if-above
       bordered
@@ -129,8 +138,17 @@ const leftDrawerOpen = ref(false);
 
 const userName = computed(() => authStore.user?.display_name ?? 'User');
 
+// Officers get no drawer (their only destination is the dashboard, via the logo).
+const showDrawer = computed(() => currentArea.value !== 'officer');
+
 function toggleLeftDrawer() {
   leftDrawerOpen.value = !leftDrawerOpen.value;
+}
+
+function goHome() {
+  void router.push(
+    currentArea.value === 'officer' ? '/officer/dashboard' : '/admin/dashboard'
+  );
 }
 
 function goBack() {
