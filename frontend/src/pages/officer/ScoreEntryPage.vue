@@ -55,6 +55,8 @@
         </template>
       </q-select>
 
+      <!-- Pinned while scrolling: working order + current shooter + time -->
+      <div class="score-sticky">
       <!-- Working order (queue) controls -->
       <div class="q-mb-md">
         <!-- No queue: squad filter + "set working order" -->
@@ -188,25 +190,23 @@
         />
       </div>
 
+      <!-- Time — pinned with the shooter so it's reachable while scrolling -->
+      <div
+        v-if="currentRegistration"
+        class="q-pb-sm"
+        :class="{ 'disabled-section': form.dqed || form.dnf }"
+      >
+        <TimeInput
+          :model-value="form.time"
+          @update:model-value="form.time = $event"
+        />
+      </div>
+      </div>
+      <!-- /.score-sticky -->
+
       <!-- Scoring form — only when a shooter is selected -->
       <template v-if="currentRegistration">
       <q-separator class="q-mb-md" />
-
-      <!-- DQ / DNF Toggles -->
-      <div class="row q-gutter-md q-mb-md justify-center">
-        <q-toggle
-          v-model="form.dqed"
-          label="DQ"
-          color="red"
-          size="lg"
-        />
-        <q-toggle
-          v-model="form.dnf"
-          label="DNF"
-          color="orange"
-          size="lg"
-        />
-      </div>
 
       <!-- Steel (at top) — each plate is Hit (A) by default, tap to Miss (M) -->
       <div v-if="hasSteel" class="q-mb-md" :class="{ 'disabled-section': form.dqed || form.dnf }">
@@ -239,12 +239,10 @@
         />
       </div>
 
-      <!-- Time Input -->
-      <div :class="{ 'disabled-section': form.dqed || form.dnf }">
-        <TimeInput
-          :model-value="form.time"
-          @update:model-value="form.time = $event"
-        />
+      <!-- DQ / DNF Toggles -->
+      <div class="row q-gutter-md q-mb-md justify-center">
+        <q-toggle v-model="form.dqed" label="DQ" color="red" size="lg" />
+        <q-toggle v-model="form.dnf" label="DNF" color="orange" size="lg" />
       </div>
 
       <!-- Live HF Preview -->
@@ -985,6 +983,19 @@ onMounted(async () => {
 .score-entry-page {
   max-width: 600px;
   margin: 0 auto;
+}
+
+/* Working order + current shooter + time stay pinned below the app header while
+   the targets/paper/proc sections scroll underneath. Negative gutters let the
+   white background cover the page's padding edge-to-edge. */
+.score-sticky {
+  position: sticky;
+  top: calc(50px + env(safe-area-inset-top, 0px));
+  z-index: 5;
+  background: #fff;
+  margin: 0 -16px;
+  padding: 8px 16px 0;
+  box-shadow: 0 6px 6px -6px rgba(0, 0, 0, 0.25);
 }
 
 /* Horizontally-scrollable strip of queued shooters. */
