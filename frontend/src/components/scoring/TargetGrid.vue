@@ -4,6 +4,7 @@
       v-for="(hits, i) in modelValue"
       :key="i"
       class="target-row row items-center no-wrap q-py-xs"
+      :class="{ 'target-row--done': scoringCount(hits) >= roundsFor(i) }"
     >
       <div class="target-label text-weight-bold">T{{ i + 1 }}</div>
       <div class="zone-group col row q-gutter-xs no-wrap q-ml-sm">
@@ -120,6 +121,11 @@ function clearZone(i: number, zone: string) {
 <style scoped>
 .target-row {
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  transition: opacity 0.2s ease;
+}
+/* A fully-scored target recedes so the officer focuses on remaining targets. */
+.target-row--done {
+  opacity: 0.45;
 }
 .target-label {
   width: 2rem;
