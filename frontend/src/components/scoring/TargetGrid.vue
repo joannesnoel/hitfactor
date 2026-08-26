@@ -4,7 +4,6 @@
       v-for="(hits, i) in modelValue"
       :key="i"
       class="target-row row items-center no-wrap q-py-xs"
-      v-touch-hold:500.mouse="() => clearRow(i)"
     >
       <div class="target-label text-weight-bold">T{{ i + 1 }}</div>
       <div class="zone-group col row q-gutter-xs no-wrap q-ml-sm">
@@ -16,6 +15,7 @@
           unelevated
           class="zone-btn"
           @click="add(i, z.k)"
+          v-touch-hold:500.mouse="() => clearZone(i, z.k)"
         >
           {{ z.label
           }}<span v-if="countOf(hits, z.k) > 1" class="zone-count">{{
@@ -25,7 +25,7 @@
       </div>
     </div>
     <div class="text-caption text-grey-6 q-mt-xs">
-      Tip: press &amp; hold a row to clear it.
+      Tip: press &amp; hold a button to reset that zone.
     </div>
   </div>
 </template>
@@ -91,7 +91,7 @@ function clone(): string[][] {
 }
 
 // A long-press fires touch-hold and then a trailing click; suppress that click
-// (briefly) so holding a pill clears the row instead of also adding a hit.
+// (briefly) so holding a pill resets its zone instead of also adding a hit.
 let suppressClick = false;
 
 function add(i: number, zone: string) {
@@ -102,15 +102,16 @@ function add(i: number, zone: string) {
   emit('update:modelValue', next);
 }
 
-// Press-and-hold anywhere on a target row clears all its hits (A/C/D/M/NS).
-function clearRow(i: number) {
+// Press-and-hold a pill resets only that zone on the target (removes its hits),
+// leaving the rest of the target untouched.
+function clearZone(i: number, zone: string) {
   suppressClick = true;
   window.setTimeout(() => {
     suppressClick = false;
   }, 400);
-  if (props.modelValue[i].length === 0) return;
+  if (!props.modelValue[i].includes(zone)) return;
   const next = clone();
-  next[i] = [];
+  next[i] = next[i].filter((h) => h !== zone);
   emit('update:modelValue', next);
 }
 
