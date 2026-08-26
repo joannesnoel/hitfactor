@@ -1,0 +1,1 @@
+ALTER TABLE "scores" ADD COLUMN "locked" boolean DEFAULT true NOT NULL;

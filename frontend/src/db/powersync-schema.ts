@@ -102,6 +102,7 @@ const scores = new Table({
   modified_at: column.text,
   modified_by: column.text,
   target_hits: column.text, // JSON: { paper: string[][], steel: boolean[] }
+  locked: column.integer, // 0/1 — final once scored; only MA/MM can re-enable
 });
 
 const stage_results = new Table({

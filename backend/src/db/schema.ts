@@ -337,6 +337,10 @@ export const scores = pgTable(
     // target + one flag per steel plate), so a re-opened score shows M/NS on the
     // targets they were tapped on. Null for scores saved before this was added.
     target_hits: jsonb('target_hits').$type<{ paper: string[][]; steel: boolean[] }>(),
+    // Once scored, a score is locked (final). A regular officer cannot modify a
+    // locked score — only a Match Admin (MA) or Match Master (MM) can re-enable
+    // scoring (set locked=false) so it can be revised, after which it re-locks.
+    locked: boolean('locked').default(true).notNull(),
   },
   (table) => [
     unique('scores_stage_registration_unique').on(

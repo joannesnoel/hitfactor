@@ -1,5 +1,5 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import {
   computeScore,
   isValidDivisionForOrg,
@@ -90,6 +90,41 @@ async function canUserModifyScore(
 }
 
 /**
+ * Who may re-enable scoring on a locked score: a global admin, a Match Admin
+ * (MA), or a Match Master (MM). Only these can modify a locked score.
+ */
+async function canUnlockScore(
+  matchId: string,
+  userId: string,
+  isGlobalAdmin: boolean
+): Promise<boolean> {
+  if (isGlobalAdmin) return true;
+  const [admin] = await db
+    .select({ id: matchAdmins.id })
+    .from(matchAdmins)
+    .where(
+      and(eq(matchAdmins.match_id, matchId), eq(matchAdmins.user_id, userId))
+    )
+    .limit(1);
+  if (admin) return true;
+  const [mo] = await db
+    .select({ role: matchOfficers.role })
+    .from(matchOfficers)
+    .where(
+      and(
+        eq(matchOfficers.match_id, matchId),
+        eq(matchOfficers.user_id, userId),
+        inArray(matchOfficers.role, ['MA', 'MM'])
+      )
+    )
+    .limit(1);
+  return !!mo;
+}
+
+const LOCKED_MESSAGE =
+  'Score is locked. A Match Admin or Match Master must re-enable scoring to revise it.';
+
+/**
  * Throws if `division` is not a division offered by the match's organization.
  * Errors propagate to handleUploadData's per-op catch and become 207 errors.
  */
@@ -136,7 +171,8 @@ function parseTargetHits(
 async function handleScorePut(
   data: Record<string, unknown>,
   id: string,
-  userId: string
+  userId: string,
+  isGlobalAdmin: boolean
 ): Promise<void> {
   const matchId = data.match_id as string;
   const stageId = data.stage_id as string;
@@ -210,13 +246,15 @@ async function handleScorePut(
     dqed: (data.dqed as boolean) ?? false,
     dnf: (data.dnf as boolean) ?? false,
     target_hits: parseTargetHits(data.target_hits),
+    // A save locks the score (defaults to locked when the client omits it).
+    locked: data.locked !== undefined ? Boolean(data.locked) : true,
     modified_at: new Date(),
     modified_by: userId,
   };
 
   // Check for existing score (last-write-wins)
   const [existing] = await db
-    .select({ id: scores.id, modified_at: scores.modified_at })
+    .select({ id: scores.id, modified_at: scores.modified_at, locked: scores.locked })
     .from(scores)
     .where(
       and(
@@ -227,6 +265,11 @@ async function handleScorePut(
     .limit(1);
 
   if (existing) {
+    // A locked score can only be modified by a Match Admin/Master (or admin).
+    if (existing.locked && !(await canUnlockScore(matchId, userId, isGlobalAdmin))) {
+      throw new Error(LOCKED_MESSAGE);
+    }
+
     // Last-write-wins: compare timestamps
     const incomingTime = data.modified_at
       ? new Date(data.modified_at as string)
@@ -247,7 +290,8 @@ async function handleScorePut(
 async function handleScorePatch(
   data: Record<string, unknown>,
   id: string,
-  userId: string
+  userId: string,
+  isGlobalAdmin: boolean
 ): Promise<void> {
   // Get existing score
   const [existing] = await db
@@ -257,6 +301,12 @@ async function handleScorePatch(
     .limit(1);
 
   if (!existing) throw new Error(`Score ${id} not found`);
+
+  // A locked score can only be modified (including re-enabling scoring) by a
+  // Match Admin/Master (or admin).
+  if (existing.locked && !(await canUnlockScore(existing.match_id, userId, isGlobalAdmin))) {
+    throw new Error(LOCKED_MESSAGE);
+  }
 
   // Division is authoritative from registration and immutable via PATCH;
   // validate the stored value defensively against the match's organization.
@@ -303,10 +353,12 @@ async function handleScorePatch(
 
   // Strip any client-supplied division so it can never be patched. Pull
   // target_hits out too so we can parse it (jsonb) instead of spreading the raw
-  // JSON string, which would double-encode.
+  // JSON string, which would double-encode; and `locked` so the client's 0/1
+  // becomes a real boolean.
   const {
     division: _ignoredDivision,
     target_hits: rawTargetHits,
+    locked: rawLocked,
     ...patchData
   } = data;
 
@@ -317,6 +369,7 @@ async function handleScorePatch(
       ...(rawTargetHits !== undefined
         ? { target_hits: parseTargetHits(rawTargetHits) }
         : {}),
+      ...(rawLocked !== undefined ? { locked: Boolean(rawLocked) } : {}),
       raw_points: computed.raw_points,
       penalty_points: computed.penalty_points,
       total_points: computed.total_points,
@@ -362,7 +415,7 @@ export async function handleUploadData(
             errors.push({ op, error: 'Not authorized to score this stage' });
             continue;
           }
-          await handleScorePut(op.data, op.id, request.user.id);
+          await handleScorePut(op.data, op.id, request.user.id, isSystemAdmin);
         } else if (op.op === 'PATCH' && op.data) {
           if (
             !isSystemAdmin &&
@@ -371,7 +424,7 @@ export async function handleUploadData(
             errors.push({ op, error: 'Not authorized to edit this score' });
             continue;
           }
-          await handleScorePatch(op.data, op.id, request.user.id);
+          await handleScorePatch(op.data, op.id, request.user.id, isSystemAdmin);
         } else if (op.op === 'DELETE') {
           if (
             !isSystemAdmin &&

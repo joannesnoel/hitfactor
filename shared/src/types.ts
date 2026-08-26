@@ -150,6 +150,9 @@ export interface Score {
   // Exact per-target layout (jsonb on the server, JSON string on the client);
   // null for legacy scores saved before this was tracked.
   target_hits?: ScoreTargetHits | string | null;
+  // Final/locked once scored. Only a Match Admin/Master can re-enable scoring.
+  // On the client (SQLite) this is 0/1.
+  locked?: boolean | number;
 }
 
 // ─── Score Input (what the officer enters) ───────

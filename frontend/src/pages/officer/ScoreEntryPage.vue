@@ -194,7 +194,7 @@
       <div
         v-if="currentRegistration"
         class="q-pb-sm"
-        :class="{ 'disabled-section': form.dqed || form.dnf }"
+        :class="{ 'disabled-section': form.dqed || form.dnf || scoreLocked }"
       >
         <TimeInput
           :model-value="form.time"
@@ -208,8 +208,29 @@
       <template v-if="currentRegistration">
       <q-separator class="q-mb-md" />
 
+      <!-- Locked: scored and final until a Match Admin/Master re-enables it -->
+      <q-banner v-if="scoreLocked" class="bg-blue-grey-1 text-blue-grey-9 q-mb-md rounded-borders">
+        <template #avatar><q-icon name="lock" color="blue-grey-7" /></template>
+        <div class="text-weight-medium">Score locked</div>
+        <div class="text-caption">
+          <template v-if="canUnlock">This shooter has been scored. Re-enable scoring to revise it.</template>
+          <template v-else>This shooter has been scored. A Match Admin or Match Master must re-enable scoring to revise it.</template>
+        </div>
+        <template v-if="canUnlock" #action>
+          <q-btn
+            color="primary"
+            unelevated
+            no-caps
+            icon="lock_open"
+            label="Unlock for revision"
+            :loading="unlocking"
+            @click="unlockScore"
+          />
+        </template>
+      </q-banner>
+
       <!-- Steel (at top) — each plate is Hit (A) by default, tap to Miss (M) -->
-      <div v-if="hasSteel" class="q-mb-md" :class="{ 'disabled-section': form.dqed || form.dnf }">
+      <div v-if="hasSteel" class="q-mb-md" :class="{ 'disabled-section': form.dqed || form.dnf || scoreLocked }">
         <div class="row items-center justify-between q-mb-xs">
           <div class="text-subtitle2">Steel ({{ steelState.length }})</div>
           <div class="text-caption text-grey">{{ steelSummary }}</div>
@@ -218,7 +239,7 @@
       </div>
 
       <!-- Per-target paper scoring (A/C/D/M plus per-row NS) -->
-      <div class="q-mb-md" :class="{ 'disabled-section': form.dqed || form.dnf }">
+      <div class="q-mb-md" :class="{ 'disabled-section': form.dqed || form.dnf || scoreLocked }">
         <div class="row items-center justify-between q-mb-xs">
           <div class="text-subtitle2">Targets ({{ targetCount }})</div>
           <div class="text-caption text-grey">{{ paperSummary }} · {{ enteredPaper }}/{{ requiredPaper }}</div>
@@ -229,7 +250,7 @@
       <!-- Procedurals -->
       <div
         class="row justify-center q-gutter-md q-mb-md"
-        :class="{ 'disabled-section': form.dqed || form.dnf }"
+        :class="{ 'disabled-section': form.dqed || form.dnf || scoreLocked }"
       >
         <ZoneCounter
           label="Proc"
@@ -241,8 +262,8 @@
 
       <!-- DQ / DNF Toggles -->
       <div class="row q-gutter-md q-mb-md justify-center">
-        <q-toggle v-model="form.dqed" label="DQ" color="red" size="lg" />
-        <q-toggle v-model="form.dnf" label="DNF" color="orange" size="lg" />
+        <q-toggle v-model="form.dqed" label="DQ" color="red" size="lg" :disable="scoreLocked" />
+        <q-toggle v-model="form.dnf" label="DNF" color="orange" size="lg" :disable="scoreLocked" />
       </div>
 
       <!-- Live HF Preview -->
@@ -260,6 +281,7 @@
         <q-icon name="warning" size="14px" /> Incomplete — {{ incompleteReason }}
       </div>
       <q-btn
+        v-if="!scoreLocked"
         color="primary"
         label="Save Score"
         class="full-width q-mb-md"
@@ -271,8 +293,8 @@
         @click="confirmOpen = true"
       />
 
-      <!-- Existing score indicator -->
-      <q-banner v-if="existingScore" class="bg-blue-1 q-mt-sm" rounded>
+      <!-- Existing score indicator (only once unlocked for a revision) -->
+      <q-banner v-if="existingScore && !scoreLocked" class="bg-blue-1 q-mt-sm" rounded>
         Score already exists for this shooter. Saving will update it.
       </q-banner>
       </template>
@@ -675,6 +697,12 @@ const existingScore = computed(() => {
   ) ?? null;
 });
 
+// A scored (existing) score is locked/final; a regular officer can't edit it —
+// only a Match Admin/Master (canUnlock) can re-enable scoring to revise.
+const scoreLocked = computed(() => Boolean(existingScore.value?.locked));
+const canUnlock = ref(false);
+const unlocking = ref(false);
+
 const currentPowerFactor = computed<PowerFactor>(() => {
   return (currentRegistration.value?.power_factor as PowerFactor) ?? 'Minor';
 });
@@ -889,7 +917,7 @@ async function handleSave() {
           alpha_count = ?, charlie_count = ?, delta_count = ?, miss_count = ?,
           no_shoot_count = ?, procedural_count = ?, steel_hits = ?, steel_misses = ?,
           time = ?, raw_points = ?, penalty_points = ?, total_points = ?,
-          hit_factor = ?, dqed = ?, dnf = ?, target_hits = ?, modified_at = ?, modified_by = ?
+          hit_factor = ?, dqed = ?, dnf = ?, target_hits = ?, locked = 1, modified_at = ?, modified_by = ?
         WHERE id = ?`,
         [
           paperCounts.value.a, paperCounts.value.c, paperCounts.value.d, paperCounts.value.m,
@@ -908,8 +936,8 @@ async function handleSave() {
           power_factor, alpha_count, charlie_count, delta_count, miss_count,
           no_shoot_count, procedural_count, steel_hits, steel_misses,
           time, raw_points, penalty_points, total_points, hit_factor,
-          scored_by, scored_at, verified, dqed, dnf, target_hits
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          scored_by, scored_at, verified, dqed, dnf, target_hits, locked
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
         [
           id, matchId, stageId, currentRegistration.value.id,
           currentRegistration.value.shooter_name, currentRegistration.value.division,
@@ -969,6 +997,40 @@ async function isAuthorizedToScore(): Promise<boolean> {
   return so.length > 0;
 }
 
+// Whether the user may re-enable scoring on a locked score: global admin, or a
+// Match Admin (MA) / Match Master (MM) for this match. (match_officers for the
+// whole match sync to any officer, so this is reliable.)
+async function isUnlockAllowed(): Promise<boolean> {
+  if (authStore.isAdmin) return true;
+  if (!db || !authStore.user) return false;
+  const rows = await db.getAll(
+    "SELECT 1 FROM match_officers WHERE match_id = ? AND user_id = ? AND role IN ('MA', 'MM') LIMIT 1",
+    [matchId, authStore.user.id],
+  );
+  return rows.length > 0;
+}
+
+// Match Admin/Master re-enables scoring for a revision (server re-checks).
+async function unlockScore() {
+  if (!db || !existingScore.value || !authStore.user) return;
+  unlocking.value = true;
+  try {
+    await db.execute(
+      'UPDATE scores SET locked = 0, modified_at = ?, modified_by = ? WHERE id = ?',
+      [new Date().toISOString(), authStore.user.id, existingScore.value.id],
+    );
+    $q.notify({
+      type: 'positive',
+      message: 'Scoring re-enabled — this score can now be revised',
+      position: 'top',
+    });
+  } catch {
+    $q.notify({ type: 'negative', message: 'Failed to unlock', position: 'top' });
+  } finally {
+    unlocking.value = false;
+  }
+}
+
 // Drive the shared app header: back arrow (→ officer dashboard) + stage title,
 // replacing the hamburger + "HitFactor". Placeholder title until the stage loads.
 setPageHeader('Scoring', '/officer/dashboard');
@@ -986,12 +1048,18 @@ onMounted(async () => {
   // Gate scoring on an actual assignment (mirrors the server check). Re-runs when
   // an assignment syncs in, so an officer assigned moments earlier isn't blocked.
   authorized.value = await isAuthorizedToScore();
+  canUnlock.value = await isUnlockAllowed();
   db.watch(
     'SELECT 1 FROM stage_officers WHERE stage_id = ? AND user_id = ? UNION ALL ' +
       'SELECT 1 FROM match_officers WHERE match_id = ? AND user_id = ? UNION ALL ' +
       'SELECT 1 FROM match_admins WHERE match_id = ? AND user_id = ?',
     [stageId, authStore.user?.id ?? '', matchId, authStore.user?.id ?? '', matchId, authStore.user?.id ?? ''],
-    { onResult: () => { void isAuthorizedToScore().then((v) => { authorized.value = v; }); } },
+    {
+      onResult: () => {
+        void isAuthorizedToScore().then((v) => { authorized.value = v; });
+        void isUnlockAllowed().then((v) => { canUnlock.value = v; });
+      },
+    },
   );
 
   try {

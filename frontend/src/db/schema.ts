@@ -108,6 +108,7 @@ export const scores = sqliteTable('scores', {
   modified_at: text('modified_at'),
   modified_by: text('modified_by'),
   target_hits: text('target_hits'), // JSON: { paper: string[][], steel: boolean[] }
+  locked: integer('locked', { mode: 'boolean' }),
 });
 
 export const stage_results = sqliteTable('stage_results', {
