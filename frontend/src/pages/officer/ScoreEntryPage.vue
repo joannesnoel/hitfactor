@@ -285,31 +285,68 @@
 
     <!-- Save confirmation — combined paper + steel tally for the shooter to verify -->
     <q-dialog v-model="confirmOpen">
-      <q-card style="min-width: 300px; max-width: 92vw">
+      <q-card class="confirm-dialog">
         <q-card-section class="text-center q-pb-none">
           <div class="text-caption text-grey text-uppercase">Confirm score</div>
           <div class="text-h6 text-weight-bold ellipsis">
             {{ currentRegistration?.shooter_name }}
           </div>
         </q-card-section>
-        <q-card-section class="text-center">
+
+        <q-card-section class="q-pt-sm">
           <div
             v-if="form.dqed || form.dnf"
-            class="text-h5 text-weight-bold text-negative q-mb-sm"
+            class="text-h4 text-weight-bold text-negative text-center q-mb-md"
           >
             {{ form.dqed ? 'DQ' : 'DNF' }}
           </div>
-          <div class="text-h5 text-weight-bold q-mb-sm hf-display">{{ tallyString }}</div>
-          <div class="row justify-center q-gutter-md text-caption text-grey">
-            <span>Time: {{ form.time.toFixed(2) }}s</span>
-            <span>HF: {{ liveHitFactor }}</span>
+
+          <!-- Scoring zones -->
+          <div class="row justify-center q-gutter-sm q-mb-sm">
+            <div
+              v-for="z in tallyRow1"
+              :key="z.k"
+              class="tally-box"
+              :style="{ backgroundColor: z.bg, color: z.fg }"
+            >
+              {{ z.n }}<span class="tally-letter">{{ z.k }}</span>
+            </div>
+          </div>
+          <!-- Penalties -->
+          <div class="row justify-center q-gutter-sm">
+            <div
+              v-for="z in tallyRow2"
+              :key="z.k"
+              class="tally-box"
+              :style="{ backgroundColor: z.bg, color: z.fg }"
+            >
+              {{ z.n }}<span class="tally-letter">{{ z.k }}</span>
+            </div>
+          </div>
+
+          <!-- Time + Hit Factor -->
+          <div class="row justify-center q-gutter-xl q-mt-lg">
+            <div class="text-center">
+              <div class="text-caption text-grey text-uppercase">Time</div>
+              <div class="text-h4 text-weight-bold">
+                {{ form.time.toFixed(2) }}<span class="text-subtitle1">s</span>
+              </div>
+            </div>
+            <div class="text-center">
+              <div class="text-caption text-grey text-uppercase">Hit Factor</div>
+              <div class="text-h4 text-weight-bold text-primary">{{ liveHitFactor }}</div>
+            </div>
           </div>
         </q-card-section>
-        <q-card-actions align="right">
-          <q-btn flat label="Back" v-close-popup />
+
+        <q-card-actions align="between" class="q-pa-md">
+          <q-btn flat no-caps size="lg" label="Back" v-close-popup />
           <q-btn
             color="primary"
             unelevated
+            no-caps
+            size="lg"
+            icon="save"
             label="Confirm & Save"
             :loading="saving"
             @click="onConfirmSave"
@@ -459,18 +496,31 @@ const steelSummary = computed(() =>
 
 // Combined paper + steel tally shown on the save-confirmation. Steel hits fold
 // into A (scoring hits) and steel misses into M, alongside paper A/C/D/M/NS and
-// procedurals — e.g. "19A 7C 0D 0M 0NS 0PROC".
+// procedural errors (PE). Colours mirror the scoring pills.
 const combinedTally = computed(() => ({
   a: paperCounts.value.a + steelHitCount.value,
   c: paperCounts.value.c,
   d: paperCounts.value.d,
   m: paperCounts.value.m + steelMissCount.value,
   ns: paperCounts.value.ns,
-  proc: form.procedural_count,
+  pe: form.procedural_count,
 }));
-const tallyString = computed(() => {
+// Row 1 = scoring zones, Row 2 = penalties (miss / no-shoot / procedural error).
+const tallyRow1 = computed(() => {
   const t = combinedTally.value;
-  return `${t.a}A  ${t.c}C  ${t.d}D  ${t.m}M  ${t.ns}NS  ${t.proc}PROC`;
+  return [
+    { k: 'A', n: t.a, bg: '#21ba45', fg: 'white' },
+    { k: 'C', n: t.c, bg: '#fdd835', fg: 'black' },
+    { k: 'D', n: t.d, bg: '#f57c00', fg: 'white' },
+  ];
+});
+const tallyRow2 = computed(() => {
+  const t = combinedTally.value;
+  return [
+    { k: 'M', n: t.m, bg: '#e53935', fg: 'white' },
+    { k: 'NS', n: t.ns, bg: '#b71c1c', fg: 'white' },
+    { k: 'PE', n: t.pe, bg: '#795548', fg: 'white' },
+  ];
 });
 
 // "Save Score" opens this confirmation (showing the tally for the shooter to
@@ -1042,6 +1092,26 @@ onMounted(async () => {
 .score-entry-page {
   max-width: 600px;
   margin: 0 auto;
+}
+
+/* Save-confirmation dialog: roomy, with large colored tally boxes. */
+.confirm-dialog {
+  width: 460px;
+  max-width: 96vw;
+}
+.tally-box {
+  min-width: 4.25rem;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+}
+.tally-box .tally-letter {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-left: 2px;
 }
 
 /* Working order + current shooter + time stay pinned below the app header while
