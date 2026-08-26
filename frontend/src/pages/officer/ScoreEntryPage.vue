@@ -771,9 +771,13 @@ function clearQueue() {
   });
 }
 
-// "LAST, FIRST" → "LAST" for compact chips in the queue strip.
+// "LAST, FIRST" → "LAST, F" for compact chips in the queue strip. Names without a
+// comma are shown as-is.
 function shortName(name: string): string {
-  return name.split(',')[0]?.trim() || name;
+  const [last, first] = name.split(',');
+  const l = (last ?? '').trim();
+  const f = (first ?? '').trim();
+  return l && f ? `${l}, ${f[0].toUpperCase()}` : name.trim();
 }
 
 async function handleSave() {
