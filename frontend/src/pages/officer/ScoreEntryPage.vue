@@ -61,18 +61,59 @@
         </template>
       </q-select>
 
-      <!-- Squad Filter -->
-      <q-select
-        v-model="selectedSquadId"
-        :options="squadOptions"
-        label="Filter by Squad"
-        emit-value
-        map-options
-        outlined
-        dense
-        clearable
-        class="q-mb-md"
-      />
+      <!-- Working order (queue) controls -->
+      <div class="q-mb-md">
+        <!-- No queue: squad filter + "set working order" -->
+        <div v-if="!queueActive" class="row items-center q-col-gutter-sm">
+          <div class="col">
+            <q-select
+              v-model="selectedSquadId"
+              :options="squadOptions"
+              label="Filter by Squad"
+              emit-value
+              map-options
+              outlined
+              dense
+              clearable
+            />
+          </div>
+          <div class="col-auto">
+            <q-btn
+              color="primary"
+              icon="format_list_numbered"
+              label="Working order"
+              no-caps
+              unelevated
+              :disable="allRegistrations.length === 0"
+              @click="openBuilder"
+            />
+          </div>
+        </div>
+
+        <!-- Queue active: chip strip (tap to jump) + edit / clear -->
+        <div v-else>
+          <div class="row items-center q-mb-xs">
+            <div class="text-subtitle2">Working order</div>
+            <q-space />
+            <q-btn flat dense no-caps size="sm" icon="edit" label="Edit" @click="openBuilder" />
+            <q-btn flat dense no-caps size="sm" color="grey-7" icon="close" label="Clear" @click="clearQueue" />
+          </div>
+          <div class="queue-strip row no-wrap q-gutter-xs q-pb-xs">
+            <q-chip
+              v-for="(reg, i) in navRegistrations"
+              :key="reg.id"
+              dense
+              clickable
+              :color="i === currentShooterIndex ? 'primary' : scoredRegIds.has(reg.id) ? 'green-2' : 'grey-3'"
+              :text-color="i === currentShooterIndex ? 'white' : scoredRegIds.has(reg.id) ? 'green-9' : 'grey-9'"
+              :icon="scoredRegIds.has(reg.id) ? 'check' : undefined"
+              @click="currentShooterIndex = i"
+            >
+              {{ i + 1 }}. {{ shortName(reg.shooter_name) }}
+            </q-chip>
+          </div>
+        </div>
+      </div>
 
       <!-- Current Shooter -->
       <div class="row items-center no-wrap q-mb-md">
@@ -124,7 +165,7 @@
               </template>
             </div>
             <div class="text-caption current-shooter-meta">
-              Shooter {{ currentShooterIndex + 1 }} of {{ filteredRegistrations.length }}
+              Shooter {{ currentShooterIndex + 1 }} of {{ navRegistrations.length }}
               <span v-if="scoredCount > 0"> · {{ scoredCount }} scored</span>
             </div>
           </q-card-section>
@@ -148,7 +189,7 @@
           round
           flat
           icon="chevron_right"
-          :disable="currentShooterIndex >= filteredRegistrations.length - 1"
+          :disable="currentShooterIndex >= navRegistrations.length - 1"
           @click="nextShooter"
         />
       </div>
@@ -249,6 +290,16 @@
       </q-banner>
       </template>
     </div>
+
+    <QueueBuilderDialog
+      v-model="builderOpen"
+      :participants="allRegistrations"
+      :squads="squads"
+      :scored-ids="scoredIdsArray"
+      :organization="organization"
+      :initial-order="queue"
+      @start="onQueueStart"
+    />
   </q-page>
 </template>
 
@@ -261,6 +312,8 @@ import { whenPowerSyncReady } from 'src/boot/powersync';
 import type { Stage, Registration, Score, ScoreInput, ScoringType, PowerFactor, Organization } from '@hitfactor/shared';
 import { computeScore, getDivisionLabel, DEFAULT_ORGANIZATION, MATCH_LEVEL_OFFICIAL_ROLES } from '@hitfactor/shared';
 import { useAuthStore } from 'src/stores/auth.store';
+import { useScoreQueue } from 'src/composables/useScoreQueue';
+import QueueBuilderDialog from 'src/components/scoring/QueueBuilderDialog.vue';
 import ZoneCounter from 'src/components/scoring/ZoneCounter.vue';
 import TargetGrid from 'src/components/scoring/TargetGrid.vue';
 import SteelGrid from 'src/components/scoring/SteelGrid.vue';
@@ -290,6 +343,12 @@ const selectedSquadId = ref<string | null>(null);
 const selectedRegistrationId = ref<string | null>(null);
 const currentShooterIndex = ref(0);
 const shooterSearchOptions = ref<{ label: string; value: string; caption: string; scored: boolean }[]>([]);
+
+// Working order (queue): an opt-in, device-local ordered list of registration ids
+// the officer processes for this stage. Empty = default all-shooters navigation.
+const { queue, setQueue, clear: clearQueueRaw, append, contains } = useScoreQueue(matchId, stageId);
+const queueActive = computed(() => queue.value.length > 0);
+const builderOpen = ref(false);
 
 // Per-target paper hits: one ordered array of zones ('a'|'c'|'d'|'m'|'ns') per
 // target. No-shoots ('ns') are penalty hits tagged to a target — they don't
@@ -469,8 +528,29 @@ const filteredRegistrations = computed(() => {
   return allRegistrations.value.filter((r) => r.squad_id === selectedSquadId.value);
 });
 
+// Registration ids already scored for this stage (drives the ✓ badges + counter).
+const scoredRegIds = computed(
+  () =>
+    new Set(
+      existingScores.value
+        .filter((s) => s.stage_id === stageId)
+        .map((s) => s.registration_id),
+    ),
+);
+const scoredIdsArray = computed(() => [...scoredRegIds.value]);
+
+// The navigation source: the working order when active, else the (squad-filtered)
+// full roster. Stale queued ids (registration removed) are dropped.
+const navRegistrations = computed(() => {
+  if (queue.value.length === 0) return filteredRegistrations.value;
+  const byId = new Map(allRegistrations.value.map((r) => [r.id, r] as const));
+  return queue.value
+    .map((id) => byId.get(id))
+    .filter((r): r is Registration => !!r);
+});
+
 const currentRegistration = computed(() => {
-  return filteredRegistrations.value[currentShooterIndex.value] ?? null;
+  return navRegistrations.value[currentShooterIndex.value] ?? null;
 });
 
 const existingScore = computed(() => {
@@ -506,12 +586,9 @@ const liveScore = computed(() => {
 
 const liveHitFactor = computed(() => liveScore.value.hit_factor.toFixed(4));
 
-const scoredCount = computed(() => {
-  const stageScoreRegIds = new Set(
-    existingScores.value.filter((s) => s.stage_id === stageId).map((s) => s.registration_id),
-  );
-  return filteredRegistrations.value.filter((r) => stageScoreRegIds.has(r.id)).length;
-});
+const scoredCount = computed(
+  () => navRegistrations.value.filter((r) => scoredRegIds.value.has(r.id)).length,
+);
 
 function filterShooters(val: string, update: (fn: () => void) => void) {
   update(() => {
@@ -535,10 +612,12 @@ function filterShooters(val: string, update: (fn: () => void) => void) {
   });
 }
 
-// When shooter selected via search, jump to that shooter in the list
+// Search jumps to any shooter. With a working order active, a shooter not in it
+// is appended to the end so navigation stays a single ordered list.
 watch(selectedRegistrationId, (regId) => {
   if (!regId) return;
-  const idx = filteredRegistrations.value.findIndex((r) => r.id === regId);
+  if (queueActive.value && !contains(regId)) append(regId);
+  const idx = navRegistrations.value.findIndex((r) => r.id === regId);
   if (idx >= 0) {
     currentShooterIndex.value = idx;
   }
@@ -610,6 +689,30 @@ function resetForm() {
   form.dnf = false;
 }
 
+// After a save: in a working order, jump to the next UNSCORED shooter (scored
+// ones stay in place, marked done); otherwise step to the next shooter as before.
+function advanceAfterSave() {
+  const regs = navRegistrations.value;
+  if (!queueActive.value) {
+    if (currentShooterIndex.value < regs.length - 1) currentShooterIndex.value++;
+    return;
+  }
+  const scored = scoredRegIds.value; // reflects the just-saved score (reloaded above)
+  for (let i = currentShooterIndex.value + 1; i < regs.length; i++) {
+    if (!scored.has(regs[i].id)) {
+      currentShooterIndex.value = i;
+      return;
+    }
+  }
+  for (let i = 0; i < regs.length; i++) {
+    if (!scored.has(regs[i].id)) {
+      currentShooterIndex.value = i;
+      return;
+    }
+  }
+  // Everyone in the working order is scored — stay put.
+}
+
 function prevShooter() {
   if (currentShooterIndex.value > 0) {
     currentShooterIndex.value--;
@@ -617,9 +720,31 @@ function prevShooter() {
 }
 
 function nextShooter() {
-  if (currentShooterIndex.value < filteredRegistrations.value.length - 1) {
+  if (currentShooterIndex.value < navRegistrations.value.length - 1) {
     currentShooterIndex.value++;
   }
+}
+
+// ─── Working order (queue) ──────────────────────
+function openBuilder() {
+  builderOpen.value = true;
+}
+
+function onQueueStart(ids: string[]) {
+  setQueue(ids);
+  // Start on the first shooter who isn't scored yet.
+  const idx = ids.findIndex((id) => !scoredRegIds.value.has(id));
+  currentShooterIndex.value = idx >= 0 ? idx : 0;
+}
+
+function clearQueue() {
+  clearQueueRaw();
+  currentShooterIndex.value = 0;
+}
+
+// "LAST, FIRST" → "LAST" for compact chips in the queue strip.
+function shortName(name: string): string {
+  return name.split(',')[0]?.trim() || name;
 }
 
 async function handleSave() {
@@ -689,10 +814,7 @@ async function handleSave() {
 
     $q.notify({ type: 'positive', message: 'Score saved!', position: 'top' });
 
-    // Auto-advance to next shooter
-    if (currentShooterIndex.value < filteredRegistrations.value.length - 1) {
-      currentShooterIndex.value++;
-    }
+    advanceAfterSave();
   } catch (err) {
     console.error('Save score error:', err);
     $q.notify({ type: 'negative', message: 'Failed to save score', position: 'top' });
@@ -800,6 +922,14 @@ onMounted(async () => {
       [matchId],
     );
 
+    // Resume a persisted working order at the first shooter not yet scored.
+    if (queueActive.value) {
+      const idx = navRegistrations.value.findIndex(
+        (r) => !scoredRegIds.value.has(r.id),
+      );
+      currentShooterIndex.value = idx >= 0 ? idx : 0;
+    }
+
     // Watch for new registrations syncing in (e.g. shooters registering during match)
     db.watch(
       'SELECT * FROM registrations WHERE match_id = ? ORDER BY shooter_name',
@@ -827,6 +957,15 @@ onMounted(async () => {
 .score-entry-page {
   max-width: 600px;
   margin: 0 auto;
+}
+
+/* Horizontally-scrollable strip of queued shooters. */
+.queue-strip {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.queue-strip .q-chip {
+  flex: 0 0 auto;
 }
 
 .disabled-section {
