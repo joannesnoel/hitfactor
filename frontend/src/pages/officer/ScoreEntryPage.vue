@@ -96,9 +96,9 @@
             <div class="text-subtitle2">Working order</div>
             <q-space />
             <q-btn flat dense no-caps size="sm" icon="edit" label="Edit" @click="openBuilder" />
-            <q-btn flat dense no-caps size="sm" color="grey-7" icon="close" label="Clear" @click="clearQueue" />
+            <q-btn flat dense no-caps size="sm" color="grey-7" icon="close" label="Clear" class="q-ml-md" @click="clearQueue" />
           </div>
-          <div class="queue-strip row no-wrap q-gutter-xs q-pb-xs">
+          <div ref="stripRef" class="queue-strip row no-wrap q-gutter-xs q-pb-xs">
             <q-chip
               v-for="(reg, i) in navRegistrations"
               :key="reg.id"
@@ -349,6 +349,25 @@ const shooterSearchOptions = ref<{ label: string; value: string; caption: string
 const { queue, setQueue, clear: clearQueueRaw, append, contains } = useScoreQueue(matchId, stageId);
 const queueActive = computed(() => queue.value.length > 0);
 const builderOpen = ref(false);
+const stripRef = ref<HTMLElement | null>(null);
+
+// Keep the current shooter's chip visible and left-aligned in the queue strip as
+// the officer moves with next/previous (or any jump).
+function scrollCurrentIntoView() {
+  const strip = stripRef.value;
+  if (!strip) return;
+  const chip = strip.children[currentShooterIndex.value] as HTMLElement | undefined;
+  if (!chip) return;
+  const sr = strip.getBoundingClientRect();
+  const cr = chip.getBoundingClientRect();
+  strip.scrollTo({
+    left: strip.scrollLeft + (cr.left - sr.left) - 8, // 8px leading gap
+    behavior: 'smooth',
+  });
+}
+watch(currentShooterIndex, () => {
+  void nextTick(scrollCurrentIntoView);
+});
 
 // Per-target paper hits: one ordered array of zones ('a'|'c'|'d'|'m'|'ns') per
 // target. No-shoots ('ns') are penalty hits tagged to a target — they don't
@@ -738,8 +757,18 @@ function onQueueStart(ids: string[]) {
 }
 
 function clearQueue() {
-  clearQueueRaw();
-  currentShooterIndex.value = 0;
+  // Confirm — the Clear button sits next to the strip and is easy to hit by
+  // accident; losing the working order mid-scoring is annoying.
+  $q.dialog({
+    title: 'Clear working order?',
+    message:
+      'This removes the working order and returns to all shooters. Your entered scores are not affected.',
+    cancel: true,
+    ok: { label: 'Clear', color: 'negative', unelevated: true },
+  }).onOk(() => {
+    clearQueueRaw();
+    currentShooterIndex.value = 0;
+  });
 }
 
 // "LAST, FIRST" → "LAST" for compact chips in the queue strip.
