@@ -1,13 +1,7 @@
 <template>
   <q-page class="score-entry-page">
-    <!-- Stage Info Header -->
-    <q-toolbar class="bg-blue-grey-9 text-white">
-      <q-btn flat round dense icon="arrow_back" @click="$router.back()" />
-      <q-toolbar-title v-if="stage" class="text-center">
-        Stage {{ stage.stage_number }}: {{ stage.name }}
-      </q-toolbar-title>
-      <SyncStatusIndicator />
-    </q-toolbar>
+    <!-- The stage title + back button live in the shared app header (see
+         usePageHeader), so there's no secondary toolbar here. -->
 
     <!-- Loading -->
     <div v-if="loading" class="flex flex-center q-pa-xl">
@@ -304,7 +298,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
 import type { PowerSyncDatabase } from '@powersync/web';
@@ -313,12 +307,12 @@ import type { Stage, Registration, Score, ScoreInput, ScoringType, PowerFactor, 
 import { computeScore, getDivisionLabel, DEFAULT_ORGANIZATION, MATCH_LEVEL_OFFICIAL_ROLES } from '@hitfactor/shared';
 import { useAuthStore } from 'src/stores/auth.store';
 import { useScoreQueue } from 'src/composables/useScoreQueue';
+import { setPageHeader, clearPageHeader } from 'src/composables/usePageHeader';
 import QueueBuilderDialog from 'src/components/scoring/QueueBuilderDialog.vue';
 import ZoneCounter from 'src/components/scoring/ZoneCounter.vue';
 import TargetGrid from 'src/components/scoring/TargetGrid.vue';
 import SteelGrid from 'src/components/scoring/SteelGrid.vue';
 import TimeInput from 'src/components/scoring/TimeInput.vue';
-import SyncStatusIndicator from 'src/components/common/SyncStatusIndicator.vue';
 
 const route = useRoute();
 const $q = useQuasar();
@@ -873,6 +867,11 @@ async function isAuthorizedToScore(): Promise<boolean> {
   return so.length > 0;
 }
 
+// Drive the shared app header: back arrow (→ officer dashboard) + stage title,
+// replacing the hamburger + "HitFactor". Placeholder title until the stage loads.
+setPageHeader('Scoring', '/officer/dashboard');
+onUnmounted(clearPageHeader);
+
 onMounted(async () => {
   // PowerSync connects asynchronously after login; inject('powerSyncDb') only
   // ever yields the boot-time null, so wait for the real connected db here.
@@ -910,6 +909,11 @@ onMounted(async () => {
       fixed_time: stageRow.fixed_time != null ? Number(stageRow.fixed_time) : null,
       is_classifier: Boolean(stageRow.is_classifier),
     } as Stage;
+
+    setPageHeader(
+      `Stage ${stage.value.stage_number}: ${stage.value.name}`,
+      '/officer/dashboard',
+    );
 
     // Initialise an empty per-target grid + all-hit steel for the loaded stage.
     targetHits.value = freshGrid();

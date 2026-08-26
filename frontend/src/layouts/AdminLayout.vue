@@ -3,6 +3,16 @@
     <q-header elevated class="bg-dark text-white">
       <q-toolbar>
         <q-btn
+          v-if="pageHeaderBackTo"
+          flat
+          dense
+          round
+          icon="arrow_back"
+          aria-label="Back"
+          @click="goBack"
+        />
+        <q-btn
+          v-else
           flat
           dense
           round
@@ -11,7 +21,7 @@
           @click="toggleLeftDrawer"
         />
         <img src="/logo.png" alt="HitFactor" class="q-mr-sm" style="height: 30px" />
-        <q-toolbar-title>HitFactor</q-toolbar-title>
+        <q-toolbar-title class="ellipsis">{{ pageHeaderTitle || 'HitFactor' }}</q-toolbar-title>
         <SyncStatusIndicator />
         <q-btn flat round dense icon="account_circle">
           <q-menu>
@@ -108,6 +118,7 @@ import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth.store';
 import { useRoleSwitch } from 'src/composables/useRoleSwitch';
+import { pageHeaderTitle, pageHeaderBackTo } from 'src/composables/usePageHeader';
 import SyncStatusIndicator from 'src/components/common/SyncStatusIndicator.vue';
 import EmailVerifyBanner from 'src/components/common/EmailVerifyBanner.vue';
 
@@ -120,6 +131,11 @@ const userName = computed(() => authStore.user?.display_name ?? 'User');
 
 function toggleLeftDrawer() {
   leftDrawerOpen.value = !leftDrawerOpen.value;
+}
+
+function goBack() {
+  if (window.history.length > 1) router.back();
+  else void router.push(pageHeaderBackTo.value || '/');
 }
 
 function goToProfile() {
