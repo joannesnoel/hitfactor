@@ -52,7 +52,7 @@ const ZONES = [
   { k: 'c', label: 'C', color: '#fdd835', textColor: 'black', edge: '#c9a400' },
   { k: 'd', label: 'D', color: '#f57c00', textColor: 'white', edge: '#e06f00' },
   { k: 'm', label: 'M', color: '#e53935', textColor: 'white', edge: '#d32f2f' },
-  { k: 'ns', label: 'NS', color: '#b71c1c', textColor: 'white', edge: '#b71c1c' },
+  { k: 'ns', label: 'NS', color: '#212121', textColor: 'white', edge: '#212121' },
 ];
 
 type Zone = (typeof ZONES)[number];

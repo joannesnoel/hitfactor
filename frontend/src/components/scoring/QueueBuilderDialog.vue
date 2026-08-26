@@ -7,7 +7,7 @@
     <q-card class="queue-builder column no-wrap">
       <q-card-section class="row items-center q-py-sm">
         <div>
-          <div class="text-h6">Working order</div>
+          <div class="text-h6">Shooting order</div>
           <div class="text-caption text-grey">
             Pick who's at the bay and drag to set the call order.
           </div>
@@ -90,7 +90,7 @@
 
         <!-- Working order (draggable) -->
         <div class="row items-center q-px-md q-pt-sm">
-          <div class="text-subtitle2">Working order ({{ order.length }})</div>
+          <div class="text-subtitle2">Shooting order ({{ order.length }})</div>
         </div>
         <div v-if="order.length === 0" class="text-grey text-center q-pa-md">
           No shooters added yet — tap shooters above to build the order.

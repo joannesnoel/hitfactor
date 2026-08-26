@@ -77,7 +77,7 @@
             <q-btn
               color="primary"
               icon="format_list_numbered"
-              label="Working order"
+              label="Shooting order"
               no-caps
               unelevated
               :disable="allRegistrations.length === 0"
@@ -89,7 +89,7 @@
         <!-- Queue active: chip strip (tap to jump) + edit / clear -->
         <div v-else>
           <div class="row items-center q-mb-xs">
-            <div class="text-subtitle2">Working order</div>
+            <div class="text-subtitle2">Shooting order</div>
             <q-space />
             <q-btn flat dense no-caps size="sm" icon="edit" label="Edit" @click="openBuilder" />
             <q-btn flat dense no-caps size="sm" color="grey-7" icon="close" label="Clear" class="q-ml-md" @click="clearQueue" />
@@ -131,15 +131,8 @@
         >
           <q-card-section class="q-py-sm">
             <div class="row items-center justify-center q-gutter-xs text-caption text-uppercase">
-              <q-icon name="my_location" size="14px" />
-              <span>Now scoring</span>
-              <q-badge
-                v-if="existingScore"
-                color="white"
-                text-color="green-8"
-                label="scored"
-                class="q-ml-xs"
-              />
+              <q-icon :name="existingScore ? 'check_circle' : 'my_location'" size="14px" />
+              <span>{{ existingScore ? 'Scored' : 'Now scoring' }}</span>
               <q-badge
                 color="white"
                 :text-color="
@@ -213,49 +206,33 @@
         <template #avatar><q-icon name="lock" color="blue-grey-7" /></template>
         <div class="text-weight-medium">Score locked</div>
         <div class="text-caption">
-          <template v-if="canUnlock">This shooter has been scored. Re-enable scoring to revise it.</template>
+          <template v-if="canUnlock">This shooter has been scored. Re-enable scoring below to revise it.</template>
           <template v-else>This shooter has been scored. A Match Admin or Match Master must re-enable scoring to revise it.</template>
         </div>
-        <template v-if="canUnlock" #action>
-          <q-btn
-            color="primary"
-            unelevated
-            no-caps
-            icon="lock_open"
-            label="Unlock for revision"
-            :loading="unlocking"
-            @click="unlockScore"
-          />
-        </template>
       </q-banner>
 
       <!-- Steel (at top) — each plate is Hit (A) by default, tap to Miss (M) -->
       <div v-if="hasSteel" class="q-mb-md" :class="{ 'disabled-section': form.dqed || form.dnf || scoreLocked }">
-        <div class="row items-center justify-between q-mb-xs">
-          <div class="text-subtitle2">Steel ({{ steelState.length }})</div>
-          <div class="text-caption text-grey">{{ steelSummary }}</div>
-        </div>
+        <div class="text-subtitle2 q-mb-xs">Steel ({{ steelState.length }})</div>
         <SteelGrid v-model="steelState" />
       </div>
 
       <!-- Per-target paper scoring (A/C/D/M plus per-row NS) -->
       <div class="q-mb-md" :class="{ 'disabled-section': form.dqed || form.dnf || scoreLocked }">
-        <div class="row items-center justify-between q-mb-xs">
-          <div class="text-subtitle2">Targets ({{ targetCount }})</div>
-          <div class="text-caption text-grey">{{ paperSummary }} · {{ enteredPaper }}/{{ requiredPaper }}</div>
-        </div>
+        <div class="text-subtitle2 q-mb-xs">Targets ({{ targetCount }})</div>
         <TargetGrid v-model="targetHits" :rounds="paperRounds" />
       </div>
 
-      <!-- Procedurals -->
+      <!-- Procedural errors (rarely used → compact) -->
       <div
-        class="row justify-center q-gutter-md q-mb-md"
+        class="row justify-center q-mb-md"
         :class="{ 'disabled-section': form.dqed || form.dnf || scoreLocked }"
       >
         <ZoneCounter
-          label="Proc"
+          label="PE"
           :count="form.procedural_count"
-          color="#795548"
+          color="#212121"
+          compact
           @update:count="form.procedural_count = $event"
         />
       </div>
@@ -266,31 +243,53 @@
         <q-toggle v-model="form.dnf" label="DNF" color="orange" size="lg" :disable="scoreLocked" />
       </div>
 
-      <!-- Live HF Preview -->
+      <!-- Combined tally (steel folded into A / M) + live Hit Factor -->
       <q-separator class="q-my-md" />
+      <div class="row justify-center no-wrap q-gutter-xs q-mb-md">
+        <div
+          v-for="z in tallyItems"
+          :key="z.k"
+          class="tally-box"
+          :style="{ backgroundColor: z.bg, color: z.fg }"
+        >
+          {{ z.n }}<span class="tally-letter">{{ z.k }}</span>
+        </div>
+      </div>
       <div class="text-center q-mb-md">
         <div class="text-caption text-grey">Hit Factor</div>
         <div class="hf-display text-primary">{{ liveHitFactor }}</div>
       </div>
 
-      <!-- Save Button -->
-      <div
-        v-if="!isComplete"
-        class="text-center text-orange-9 text-caption q-mb-xs"
-      >
-        <q-icon name="warning" size="14px" /> Incomplete — {{ incompleteReason }}
-      </div>
+      <!-- Bottom action: Save (editable) or Unlock (locked + MA/MM) -->
+      <template v-if="!scoreLocked">
+        <div
+          v-if="!isComplete"
+          class="text-center text-orange-9 text-caption q-mb-xs"
+        >
+          <q-icon name="warning" size="14px" /> Incomplete — {{ incompleteReason }}
+        </div>
+        <q-btn
+          color="primary"
+          label="Save Score"
+          class="full-width q-mb-md"
+          size="xl"
+          unelevated
+          :disable="!isComplete"
+          :loading="saving"
+          icon="save"
+          @click="confirmOpen = true"
+        />
+      </template>
       <q-btn
-        v-if="!scoreLocked"
+        v-else-if="canUnlock"
         color="primary"
-        label="Save Score"
+        label="Unlock for revision"
         class="full-width q-mb-md"
         size="xl"
         unelevated
-        :disable="!isComplete"
-        :loading="saving"
-        icon="save"
-        @click="confirmOpen = true"
+        icon="lock_open"
+        :loading="unlocking"
+        @click="unlockScore"
       />
 
       <!-- Existing score indicator (only once unlocked for a revision) -->
@@ -318,21 +317,10 @@
             {{ form.dqed ? 'DQ' : 'DNF' }}
           </div>
 
-          <!-- Scoring zones -->
-          <div class="row justify-center q-gutter-sm q-mb-sm">
+          <!-- Combined tally in one line -->
+          <div class="row justify-center no-wrap q-gutter-xs">
             <div
-              v-for="z in tallyRow1"
-              :key="z.k"
-              class="tally-box"
-              :style="{ backgroundColor: z.bg, color: z.fg }"
-            >
-              {{ z.n }}<span class="tally-letter">{{ z.k }}</span>
-            </div>
-          </div>
-          <!-- Penalties -->
-          <div class="row justify-center q-gutter-sm">
-            <div
-              v-for="z in tallyRow2"
+              v-for="z in tallyItems"
               :key="z.k"
               class="tally-box"
               :style="{ backgroundColor: z.bg, color: z.fg }"
@@ -494,26 +482,13 @@ const paperCounts = computed(() => {
   return c;
 });
 
-const paperSummary = computed(() => {
-  const c = paperCounts.value;
-  const parts = (['a', 'c', 'd', 'm', 'ns'] as const)
-    .filter((z) => c[z])
-    .map((z) => `${c[z]}${z.toUpperCase()}`);
-  return parts.length ? parts.join('  ') : 'No hits';
-});
-
 // Steel hit/miss counts derived from the plate toggles.
 const steelHitCount = computed(() => steelState.value.filter(Boolean).length);
 const steelMissCount = computed(() => steelState.value.filter((h) => !h).length);
-const steelSummary = computed(() =>
-  steelMissCount.value > 0
-    ? `${steelHitCount.value}A  ${steelMissCount.value}M`
-    : 'all hit',
-);
 
-// Combined paper + steel tally shown on the save-confirmation. Steel hits fold
-// into A (scoring hits) and steel misses into M, alongside paper A/C/D/M/NS and
-// procedural errors (PE). Colours mirror the scoring pills.
+// Combined paper + steel tally shown on the live preview and the save-confirmation.
+// Steel hits fold into A, steel misses into M, alongside paper A/C/D/M/NS and
+// procedural errors (PE). One row; A/C/D/M keep the pill colours, NS + PE black.
 const combinedTally = computed(() => ({
   a: paperCounts.value.a + steelHitCount.value,
   c: paperCounts.value.c,
@@ -522,21 +497,15 @@ const combinedTally = computed(() => ({
   ns: paperCounts.value.ns,
   pe: form.procedural_count,
 }));
-// Row 1 = scoring zones, Row 2 = penalties (miss / no-shoot / procedural error).
-const tallyRow1 = computed(() => {
+const tallyItems = computed(() => {
   const t = combinedTally.value;
   return [
     { k: 'A', n: t.a, bg: '#21ba45', fg: 'white' },
     { k: 'C', n: t.c, bg: '#fdd835', fg: 'black' },
     { k: 'D', n: t.d, bg: '#f57c00', fg: 'white' },
-  ];
-});
-const tallyRow2 = computed(() => {
-  const t = combinedTally.value;
-  return [
     { k: 'M', n: t.m, bg: '#e53935', fg: 'white' },
-    { k: 'NS', n: t.ns, bg: '#b71c1c', fg: 'white' },
-    { k: 'PE', n: t.pe, bg: '#795548', fg: 'white' },
+    { k: 'NS', n: t.ns, bg: '#212121', fg: 'white' },
+    { k: 'PE', n: t.pe, bg: '#212121', fg: 'white' },
   ];
 });
 
@@ -567,13 +536,16 @@ const steelRequired = computed(() => stage.value?.number_of_steel ?? 0);
 const enteredSteel = computed(() => steelState.value.length);
 const needsTime = computed(() => stage.value?.scoring_type !== 'fixed_time');
 
+// Rounds = paper rounds + steel plates, combined into one progress figure.
+const requiredRounds = computed(() => requiredPaper.value + steelRequired.value);
+const enteredRounds = computed(
+  () => enteredPaper.value + Math.min(enteredSteel.value, steelRequired.value),
+);
+
 const incompleteReason = computed<string>(() => {
   if (form.dqed || form.dnf) return '';
-  if (enteredPaper.value < requiredPaper.value) {
-    return `${enteredPaper.value}/${requiredPaper.value} paper rounds scored`;
-  }
-  if (enteredSteel.value < steelRequired.value) {
-    return `${enteredSteel.value}/${steelRequired.value} steel scored`;
+  if (enteredRounds.value < requiredRounds.value) {
+    return `${enteredRounds.value}/${requiredRounds.value} rounds scored`;
   }
   if (needsTime.value && form.time <= 0) return 'enter a time';
   return '';
@@ -884,9 +856,9 @@ function clearQueue() {
   // Confirm — the Clear button sits next to the strip and is easy to hit by
   // accident; losing the working order mid-scoring is annoying.
   $q.dialog({
-    title: 'Clear working order?',
+    title: 'Clear shooting order?',
     message:
-      'This removes the working order and returns to all shooters. Your entered scores are not affected.',
+      'This removes the shooting order and returns to all shooters. Your entered scores are not affected.',
     cancel: true,
     ok: { label: 'Clear', color: 'negative', unelevated: true },
   }).onOk(() => {
@@ -1162,19 +1134,22 @@ onMounted(async () => {
   width: 460px;
   max-width: 96vw;
 }
+/* Compact enough that all six (A C D M NS PE) fit on one line on a phone. */
 .tally-box {
-  min-width: 4.25rem;
-  padding: 8px 10px;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 3.4rem;
+  padding: 8px 2px;
   border-radius: 8px;
-  font-size: 1.6rem;
+  font-size: 1.35rem;
   font-weight: 800;
   line-height: 1;
   text-align: center;
 }
 .tally-box .tally-letter {
-  font-size: 0.95rem;
+  font-size: 0.8rem;
   font-weight: 700;
-  margin-left: 2px;
+  margin-left: 1px;
 }
 
 /* Working order + current shooter + time stay pinned below the app header while
