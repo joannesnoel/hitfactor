@@ -109,7 +109,7 @@
               :icon="scoredRegIds.has(reg.id) ? 'check' : undefined"
               @click="currentShooterIndex = i"
             >
-              {{ i + 1 }}. {{ shortName(reg.shooter_name) }}
+              {{ i + 1 }}. {{ reg.shooter_name }}
             </q-chip>
           </div>
         </div>
@@ -769,15 +769,6 @@ function clearQueue() {
     clearQueueRaw();
     currentShooterIndex.value = 0;
   });
-}
-
-// "LAST, FIRST" → "LAST, F" for compact chips in the queue strip. Names without a
-// comma are shown as-is.
-function shortName(name: string): string {
-  const [last, first] = name.split(',');
-  const l = (last ?? '').trim();
-  const f = (first ?? '').trim();
-  return l && f ? `${l}, ${f[0].toUpperCase()}` : name.trim();
 }
 
 async function handleSave() {
