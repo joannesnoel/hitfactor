@@ -113,6 +113,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('src/pages/officer/StageReviewPage.vue'),
         props: true,
       },
+      {
+        path: 'matches/:matchId/results',
+        component: () => import('src/pages/officer/OfficerMatchResultsPage.vue'),
+        props: true,
+      },
     ],
   },
 

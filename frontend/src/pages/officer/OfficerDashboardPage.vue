@@ -2,6 +2,25 @@
   <q-page padding>
     <div class="text-h5 text-weight-bold q-mb-lg">Scoring Dashboard</div>
 
+    <!-- Resume where you left off -->
+    <q-banner
+      v-if="lastScoring"
+      class="bg-blue-1 text-blue-10 q-mb-lg rounded-borders"
+    >
+      <template #avatar><q-icon name="history" color="primary" /></template>
+      Resume where you left off —
+      <b>Stage {{ lastScoring.stageNumber }}: {{ lastScoring.stageName }}</b>
+      <template #action>
+        <q-btn
+          flat
+          color="primary"
+          label="Resume"
+          @click="$router.push(`/officer/scoring/${lastScoring.matchId}/${lastScoring.stageId}`)"
+        />
+        <q-btn flat dense round icon="close" @click="dismissResume" />
+      </template>
+    </q-banner>
+
     <!-- Loading -->
     <div v-if="loading" class="flex flex-center q-pa-xl">
       <q-spinner color="primary" size="3em" />
@@ -46,6 +65,18 @@
               />
             </div>
           </q-card-section>
+
+          <q-separator />
+
+          <q-card-actions>
+            <q-btn
+              flat
+              color="primary"
+              icon="leaderboard"
+              label="Partial results"
+              @click="$router.push(`/officer/matches/${am.match.id}/results`)"
+            />
+          </q-card-actions>
         </q-card>
       </div>
     </template>
@@ -64,11 +95,40 @@ interface AssignedMatch {
   stages: Stage[];
 }
 
+interface LastScoring {
+  matchId: string;
+  stageId: string;
+  stageNumber: number;
+  stageName: string;
+}
+
 const authStore = useAuthStore();
 const loading = ref(true);
 const assignedMatches = ref<AssignedMatch[]>([]);
+// The last scoring page this officer opened (from ScoreEntryPage), for a quick
+// "resume where you left off" jump back.
+const lastScoring = ref<LastScoring | null>(null);
+
+function dismissResume() {
+  lastScoring.value = null;
+  try {
+    localStorage.removeItem('officer:lastScoring');
+  } catch {
+    // ignore
+  }
+}
 
 onMounted(async () => {
+  try {
+    const raw = localStorage.getItem('officer:lastScoring');
+    if (raw) {
+      const v = JSON.parse(raw) as LastScoring;
+      if (v?.matchId && v?.stageId) lastScoring.value = v;
+    }
+  } catch {
+    // ignore malformed/unavailable storage
+  }
+
   if (!authStore.user) {
     loading.value = false;
     return;

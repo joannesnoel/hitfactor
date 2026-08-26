@@ -769,6 +769,22 @@ onMounted(async () => {
     targetHits.value = freshGrid();
     steelState.value = Array<boolean>(stage.value.number_of_steel).fill(true);
 
+    // Remember where the officer is working so the dashboard can offer "Resume".
+    try {
+      localStorage.setItem(
+        'officer:lastScoring',
+        JSON.stringify({
+          matchId,
+          stageId,
+          stageNumber: stage.value.stage_number,
+          stageName: stage.value.name,
+          ts: Date.now(),
+        }),
+      );
+    } catch {
+      // storage may be unavailable (private mode); resume is best-effort
+    }
+
     // Load match organization (for division labels)
     try {
       const matchRow = await db.get<{ organization: string }>(
