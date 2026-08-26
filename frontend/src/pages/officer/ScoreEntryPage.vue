@@ -273,7 +273,7 @@
         :disable="!isComplete"
         :loading="saving"
         icon="save"
-        @click="handleSave"
+        @click="confirmOpen = true"
       />
 
       <!-- Existing score indicator -->
@@ -282,6 +282,41 @@
       </q-banner>
       </template>
     </div>
+
+    <!-- Save confirmation — combined paper + steel tally for the shooter to verify -->
+    <q-dialog v-model="confirmOpen">
+      <q-card style="min-width: 300px; max-width: 92vw">
+        <q-card-section class="text-center q-pb-none">
+          <div class="text-caption text-grey text-uppercase">Confirm score</div>
+          <div class="text-h6 text-weight-bold ellipsis">
+            {{ currentRegistration?.shooter_name }}
+          </div>
+        </q-card-section>
+        <q-card-section class="text-center">
+          <div
+            v-if="form.dqed || form.dnf"
+            class="text-h5 text-weight-bold text-negative q-mb-sm"
+          >
+            {{ form.dqed ? 'DQ' : 'DNF' }}
+          </div>
+          <div class="text-h5 text-weight-bold q-mb-sm hf-display">{{ tallyString }}</div>
+          <div class="row justify-center q-gutter-md text-caption text-grey">
+            <span>Time: {{ form.time.toFixed(2) }}s</span>
+            <span>HF: {{ liveHitFactor }}</span>
+          </div>
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Back" v-close-popup />
+          <q-btn
+            color="primary"
+            unelevated
+            label="Confirm & Save"
+            :loading="saving"
+            @click="onConfirmSave"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
 
     <QueueBuilderDialog
       v-model="builderOpen"
@@ -421,6 +456,30 @@ const steelSummary = computed(() =>
     ? `${steelHitCount.value}A  ${steelMissCount.value}M`
     : 'all hit',
 );
+
+// Combined paper + steel tally shown on the save-confirmation. Steel hits fold
+// into A (scoring hits) and steel misses into M, alongside paper A/C/D/M/NS and
+// procedurals — e.g. "19A 7C 0D 0M 0NS 0PROC".
+const combinedTally = computed(() => ({
+  a: paperCounts.value.a + steelHitCount.value,
+  c: paperCounts.value.c,
+  d: paperCounts.value.d,
+  m: paperCounts.value.m + steelMissCount.value,
+  ns: paperCounts.value.ns,
+  proc: form.procedural_count,
+}));
+const tallyString = computed(() => {
+  const t = combinedTally.value;
+  return `${t.a}A  ${t.c}C  ${t.d}D  ${t.m}M  ${t.ns}NS  ${t.proc}PROC`;
+});
+
+// "Save Score" opens this confirmation (showing the tally for the shooter to
+// verify); confirming runs the actual save.
+const confirmOpen = ref(false);
+async function onConfirmSave() {
+  confirmOpen.value = false;
+  await handleSave();
+}
 
 // ── Completeness: every required round (paper + steel) must be accounted for,
 // and timed stages need a time. DQ/DNF are exempt. ───────────────────────────
