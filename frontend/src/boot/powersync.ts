@@ -2,11 +2,17 @@ import { boot } from 'quasar/wrappers';
 import { useSyncStore } from 'src/stores/sync.store';
 
 type PSDb = import('@powersync/web').PowerSyncDatabase;
+type PSConnector = import('@powersync/web').PowerSyncBackendConnector;
+type PSConnectOptions = import('@powersync/web').PowerSyncConnectionOptions;
 
 let db: PSDb | null = null;
 let available = false;
 let connectSettled = false;
 let readyResolvers: Array<(db: PSDb | null) => void> = [];
+// Kept so we can re-establish the sync stream after the app resumes (see below).
+let connector: PSConnector | null = null;
+let connectOptions: PSConnectOptions | undefined;
+let lastConnectAttempt = 0;
 
 export function getPowerSyncDb() {
   return db;
@@ -53,7 +59,39 @@ export default boot(({ app }) => {
 
   // Provide null initially; connectPowerSync() will set the real db later
   app.provide('powerSyncDb', null);
+
+  // iOS suspends the PWA / Safari tab when backgrounded and silently kills the
+  // long-lived sync stream; on resume PowerSync doesn't always notice, so local
+  // data looks stale until a full re-login. Re-establish the connection whenever
+  // the app returns to the foreground or the network comes back. connect() tears
+  // down any dead stream and reconnects, so this is safe to call repeatedly.
+  if (typeof document !== 'undefined') {
+    const onResume = () => {
+      if (document.visibilityState === 'visible') void reconnectPowerSync();
+    };
+    document.addEventListener('visibilitychange', onResume);
+    window.addEventListener('pageshow', () => void reconnectPowerSync());
+    window.addEventListener('focus', () => void reconnectPowerSync());
+    window.addEventListener('online', () => void reconnectPowerSync());
+  }
 });
+
+/**
+ * Re-establish the PowerSync sync stream (e.g. after the app returns to the
+ * foreground). No-op until connectPowerSync() has run; debounced so rapid
+ * foreground/blur flips don't thrash the connection.
+ */
+export async function reconnectPowerSync(): Promise<void> {
+  if (!db || !connector) return;
+  const nowMs = Date.now();
+  if (nowMs - lastConnectAttempt < 3000) return;
+  lastConnectAttempt = nowMs;
+  try {
+    await db.connect(connector, connectOptions);
+  } catch (err) {
+    console.warn('[PowerSync] reconnect failed:', err);
+  }
+}
 
 /**
  * Call after successful login to create the database and start syncing.
@@ -71,14 +109,14 @@ export async function connectPowerSync() {
       schema: powerSyncSchema,
     });
 
-    const connector = new PowerSyncConnector();
-    await db.init();
+    connector = new PowerSyncConnector();
     // Force HTTP streaming. The default (WebSocket) does not establish through
     // the Cloudflare proxy in front of the sync service, leaving clients stuck
     // in API-only mode (nothing syncs). HTTP streaming works through the proxy.
-    await db.connect(connector, {
-      connectionMethod: SyncStreamConnectionMethod.HTTP,
-    });
+    connectOptions = { connectionMethod: SyncStreamConnectionMethod.HTTP };
+    await db.init();
+    await db.connect(connector, connectOptions);
+    lastConnectAttempt = Date.now();
     console.log('[PowerSync] Connected');
     const syncStore = useSyncStore();
     syncStore.updateStatus('connected');
@@ -103,5 +141,7 @@ export async function disconnectPowerSync() {
     // ignore
   }
   db = null;
+  connector = null;
+  connectOptions = undefined;
   connectSettled = false;
 }
