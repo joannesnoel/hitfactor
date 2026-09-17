@@ -414,16 +414,36 @@ export async function listClaimable(
   reply: FastifyReply
 ): Promise<void> {
   const { q } = request.query as { q?: string };
-  if (!q || q.trim().length < 2) {
+  const raw = (q ?? '').trim();
+  if (raw.length < 2) {
     return reply.send([]);
   }
-  const pattern = `%${q.trim()}%`;
+
+  // Token-based, order-independent match: every token the person typed must
+  // appear somewhere in the record's name or member number. Lets a typed name
+  // like "wilheim go" find the imported "GO, WILHEIM JANSSEN" record (a plain
+  // substring search would miss it).
+  const tokens = raw.split(/\s+/).filter((t) => t.length > 0).slice(0, 6);
+  const tokenConds = tokens.map((t) => {
+    const pat = `%${t}%`;
+    return or(
+      ilike(users.normalized_name, pat),
+      ilike(users.display_name, pat),
+      ilike(users.member_number, pat)
+    );
+  });
+
   const result = await db
     .select({
       id: users.id,
       display_name: users.display_name,
       member_number: users.member_number,
       match_count: sql<number>`(SELECT count(DISTINCT r.match_id)::int FROM registrations r WHERE r.user_id = users.id)`,
+      // Most recent match this shooter appears in — shown so the person can
+      // confirm "is this you?" with confidence.
+      last_match: sql<
+        string | null
+      >`(SELECT m.name FROM registrations r JOIN matches m ON m.id = r.match_id WHERE r.user_id = users.id ORDER BY m.start_date DESC LIMIT 1)`,
     })
     .from(users)
     .where(
@@ -433,7 +453,7 @@ export async function listClaimable(
         // whose flag was left stale would otherwise appear here (and can't be
         // claimed anyway, since claim rejects records with a password).
         isNull(users.password_hash),
-        or(ilike(users.display_name, pattern), ilike(users.member_number, pattern))
+        ...tokenConds
       )
     )
     .orderBy(users.display_name)

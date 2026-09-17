@@ -4,101 +4,114 @@
       <q-card-section class="text-center q-pb-none">
         <img src="/logo.png" alt="HitFactor" style="height: 80px" class="q-mb-xs" />
         <div class="text-h4 text-weight-bold text-primary q-mb-sm">HitFactor</div>
-        <div class="text-subtitle1 text-grey">
-          {{ claimTarget ? 'Claim your shooter record' : startNew ? 'Create a new account' : 'Find your record to get started' }}
-        </div>
+        <div class="text-subtitle1 text-grey">{{ subtitle }}</div>
       </q-card-section>
 
-      <!-- Step 1: search for your imported record (shown until you pick one
-           or choose to register as a brand-new shooter) -->
-      <q-card-section v-if="!claimTarget && !startNew">
+      <!-- ── Step 1: name ── -->
+      <q-card-section v-if="step === 'name'">
         <div class="text-caption text-grey-7 q-mb-sm">
-          Already shot a match here? Search your name to link your history —
-          most shooters already have a record.
+          Enter your name and we'll check for existing match history to link to
+          your account.
         </div>
         <q-input
-          v-model="claimQuery"
-          dense
+          v-model="nameInput"
           outlined
           autofocus
-          debounce="300"
-          placeholder="Search your name"
-          @update:model-value="searchClaimable"
+          label="Your full name"
+          :rules="[(v: string) => (v && v.trim().length >= 2) || 'Enter your name']"
+          @keyup.enter="lookup"
         >
-          <template #prepend><q-icon name="search" /></template>
-          <template #append>
-            <q-spinner v-if="searching" size="18px" color="grey" />
-          </template>
+          <template #prepend><q-icon name="person" /></template>
         </q-input>
-        <q-list
-          v-if="claimResults.length"
-          bordered
-          separator
-          class="rounded-borders q-mt-xs"
-          style="max-height: 240px; overflow-y: auto"
-        >
-          <q-item
-            v-for="c in claimResults"
-            :key="c.id"
-            clickable
-            @click="selectClaim(c)"
-          >
-            <q-item-section>
-              <q-item-label>{{ c.display_name }}</q-item-label>
-              <q-item-label caption>
-                {{ c.match_count }} match{{ c.match_count > 1 ? 'es' : '' }}<span
-                  v-if="c.member_number"
-                > · #{{ c.member_number }}</span>
-              </q-item-label>
-            </q-item-section>
-            <q-item-section side><q-icon name="chevron_right" /></q-item-section>
-          </q-item>
-        </q-list>
-        <div
-          v-else-if="claimQuery.trim().length >= 2 && !searching"
-          class="text-caption text-grey q-mt-sm"
-        >
-          No matching record found.
-        </div>
+        <q-btn
+          color="primary"
+          label="Continue"
+          class="full-width q-mt-sm"
+          size="lg"
+          unelevated
+          :loading="looking"
+          :disable="nameInput.trim().length < 2"
+          @click="lookup"
+        />
+      </q-card-section>
 
-        <q-separator class="q-my-md" />
-        <div class="text-center">
-          <div class="text-caption text-grey-7 q-mb-xs">
-            New shooter, or can't find your name?
-          </div>
+      <!-- ── Step 2: resolve a match ── -->
+      <q-card-section v-else-if="step === 'resolve'">
+        <!-- Single match: yes/no -->
+        <template v-if="matches.length === 1">
+          <div class="text-caption text-grey-7 q-mb-sm">Is this you?</div>
+          <q-card flat bordered class="q-mb-md">
+            <q-card-section class="q-py-sm">
+              <div class="text-subtitle1 text-weight-bold">{{ matches[0].display_name }}</div>
+              <div class="text-caption text-grey">{{ recordCaption(matches[0]) }}</div>
+            </q-card-section>
+          </q-card>
+          <q-btn
+            color="primary"
+            label="Yes, that's me"
+            class="full-width"
+            size="lg"
+            unelevated
+            @click="chooseClaim(matches[0])"
+          />
           <q-btn
             flat
-            dense
             no-caps
-            color="primary"
-            label="Register as a new shooter"
-            @click="startNew = true"
+            color="grey-8"
+            label="No — I'm new here"
+            class="full-width q-mt-sm"
+            @click="chooseNew"
           />
+        </template>
+
+        <!-- Multiple matches: pick one -->
+        <template v-else>
+          <div class="text-caption text-grey-7 q-mb-sm">
+            We found a few — which one is you?
+          </div>
+          <q-list bordered separator class="rounded-borders" style="max-height: 260px; overflow-y: auto">
+            <q-item v-for="c in matches" :key="c.id" clickable @click="chooseClaim(c)">
+              <q-item-section>
+                <q-item-label class="text-weight-medium">{{ c.display_name }}</q-item-label>
+                <q-item-label caption>{{ recordCaption(c) }}</q-item-label>
+              </q-item-section>
+              <q-item-section side><q-icon name="chevron_right" /></q-item-section>
+            </q-item>
+          </q-list>
+          <q-btn
+            flat
+            no-caps
+            color="grey-8"
+            label="None of these — I'm new here"
+            class="full-width q-mt-sm"
+            @click="chooseNew"
+          />
+        </template>
+
+        <div class="text-center q-mt-sm">
+          <q-btn flat dense no-caps size="sm" icon="arrow_back" label="Back" @click="backToName" />
         </div>
       </q-card-section>
 
-      <!-- Selected record -->
-      <q-card-section v-if="claimTarget" class="q-pb-none">
-        <q-banner dense class="bg-green-1 rounded-borders">
+      <!-- ── Step 3: credentials ── -->
+      <q-card-section v-else>
+        <q-banner
+          v-if="claimTarget"
+          dense
+          class="bg-green-1 rounded-borders q-mb-md"
+        >
           Linking <b>{{ claimTarget.display_name }}</b>'s history
           <template #action>
-            <q-btn flat dense label="Change" @click="claimTarget = null" />
+            <q-btn flat dense label="Change" @click="backToName" />
           </template>
         </q-banner>
-      </q-card-section>
-
-      <!-- New-account mode -->
-      <q-card-section v-if="startNew" class="q-pb-none">
-        <q-banner dense class="bg-blue-1 rounded-borders">
+        <q-banner v-else dense class="bg-blue-1 rounded-borders q-mb-md">
           Creating a new account
           <template #action>
-            <q-btn flat dense label="Search instead" @click="startNew = false" />
+            <q-btn flat dense label="Change" @click="backToName" />
           </template>
         </q-banner>
-      </q-card-section>
 
-      <!-- Step 2: credentials — only after a record is chosen or new-shooter -->
-      <q-card-section v-if="claimTarget || startNew">
         <q-form @submit.prevent="handleSubmit" class="q-gutter-md">
           <q-input
             v-model="form.email"
@@ -133,8 +146,9 @@
             </template>
           </q-input>
 
+          <!-- New account (no record claimed): confirm name + optional member # -->
           <q-input
-            v-if="startNew"
+            v-if="!claimTarget"
             v-model="form.display_name"
             label="Display Name"
             outlined
@@ -142,9 +156,8 @@
           >
             <template #prepend><q-icon name="person" /></template>
           </q-input>
-
           <q-input
-            v-if="startNew"
+            v-if="!claimTarget"
             v-model="form.member_number"
             label="Member Number (optional)"
             outlined
@@ -178,7 +191,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, reactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from 'src/composables/useAuth';
 import { useAuthStore } from 'src/stores/auth.store';
@@ -191,6 +204,7 @@ interface Claimable {
   display_name: string;
   member_number: string | null;
   match_count: number;
+  last_match: string | null;
 }
 
 const $q = useQuasar();
@@ -202,14 +216,13 @@ const showPassword = ref(false);
 const loading = ref(false);
 const error = ref('');
 
-const claimQuery = ref('');
-const claimResults = ref<Claimable[]>([]);
+// Guided flow: name → resolve (is-this-you / pick) → credentials.
+type Step = 'name' | 'resolve' | 'credentials';
+const step = ref<Step>('name');
+const nameInput = ref('');
+const looking = ref(false);
+const matches = ref<Claimable[]>([]);
 const claimTarget = ref<Claimable | null>(null);
-// Search-first flow: the credentials form stays hidden until the user either
-// selects their imported record (claimTarget) or explicitly opts to register
-// as a brand-new shooter (startNew).
-const startNew = ref(false);
-const searching = ref(false);
 
 const form = reactive({
   email: '',
@@ -218,29 +231,59 @@ const form = reactive({
   member_number: '',
 });
 
-async function searchClaimable(q: string) {
-  if (!q || q.trim().length < 2) {
-    claimResults.value = [];
-    searching.value = false;
-    return;
+const subtitle = computed(() => {
+  if (step.value === 'name') return "Let's find your shooter record";
+  if (step.value === 'resolve') {
+    return matches.value.length === 1 ? 'Is this you?' : 'Which one is you?';
   }
-  searching.value = true;
+  return claimTarget.value ? 'Claim your record' : 'Create your account';
+});
+
+function recordCaption(c: Claimable): string {
+  const parts = [`${c.match_count} match${c.match_count === 1 ? '' : 'es'}`];
+  if (c.last_match) parts.push(`last: ${c.last_match}`);
+  if (c.member_number) parts.push(`#${c.member_number}`);
+  return parts.join(' · ');
+}
+
+// Look the typed name up against unclaimed records with match history.
+async function lookup() {
+  const name = nameInput.value.trim();
+  if (name.length < 2) return;
+  looking.value = true;
+  error.value = '';
   try {
     const { data } = await api.get<Claimable[]>('/api/users/claimable', {
-      params: { q },
+      params: { q: name },
     });
-    claimResults.value = data;
+    matches.value = data;
+    if (data.length === 0) {
+      chooseNew(); // no record — straight to a new account with this name
+    } else {
+      step.value = 'resolve';
+    }
   } catch {
-    claimResults.value = [];
+    chooseNew(); // lookup failed — let them register anyway
   } finally {
-    searching.value = false;
+    looking.value = false;
   }
 }
 
-function selectClaim(c: Claimable) {
+function chooseClaim(c: Claimable) {
   claimTarget.value = c;
-  claimResults.value = [];
-  claimQuery.value = '';
+  step.value = 'credentials';
+}
+
+function chooseNew() {
+  claimTarget.value = null;
+  form.display_name = nameInput.value.trim();
+  step.value = 'credentials';
+}
+
+function backToName() {
+  claimTarget.value = null;
+  matches.value = [];
+  step.value = 'name';
 }
 
 async function handleSubmit() {
