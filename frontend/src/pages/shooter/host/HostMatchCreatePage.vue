@@ -12,7 +12,7 @@
           shooters with a QR code, then run and score it yourself.
         </div>
 
-        <q-form @submit.prevent="submit" class="q-gutter-md">
+        <q-form @submit.prevent="submit" class="q-gutter-y-md">
           <q-input
             v-model="form.name"
             label="Match name"
