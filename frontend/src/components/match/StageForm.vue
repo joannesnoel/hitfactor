@@ -323,6 +323,8 @@ const props = defineProps<{
   existingOfficers?: StageOfficerAssignment[];
   // Private (shooter-hosted) matches have no stage-level officials.
   hideOfficers?: boolean;
+  // Prefill the stage number for a new stage (last stage + 1).
+  nextStageNumber?: number;
 }>();
 
 const emit = defineEmits<{
@@ -365,7 +367,7 @@ const form = reactive<{
   is_classifier: boolean;
   classifier_number: string;
 }>({
-  stage_number: 1,
+  stage_number: props.nextStageNumber ?? 1,
   name: '',
   description: '',
   scoring_type: 'comstock',

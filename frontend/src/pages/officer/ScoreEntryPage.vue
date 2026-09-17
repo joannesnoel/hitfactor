@@ -249,8 +249,8 @@
         <div
           v-for="z in tallyItems"
           :key="z.k"
-          class="tally-box"
-          :style="{ backgroundColor: z.bg, color: z.fg }"
+          :class="['tally-box', { 'tally-box--zero': !z.n }]"
+          :style="z.n ? { backgroundColor: z.bg, color: z.fg } : undefined"
         >
           {{ z.n }}<span class="tally-letter">{{ z.k }}</span>
         </div>
@@ -322,8 +322,8 @@
             <div
               v-for="z in tallyItems"
               :key="z.k"
-              class="tally-box"
-              :style="{ backgroundColor: z.bg, color: z.fg }"
+              :class="['tally-box', { 'tally-box--zero': !z.n }]"
+              :style="z.n ? { backgroundColor: z.bg, color: z.fg } : undefined"
             >
               {{ z.n }}<span class="tally-letter">{{ z.k }}</span>
             </div>
@@ -1174,6 +1174,11 @@ onMounted(async () => {
   font-weight: 800;
   line-height: 1;
   text-align: center;
+}
+/* A zero count shows muted (no zone color) so only actual hits stand out. */
+.tally-box--zero {
+  background-color: #f0f1f3;
+  color: #b0b3b8;
 }
 .tally-box .tally-letter {
   font-size: 0.8rem;

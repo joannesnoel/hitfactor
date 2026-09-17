@@ -21,6 +21,7 @@
       <div v-if="showAddForm" class="q-mb-lg">
         <StageForm
           :hide-officers="isHost"
+          :next-stage-number="nextStageNumber"
           @submit="handleAddStage"
           @cancel="showAddForm = false"
         />
@@ -68,7 +69,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { api } from 'src/boot/axios';
@@ -86,6 +87,11 @@ const matchId = route.params.id as string;
 const isHost = route.path.startsWith('/shooter/host');
 
 const { stages, loading, loadStages } = useMatch(matchId);
+
+// Next stage number = highest existing + 1 (so Add Stage prefills sensibly).
+const nextStageNumber = computed(
+  () => stages.value.reduce((max, s) => Math.max(max, s.stage_number), 0) + 1,
+);
 
 const showAddForm = ref(false);
 const showEditDialog = ref(false);
