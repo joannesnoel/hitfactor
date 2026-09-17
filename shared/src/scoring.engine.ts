@@ -16,6 +16,15 @@ import type {
 
 // ─── Raw Point Calculation ───────────────────────
 
+/**
+ * Resolve a power factor to a valid ZONE_POINTS key, tolerating case and legacy
+ * values (e.g. a lowercase "minor" from older data). Anything unrecognized
+ * scores as Minor rather than crashing on an undefined zone map.
+ */
+function normalizePowerFactor(powerFactor: PowerFactor | string): PowerFactor {
+  return String(powerFactor).toLowerCase() === 'major' ? 'Major' : 'Minor';
+}
+
 export function calculateRawPoints(
   input: Pick<
     ScoreInput,
@@ -23,7 +32,7 @@ export function calculateRawPoints(
   >,
   powerFactor: PowerFactor
 ): number {
-  const pts = ZONE_POINTS[powerFactor];
+  const pts = ZONE_POINTS[normalizePowerFactor(powerFactor)];
   return (
     input.alpha_count * pts.A +
     input.charlie_count * pts.C +

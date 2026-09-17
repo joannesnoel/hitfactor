@@ -683,7 +683,11 @@ const canUnlock = ref(false);
 const unlocking = ref(false);
 
 const currentPowerFactor = computed<PowerFactor>(() => {
-  return (currentRegistration.value?.power_factor as PowerFactor) ?? 'Minor';
+  // Tolerate legacy/miscased values (e.g. a lowercase "minor") — normalize to a
+  // valid PowerFactor so the scoring engine never gets an unknown zone key.
+  return String(currentRegistration.value?.power_factor).toLowerCase() === 'major'
+    ? 'Major'
+    : 'Minor';
 });
 
 const scoreInput = computed<ScoreInput>(() => ({
@@ -920,7 +924,7 @@ async function handleSave() {
         [
           id, matchId, stageId, currentRegistration.value.id,
           currentRegistration.value.shooter_name, currentRegistration.value.division,
-          currentRegistration.value.power_factor,
+          currentPowerFactor.value,
           paperCounts.value.a, paperCounts.value.c, paperCounts.value.d, paperCounts.value.m,
           paperCounts.value.ns, form.procedural_count, steelHitCount.value, steelMissCount.value,
           form.time, computed.raw_points, computed.penalty_points, computed.total_points,
