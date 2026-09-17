@@ -1,4 +1,4 @@
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import type { PowerSyncDatabase } from '@powersync/web';
 import { api } from 'src/boot/axios';
 import { whenPowerSyncReady } from 'src/boot/powersync';
@@ -22,6 +22,36 @@ export function useMatch(matchId?: string) {
   const registrations = ref<Registration[]>([]);
   const scores = ref<Score[]>([]);
   const loading = ref(false);
+
+  // Reactive queries keep data live as it syncs (offline-first). Track each
+  // watch's AbortController so a repeated load (e.g. StageSetupPage re-reads
+  // stages after every edit) replaces its watch instead of stacking a new one,
+  // and so they're all torn down when the consumer unmounts.
+  const watchControllers: Record<string, AbortController | undefined> = {};
+  function watchRows<T>(
+    key: string,
+    query: string,
+    params: unknown[],
+    apply: (rows: T[]) => void,
+  ) {
+    watchControllers[key]?.abort();
+    const ctrl = new AbortController();
+    watchControllers[key] = ctrl;
+    db!.watch(
+      query,
+      params,
+      {
+        onResult: (result) => apply((result.rows?._array as T[] | undefined) ?? []),
+        onError: () => {
+          loading.value = false;
+        },
+      },
+      { signal: ctrl.signal },
+    );
+  }
+  onUnmounted(() => {
+    Object.values(watchControllers).forEach((c) => c?.abort());
+  });
 
   async function loadMatches() {
     loading.value = true;
@@ -54,57 +84,63 @@ export function useMatch(matchId?: string) {
 
   async function loadMatch(id: string) {
     loading.value = true;
-    try {
-      if (db) {
-        const result = await db.get<Match>(
-          'SELECT * FROM matches WHERE id = ?',
-          [id],
-        );
-        match.value = normalizeMatch(result);
-      } else {
+    if (db) {
+      // Reactive: a one-shot db.get here races the initial sync — a
+      // just-created match hasn't replicated into the local DB yet, and db.get
+      // THROWS on an empty result. A watch re-emits when the row syncs in, so
+      // the page recovers on its own instead of needing a manual refresh.
+      watchRows<Match>('match', 'SELECT * FROM matches WHERE id = ?', [id], (rows) => {
+        match.value = rows[0] ? normalizeMatch(rows[0]) : null;
+        loading.value = false;
+      });
+    } else {
+      try {
         const response = await api.get<Match>(`/api/matches/${id}`);
         match.value = response.data;
+      } catch (err) {
+        console.error('Failed to load match:', err);
+      } finally {
+        loading.value = false;
       }
-    } catch (err) {
-      console.error('Failed to load match:', err);
-    } finally {
-      loading.value = false;
     }
   }
 
   async function loadStages(id: string) {
-    try {
-      if (db) {
-        const result = await db.getAll<Stage>(
-          'SELECT * FROM stages WHERE match_id = ? ORDER BY stage_number',
-          [id],
-        );
-        stages.value = result.map(normalizeStage);
-      } else {
-        const response = await api.get<Stage[]>(
-          `/api/matches/${id}/stages`,
-        );
+    if (db) {
+      // Reactive so newly-added stages (and the host overview's stage list)
+      // appear as they sync, without a manual reload.
+      watchRows<Stage>(
+        'stages',
+        'SELECT * FROM stages WHERE match_id = ? ORDER BY stage_number',
+        [id],
+        (rows) => {
+          stages.value = rows.map(normalizeStage);
+        },
+      );
+    } else {
+      try {
+        const response = await api.get<Stage[]>(`/api/matches/${id}/stages`);
         stages.value = response.data;
+      } catch (err) {
+        console.error('Failed to load stages:', err);
       }
-    } catch (err) {
-      console.error('Failed to load stages:', err);
     }
   }
 
   async function loadRegistrations(id: string) {
-    try {
-      if (db) {
-        const result = await db.getAll<Registration>(
-          'SELECT * FROM registrations WHERE match_id = ? ORDER BY shooter_name',
-          [id],
-        );
-        registrations.value = result;
-      } else {
-        // No dedicated REST endpoint for registrations yet; leave empty
-        registrations.value = [];
-      }
-    } catch (err) {
-      console.error('Failed to load registrations:', err);
+    if (db) {
+      // Reactive so the host sees the shooter count climb as guests join.
+      watchRows<Registration>(
+        'registrations',
+        'SELECT * FROM registrations WHERE match_id = ? ORDER BY shooter_name',
+        [id],
+        (rows) => {
+          registrations.value = rows;
+        },
+      );
+    } else {
+      // No dedicated REST endpoint for registrations yet; leave empty
+      registrations.value = [];
     }
   }
 
