@@ -178,7 +178,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useQuasar } from 'quasar';
 import type { PowerSyncDatabase } from '@powersync/web';
@@ -299,6 +299,68 @@ async function handleRegister() {
   }
 }
 
+// Load stages / registration / own scores / results — all via getAll (safe on
+// empty). Falls back to the public API for a public match whose stages/results
+// aren't synced locally (a private match simply no-ops that fallback).
+async function loadDetails(): Promise<void> {
+  if (!db) return;
+
+  stages.value = await db.getAll<Stage>(
+    'SELECT * FROM stages WHERE match_id = ? ORDER BY stage_number',
+    [matchId],
+  );
+
+  if (authStore.user) {
+    const regs = await db.getAll<{ id: string }>(
+      'SELECT id FROM registrations WHERE match_id = ? AND user_id = ?',
+      [matchId, authStore.user.id],
+    );
+    isRegistered.value = regs.length > 0;
+    if (regs.length > 0) {
+      myScores.value = await db.getAll<Score>(
+        'SELECT * FROM scores WHERE match_id = ? AND registration_id = ?',
+        [matchId, regs[0].id],
+      );
+    }
+  }
+
+  try {
+    const resultRows = await db.getAll<{ results: string }>(
+      'SELECT results FROM match_results WHERE match_id = ?',
+      [matchId],
+    );
+    matchResults.value = resultRows.flatMap((r) => JSON.parse(r.results) as MatchResultEntry[]);
+  } catch {
+    matchResults.value = [];
+  }
+
+  if (stages.value.length === 0 || matchResults.value.length === 0) {
+    try {
+      if (stages.value.length === 0) {
+        const { data } = await api.get<Match & { stages: Stage[] }>(
+          `/api/public/matches/${matchId}`,
+        );
+        if (!match.value) {
+          match.value = { ...data, registration_open: Boolean(data.registration_open) } as Match;
+        }
+        stages.value = data.stages ?? [];
+      }
+      if (matchResults.value.length === 0) {
+        const { data } = await api.get<Array<{ results: MatchResultEntry[] }>>(
+          `/api/public/matches/${matchId}/results`,
+        );
+        matchResults.value = (Array.isArray(data) ? data : []).flatMap(
+          (r) => r.results ?? [],
+        );
+      }
+    } catch {
+      // leave whatever we have
+    }
+  }
+}
+
+const watchAbort = new AbortController();
+
 onMounted(async () => {
   db = await whenPowerSyncReady();
   if (!db) {
@@ -306,83 +368,40 @@ onMounted(async () => {
     return;
   }
 
-  try {
-    // Load match
-    const matchRow = await db.get<Match>('SELECT * FROM matches WHERE id = ?', [matchId]);
-    match.value = {
-      ...matchRow,
-      registration_open: Boolean(matchRow.registration_open),
-      is_private: Boolean(matchRow.is_private),
-    } as Match;
-
-    // Load stages
-    stages.value = await db.getAll<Stage>(
-      'SELECT * FROM stages WHERE match_id = ? ORDER BY stage_number',
-      [matchId],
-    );
-
-    // Check if registered
-    if (authStore.user) {
-      const regs = await db.getAll<{ id: string }>(
-        'SELECT id FROM registrations WHERE match_id = ? AND user_id = ?',
-        [matchId, authStore.user.id],
-      );
-      isRegistered.value = regs.length > 0;
-
-      // Load own scores
-      if (isRegistered.value) {
-        const myReg = await db.getAll<{ id: string }>(
-          'SELECT id FROM registrations WHERE match_id = ? AND user_id = ?',
-          [matchId, authStore.user.id],
-        );
-        if (myReg.length > 0) {
-          myScores.value = await db.getAll<Score>(
-            'SELECT * FROM scores WHERE match_id = ? AND registration_id = ?',
-            [matchId, myReg[0].id],
-          );
+  // Reactive: a just-joined match may not be in the local DB yet — a one-shot
+  // db.get would throw "Result set is empty" and leave a blank page. Watch the
+  // match row so the view populates as soon as the join syncs down.
+  db.watch(
+    'SELECT * FROM matches WHERE id = ?',
+    [matchId],
+    {
+      onResult: (res) => {
+        const row = (res.rows?._array as Match[] | undefined)?.[0];
+        if (row) {
+          match.value = {
+            ...row,
+            registration_open: Boolean(row.registration_open),
+            is_private: Boolean(row.is_private),
+          } as Match;
+          void loadDetails().finally(() => {
+            loading.value = false;
+          });
+        } else if (!match.value) {
+          // Not synced yet. A public match can be filled from the API; a private
+          // one will arrive via sync shortly and re-fire this watch (keep the
+          // spinner until then rather than flashing a blank page).
+          void loadDetails().then(() => {
+            if (match.value || stages.value.length > 0) loading.value = false;
+          });
         }
-      }
-    }
-
-    // Load match results
-    try {
-      const resultRows = await db.getAll<{ results: string }>(
-        'SELECT results FROM match_results WHERE match_id = ?',
-        [matchId],
-      );
-      matchResults.value = resultRows.flatMap((r) => JSON.parse(r.results) as MatchResultEntry[]);
-    } catch {
-      matchResults.value = [];
-    }
-
-    // For matches the shooter isn't registered in, PowerSync only syncs the
-    // match row (not stages/results). Those are public, so fill the gaps from
-    // the public API so any match's results are viewable.
-    if (stages.value.length === 0 || matchResults.value.length === 0) {
-      try {
-        if (stages.value.length === 0) {
-          const { data } = await api.get<Match & { stages: Stage[] }>(
-            `/api/public/matches/${matchId}`,
-          );
-          if (!match.value) {
-            match.value = { ...data, registration_open: Boolean(data.registration_open) } as Match;
-          }
-          stages.value = data.stages ?? [];
-        }
-        if (matchResults.value.length === 0) {
-          const { data } = await api.get<Array<{ results: MatchResultEntry[] }>>(
-            `/api/public/matches/${matchId}/results`,
-          );
-          matchResults.value = (Array.isArray(data) ? data : []).flatMap(
-            (r) => r.results ?? [],
-          );
-        }
-      } catch {
-        // leave whatever we have
-      }
-    }
-  } finally {
-    loading.value = false;
-  }
+      },
+      onError: () => {
+        loading.value = false;
+      },
+    },
+    { signal: watchAbort.signal },
+  );
 });
+
+onUnmounted(() => watchAbort.abort());
 </script>
