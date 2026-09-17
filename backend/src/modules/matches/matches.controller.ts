@@ -112,6 +112,10 @@ export async function createMatch(
         join_token: generateJoinToken(),
         // A host wants their casual match open to invitees immediately.
         registration_open: true,
+        // Live from creation so scores auto-recompute (the recompute sweep only
+        // sweeps 'active'/'scoring' matches) — casual matches have no draft
+        // lifecycle to step through.
+        status: 'active',
         created_by: request.user.id,
       })
       .returning();
