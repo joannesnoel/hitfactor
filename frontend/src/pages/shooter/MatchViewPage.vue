@@ -22,33 +22,11 @@
         />
       </div>
 
-      <!-- Match Info -->
-      <q-card flat bordered class="q-mb-md">
-        <q-card-section>
-          <div class="row q-gutter-md">
-            <q-chip
-              :color="match.organization === 'PPSA' ? 'teal-7' : 'indigo-7'"
-              text-color="white"
-              :label="match.organization"
-            />
-            <q-chip icon="star" :label="`Level ${match.level}`" />
-            <q-chip
-              v-if="isRegistered"
-              icon="check_circle"
-              color="positive"
-              text-color="white"
-              label="You participated"
-            />
-            <q-chip
-              :icon="match.registration_open ? 'check_circle' : 'cancel'"
-              :label="match.registration_open ? 'Registration Open' : 'Registration Closed'"
-              :color="match.registration_open ? 'green' : 'grey'"
-              text-color="white"
-            />
-          </div>
-          <div v-if="match.description" class="q-mt-sm text-grey-8">
-            {{ match.description }}
-          </div>
+      <!-- Description (only real content — org/level/registration chips removed
+           as clutter). -->
+      <q-card v-if="match.description" flat bordered class="q-mb-md">
+        <q-card-section class="text-grey-8">
+          {{ match.description }}
         </q-card-section>
       </q-card>
 
