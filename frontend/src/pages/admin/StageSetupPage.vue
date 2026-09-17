@@ -20,6 +20,7 @@
       <!-- Add Stage Form -->
       <div v-if="showAddForm" class="q-mb-lg">
         <StageForm
+          :hide-officers="isHost"
           @submit="handleAddStage"
           @cancel="showAddForm = false"
         />
@@ -30,6 +31,14 @@
         <div v-for="s in stages" :key="s.id">
           <StageCard :stage="s">
             <template #actions>
+              <q-btn
+                v-if="isHost"
+                flat
+                color="teal"
+                icon="sports_score"
+                label="Score"
+                @click="router.push(`/shooter/host/matches/${matchId}/score/${s.id}`)"
+              />
               <q-btn flat color="primary" label="Edit" @click="startEdit(s)" />
               <q-btn flat color="negative" label="Delete" @click="confirmDelete(s)" />
             </template>
@@ -50,6 +59,7 @@
         :stage="editingStage ?? undefined"
         :fullscreen="$q.screen.lt.sm"
         :existing-officers="editingStageOfficers"
+        :hide-officers="isHost"
         @submit="handleUpdateStage"
         @cancel="showEditDialog = false"
       />
@@ -59,7 +69,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { api } from 'src/boot/axios';
 import { useMatch } from 'src/composables/useMatch';
@@ -69,8 +79,11 @@ import StageForm from 'src/components/match/StageForm.vue';
 import type { StageFormData, StageOfficerAssignment } from 'src/components/match/StageForm.vue';
 
 const route = useRoute();
+const router = useRouter();
 const $q = useQuasar();
 const matchId = route.params.id as string;
+// Reused by the shooter-host area — a private match has no stage-level officials.
+const isHost = route.path.startsWith('/shooter/host');
 
 const { stages, loading, loadStages } = useMatch(matchId);
 
@@ -116,6 +129,13 @@ async function handleAddStage(data: StageFormData) {
 
 async function startEdit(stage: Stage) {
   editingStage.value = stage;
+
+  // Private (host) matches have no stage officials — skip the lookup.
+  if (isHost) {
+    editingStageOfficers.value = [];
+    showEditDialog.value = true;
+    return;
+  }
 
   // Load existing stage officers
   try {

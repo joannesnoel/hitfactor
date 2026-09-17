@@ -180,6 +180,15 @@ function formatDate(d: string): string {
 }
 
 onMounted(async () => {
+  // Persist the invite so it survives the sign-up detour (and is resumed by the
+  // nav guard even if the ?redirect= is lost). Clear it once we're here signed in.
+  try {
+    if (auth.isAuthenticated) localStorage.removeItem('hf.pendingJoin');
+    else localStorage.setItem('hf.pendingJoin', joinPath.value);
+  } catch {
+    /* storage unavailable — the ?redirect= path still works */
+  }
+
   try {
     const { data } = await api.get<JoinPreview>(`/api/matches/join/${props.token}`);
     preview.value = data;

@@ -50,8 +50,38 @@
         </q-card-section>
       </q-card>
 
+      <!-- Score a stage (primary action while running the match) -->
+      <div class="text-subtitle1 text-weight-medium q-mb-sm">
+        <q-icon name="sports_score" color="teal" class="q-mr-xs" />Score
+      </div>
+      <q-card flat bordered class="q-mb-md" style="max-width: 620px">
+        <q-list separator>
+          <q-item
+            v-for="s in orderedStages"
+            :key="s.id"
+            clickable
+            @click="$router.push(`${base}/score/${s.id}`)"
+          >
+            <q-item-section avatar>
+              <q-avatar color="grey-3" text-color="dark" size="32px">{{ s.stage_number }}</q-avatar>
+            </q-item-section>
+            <q-item-section>
+              <q-item-label>{{ s.name }}</q-item-label>
+              <q-item-label caption>Tap to score shooters</q-item-label>
+            </q-item-section>
+            <q-item-section side><q-icon name="chevron_right" color="teal" /></q-item-section>
+          </q-item>
+          <q-item v-if="stages.length === 0">
+            <q-item-section class="text-grey-7 text-caption">
+              Add stages first —
+              <a class="text-primary cursor-pointer" @click="$router.push(`${base}/stages`)">go to Stages</a>.
+            </q-item-section>
+          </q-item>
+        </q-list>
+      </q-card>
+
       <!-- Manage -->
-      <div class="text-subtitle2 text-grey-8 q-mb-sm">Run your match</div>
+      <div class="text-subtitle2 text-grey-8 q-mb-sm">Set up</div>
       <div class="row q-col-gutter-md q-mb-md" style="max-width: 620px">
         <div class="col-6 col-sm-3">
           <q-card flat bordered clickable class="cursor-pointer text-center q-pa-md" @click="$router.push(`${base}/stages`)">
@@ -74,33 +104,6 @@
           </q-card>
         </div>
       </div>
-
-      <!-- Score a stage -->
-      <div class="text-subtitle2 text-grey-8 q-mb-sm">Score a stage</div>
-      <q-card flat bordered style="max-width: 620px">
-        <q-list separator>
-          <q-item
-            v-for="s in orderedStages"
-            :key="s.id"
-            clickable
-            @click="$router.push(`${base}/score/${s.id}`)"
-          >
-            <q-item-section avatar>
-              <q-avatar color="grey-3" text-color="dark" size="32px">{{ s.stage_number }}</q-avatar>
-            </q-item-section>
-            <q-item-section>
-              <q-item-label>{{ s.name }}</q-item-label>
-            </q-item-section>
-            <q-item-section side><q-icon name="sports_score" color="primary" /></q-item-section>
-          </q-item>
-          <q-item v-if="stages.length === 0">
-            <q-item-section class="text-grey-7 text-caption">
-              No stages yet — add some under
-              <a class="text-primary cursor-pointer" @click="$router.push(`${base}/stages`)">Stages</a>.
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </q-card>
 
       <div class="q-mt-lg">
         <q-btn flat dense no-caps color="negative" icon="delete" label="Delete match" @click="confirmDelete" />

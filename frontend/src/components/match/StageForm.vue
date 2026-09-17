@@ -174,7 +174,9 @@
           </div>
         </div>
 
-        <!-- Stage Officials -->
+        <!-- Stage Officials (public/admin matches only — a private, shooter-
+             hosted match has no stage-level officials). -->
+        <template v-if="!hideOfficers">
         <q-separator />
         <div class="text-subtitle2">Stage Officials</div>
 
@@ -280,6 +282,7 @@
             </template>
           </q-select>
         </div>
+        </template>
 
         <div v-if="!fullscreen" class="row justify-end q-gutter-sm">
           <q-btn flat label="Cancel" @click="$emit('cancel')" />
@@ -318,6 +321,8 @@ const props = defineProps<{
   stage?: Stage;
   fullscreen?: boolean;
   existingOfficers?: StageOfficerAssignment[];
+  // Private (shooter-hosted) matches have no stage-level officials.
+  hideOfficers?: boolean;
 }>();
 
 const emit = defineEmits<{

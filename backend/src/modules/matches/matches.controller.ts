@@ -290,7 +290,7 @@ export async function joinMatch(
       user_id: request.user.id,
       shooter_name: me?.display_name ?? 'Shooter',
       division: parsed.data.division,
-      power_factor: 'minor',
+      power_factor: 'Minor',
     })
     .returning();
 
