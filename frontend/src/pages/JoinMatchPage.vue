@@ -71,7 +71,7 @@
             label="Go to match"
             class="full-width"
             unelevated
-            :to="`/shooter/matches/${preview.id}`"
+            @click="router.replace(`/shooter/matches/${preview.id}`)"
           />
         </q-card-section>
 
@@ -212,7 +212,8 @@ async function join() {
       { division: division.value },
     );
     $q.notify({ type: 'positive', message: `You're registered for ${preview.value.name}!` });
-    await router.push(`/shooter/matches/${data.match_id}`);
+    // Replace (not push) so browser Back doesn't return to this now-stale invite.
+    await router.replace(`/shooter/matches/${data.match_id}`);
   } catch (err: unknown) {
     error.value =
       (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
