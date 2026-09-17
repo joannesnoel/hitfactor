@@ -36,10 +36,10 @@
                 <div class="hf-display text-primary">{{ myScore.hit_factor.toFixed(4) }}</div>
               </div>
               <div class="row q-gutter-sm justify-center">
-                <q-chip dense :label="`A: ${myScore.alpha_count}`" color="green" text-color="white" />
+                <q-chip dense :label="`A: ${myScore.alpha_count + myScore.steel_hits}`" color="green" text-color="white" />
                 <q-chip dense :label="`C: ${myScore.charlie_count}`" color="orange" text-color="white" />
                 <q-chip dense :label="`D: ${myScore.delta_count}`" color="red" text-color="white" />
-                <q-chip dense :label="`M: ${myScore.miss_count}`" color="purple" text-color="white" />
+                <q-chip dense :label="`M: ${myScore.miss_count + myScore.steel_misses}`" color="purple" text-color="white" />
               </div>
               <div v-if="myScore.no_shoot_count > 0 || myScore.procedural_count > 0" class="row q-gutter-sm justify-center q-mt-xs">
                 <q-chip v-if="myScore.no_shoot_count > 0" dense :label="`NS: ${myScore.no_shoot_count}`" color="blue-grey" text-color="white" />
