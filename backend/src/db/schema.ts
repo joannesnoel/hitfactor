@@ -125,6 +125,10 @@ export const matches = pgTable('matches', {
   // bucket; only registered shooters, assigned officers, and match admins see
   // them (via their per-user sync buckets).
   is_private: boolean('is_private').default(false).notNull(),
+  // Shareable invite token for a shooter-hosted private match. Encodes into the
+  // QR/deep link (/join/<token>); guests scan it to self-register. Null for
+  // admin-created public matches. Unique so a token maps to exactly one match.
+  join_token: varchar('join_token', { length: 32 }).unique(),
   // Set when a banner image exists in object storage (Garage) at
   // matches/<id>/banner. Null = no banner. Doubles as the cache-bust token for
   // the public GET /api/matches/:id/banner.

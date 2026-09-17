@@ -22,6 +22,7 @@ import {
   matchAdmins,
   matchRecomputeState,
 } from '../../db/schema.js';
+import { isMatchHost } from '../matches/match-authz.js';
 
 // Mark a match dirty so the auto-recompute scheduler picks it up. Kept in a
 // separate (non-synced) table so this per-score write doesn't fan out to clients.
@@ -47,6 +48,9 @@ async function canUserScoreStage(
   stageId: string,
   userId: string
 ): Promise<boolean> {
+  // The host of a private match scores their own match.
+  if (await isMatchHost(matchId, userId)) return true;
+
   // Match admins can score any stage in the match.
   const [admin] = await db
     .select({ id: matchAdmins.id })
@@ -113,6 +117,9 @@ async function canUnlockScore(
   matchId: string,
   userId: string
 ): Promise<boolean> {
+  // The host of a private match runs the whole thing, including revisions.
+  if (await isMatchHost(matchId, userId)) return true;
+
   const [mo] = await db
     .select({ role: matchOfficers.role })
     .from(matchOfficers)

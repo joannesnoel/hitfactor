@@ -30,6 +30,16 @@ const routes: RouteRecordRaw[] = [
     meta: { public: true },
   },
 
+  {
+    // Private-match invite (QR / deep link). Public so a guest without an
+    // account can see the preview; the page itself routes them through
+    // login/register (carrying a redirect back here) before they can join.
+    path: '/join/:token',
+    component: () => import('src/pages/JoinMatchPage.vue'),
+    props: true,
+    meta: { public: true },
+  },
+
   // Admin routes
   {
     path: '/admin',
@@ -145,8 +155,47 @@ const routes: RouteRecordRaw[] = [
         props: true,
       },
       {
+        path: 'host',
+        component: () => import('src/pages/shooter/host/HostMatchesPage.vue'),
+      },
+      {
+        path: 'host/create',
+        component: () => import('src/pages/shooter/host/HostMatchCreatePage.vue'),
+      },
+      {
         path: 'profile',
         component: () => import('src/pages/shooter/ProfilePage.vue'),
+      },
+    ],
+  },
+
+  // Shooter-hosted private match management (own layout; provides matchContext).
+  // Deliberately separate from the admin match area — the host is the sole
+  // authority (matches.created_by), with no admin/officer roles involved.
+  {
+    path: '/shooter/host/matches/:id',
+    component: () => import('src/layouts/HostMatchLayout.vue'),
+    children: [
+      {
+        path: '',
+        component: () => import('src/pages/shooter/host/HostMatchOverviewPage.vue'),
+      },
+      {
+        path: 'stages',
+        component: () => import('src/pages/admin/StageSetupPage.vue'),
+      },
+      {
+        path: 'registrations',
+        component: () => import('src/pages/admin/MatchRegistrationsPage.vue'),
+      },
+      {
+        path: 'results',
+        component: () => import('src/pages/admin/MatchResultsPage.vue'),
+      },
+      {
+        path: 'score/:stageId',
+        component: () => import('src/pages/officer/ScoreEntryPage.vue'),
+        props: true,
       },
     ],
   },

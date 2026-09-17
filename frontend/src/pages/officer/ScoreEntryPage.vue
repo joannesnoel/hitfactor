@@ -394,8 +394,15 @@ const $q = useQuasar();
 let db: PowerSyncDatabase | null = null;
 const authStore = useAuthStore();
 
-const matchId = route.params.matchId as string;
+// Officer scoring passes :matchId; the shooter-host route nests scoring under
+// /shooter/host/matches/:id/score/:stageId, so accept either param name.
+const matchId = (route.params.matchId ?? route.params.id) as string;
 const stageId = route.params.stageId as string;
+// Where the header back-arrow returns to: the host's match, or the officer
+// dashboard for the officer flow.
+const scoringBackTo = route.path.startsWith('/shooter/host')
+  ? `/shooter/host/matches/${matchId}`
+  : '/officer/dashboard';
 
 const loading = ref(true);
 const saving = ref(false);
@@ -954,6 +961,8 @@ async function isAuthorizedToScore(): Promise<boolean> {
   if (authStore.isAdmin) return true;
   if (!db || !authStore.user) return true;
   const uid = authStore.user.id;
+  // The host of a private match runs their own scoring.
+  if (await isMatchHostLocal(uid)) return true;
   const admin = await db.getAll(
     'SELECT 1 FROM match_admins WHERE match_id = ? AND user_id = ? LIMIT 1',
     [matchId, uid],
@@ -977,8 +986,20 @@ async function isAuthorizedToScore(): Promise<boolean> {
 // (MA) or Match Master (MM) officer on this match — not a global admin or the
 // match creator. Re-enabling a score is a per-match workflow control. (Mirrors
 // the server's canUnlockScore.)
+// The host of this private match (created_by == me) — mirrors the server's
+// isMatchHost, and grants full run-your-own-match rights (score + unlock).
+async function isMatchHostLocal(uid: string): Promise<boolean> {
+  if (!db) return false;
+  const rows = await db.getAll(
+    'SELECT 1 FROM matches WHERE id = ? AND created_by = ? AND is_private = 1 LIMIT 1',
+    [matchId, uid],
+  );
+  return rows.length > 0;
+}
+
 async function isUnlockAllowed(): Promise<boolean> {
   if (!db || !authStore.user) return false;
+  if (await isMatchHostLocal(authStore.user.id)) return true;
   const rows = await db.getAll(
     "SELECT 1 FROM match_officers WHERE match_id = ? AND user_id = ? AND role IN ('MA', 'MM') LIMIT 1",
     [matchId, authStore.user.id],
@@ -1009,7 +1030,7 @@ async function unlockScore() {
 
 // Drive the shared app header: back arrow (→ officer dashboard) + stage title,
 // replacing the hamburger + "HitFactor". Placeholder title until the stage loads.
-setPageHeader('Scoring', '/officer/dashboard');
+setPageHeader('Scoring', scoringBackTo);
 onUnmounted(clearPageHeader);
 
 onMounted(async () => {
@@ -1058,7 +1079,7 @@ onMounted(async () => {
 
     setPageHeader(
       `Stage ${stage.value.stage_number}: ${stage.value.name}`,
-      '/officer/dashboard',
+      scoringBackTo,
     );
 
     // Initialise an empty per-target grid + all-hit steel for the loaded stage.

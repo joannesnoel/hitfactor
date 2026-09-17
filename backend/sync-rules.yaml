@@ -8,9 +8,28 @@ bucket_definitions:
 
   global_matches:
     data:
+      # Public matches only. Private (shooter-hosted) matches never enter the
+      # global bucket — they reach the host via host_match_data and participants
+      # via shooter_match_data.
       - SELECT id, name, start_date, end_date, location, status, level,
                organization, registration_open, max_shooters, created_at, updated_at
-        FROM matches WHERE status != 'archived'
+        FROM matches WHERE status != 'archived' AND is_private = false
+
+  # A shooter who hosts a private match syncs its full data so they can run it
+  # (setup, invites, scoring, results) from the shooter area — no officer/admin
+  # rows involved; authority is matches.created_by.
+  host_match_data:
+    parameters:
+      SELECT id AS match_id FROM matches
+      WHERE created_by = request.user_id() AND is_private = true
+    data:
+      - SELECT * FROM matches WHERE id = bucket.match_id
+      - SELECT * FROM stages WHERE match_id = bucket.match_id
+      - SELECT * FROM registrations WHERE match_id = bucket.match_id
+      - SELECT * FROM squads WHERE match_id = bucket.match_id
+      - SELECT * FROM scores WHERE match_id = bucket.match_id
+      - SELECT * FROM stage_results WHERE match_id = bucket.match_id
+      - SELECT * FROM match_results WHERE match_id = bucket.match_id
 
   officer_match_data:
     parameters:

@@ -13,10 +13,21 @@ export function useAuth() {
   const isOfficer = computed(() => authStore.isOfficer);
   const userId = computed(() => authStore.user?.id ?? null);
 
-  async function login(email: string, password: string) {
+  // Only allow same-origin internal paths as a post-auth redirect (e.g. a
+  // pending /join/<token> invite) — never an absolute or protocol-relative URL.
+  function safeRedirect(redirect?: string | null): string | null {
+    if (!redirect) return null;
+    return redirect.startsWith('/') && !redirect.startsWith('//')
+      ? redirect
+      : null;
+  }
+
+  async function login(email: string, password: string, redirect?: string | null) {
     await authStore.login(email, password);
-    // Navigate based on role
-    if (authStore.isAdmin) {
+    const dest = safeRedirect(redirect);
+    if (dest) {
+      router.push(dest);
+    } else if (authStore.isAdmin) {
       router.push('/admin/dashboard');
     } else if (authStore.isOfficer) {
       router.push('/officer/dashboard');
@@ -25,9 +36,9 @@ export function useAuth() {
     }
   }
 
-  async function register(input: RegisterInput) {
+  async function register(input: RegisterInput, redirect?: string | null) {
     await authStore.register(input);
-    router.push('/shooter/dashboard');
+    router.push(safeRedirect(redirect) ?? '/shooter/dashboard');
   }
 
   async function logout() {

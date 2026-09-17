@@ -3,8 +3,11 @@ import { eq, and } from 'drizzle-orm';
 import { createStageSchema, updateStageSchema, computeStageRounds } from '@hitfactor/shared';
 import { db } from '../../config/database.js';
 import { stages, matchAdmins } from '../../db/schema.js';
+import { isMatchHost } from '../matches/match-authz.js';
 
-async function isMatchAdmin(
+// May the user set up stages for this match? A match admin (public match) or the
+// host (private, shooter-created match). Callers also allow the global admin.
+async function canManageStages(
   matchId: string,
   userId: string
 ): Promise<boolean> {
@@ -15,7 +18,8 @@ async function isMatchAdmin(
       and(eq(matchAdmins.match_id, matchId), eq(matchAdmins.user_id, userId))
     )
     .limit(1);
-  return !!admin;
+  if (admin) return true;
+  return isMatchHost(matchId, userId);
 }
 
 export async function listStages(
@@ -38,7 +42,7 @@ export async function createStage(
 ): Promise<void> {
   const { id: matchId } = request.params as { id: string };
 
-  const isAdmin = await isMatchAdmin(matchId, request.user.id);
+  const isAdmin = await canManageStages(matchId, request.user.id);
   const isGlobalAdmin = request.user.roles.includes('admin');
 
   if (!isAdmin && !isGlobalAdmin) {
@@ -85,7 +89,7 @@ export async function updateStage(
     stageId: string;
   };
 
-  const isAdmin = await isMatchAdmin(matchId, request.user.id);
+  const isAdmin = await canManageStages(matchId, request.user.id);
   const isGlobalAdmin = request.user.roles.includes('admin');
 
   if (!isAdmin && !isGlobalAdmin) {
@@ -152,7 +156,7 @@ export async function deleteStage(
     stageId: string;
   };
 
-  const isAdmin = await isMatchAdmin(matchId, request.user.id);
+  const isAdmin = await canManageStages(matchId, request.user.id);
   const isGlobalAdmin = request.user.roles.includes('admin');
 
   if (!isAdmin && !isGlobalAdmin) {

@@ -71,6 +71,13 @@ export const createMatchSchema = z.object({
 });
 export type CreateMatchInput = z.infer<typeof createMatchSchema>;
 
+// A guest self-registering into a private match via its invite token. The
+// division is validated server-side against the match's organization.
+export const joinMatchSchema = z.object({
+  division: z.string().min(1).max(50),
+});
+export type JoinMatchInput = z.infer<typeof joinMatchSchema>;
+
 export const createRangeSchema = z.object({
   name: z.string().min(1).max(200),
   address: z.string().max(500).optional(),

@@ -29,6 +29,7 @@ const matches = new Table({
   max_shooters: column.integer,
   registration_open: column.integer,
   is_private: column.integer,
+  join_token: column.text,
   banner_updated_at: column.text,
   created_at: column.text,
   updated_at: column.text,

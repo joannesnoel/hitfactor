@@ -63,7 +63,7 @@
 
       <q-card-section class="text-center q-pt-none">
         <div>
-          <router-link to="/auth/register" class="text-primary">
+          <router-link :to="registerTo" class="text-primary">
             Don't have an account? Register
           </router-link>
         </div>
@@ -82,11 +82,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
+import { useRoute } from 'vue-router';
 import { useAuth } from 'src/composables/useAuth';
 import { useQuasar } from 'quasar';
 
 const $q = useQuasar();
+const route = useRoute();
 const { login } = useAuth();
 
 const email = ref('');
@@ -95,11 +97,22 @@ const showPassword = ref(false);
 const loading = ref(false);
 const error = ref('');
 
+// A pending destination (e.g. a /join/<token> invite the guest opened before
+// signing in). Carried to the register link so the flow survives either path.
+const redirect = computed(() =>
+  typeof route.query.redirect === 'string' ? route.query.redirect : null,
+);
+const registerTo = computed(() =>
+  redirect.value
+    ? { path: '/auth/register', query: { redirect: redirect.value } }
+    : { path: '/auth/register' },
+);
+
 async function handleLogin() {
   loading.value = true;
   error.value = '';
   try {
-    await login(email.value, password.value);
+    await login(email.value, password.value, redirect.value);
     $q.notify({ type: 'positive', message: 'Welcome back!' });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Login failed';

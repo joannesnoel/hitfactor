@@ -10,6 +10,8 @@ import {
   removeOfficer,
   addRegistration,
   removeRegistration,
+  getJoinPreview,
+  joinMatch,
 } from './matches.controller.js';
 import {
   uploadBanner,
@@ -17,7 +19,6 @@ import {
   deleteBanner,
 } from './match-banner.controller.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
-import { requireRole } from '../../middleware/role.middleware.js';
 
 export async function matchesRoutes(app: FastifyInstance): Promise<void> {
   app.get(
@@ -32,10 +33,21 @@ export async function matchesRoutes(app: FastifyInstance): Promise<void> {
     getMatch
   );
 
+  // Any authenticated user can create a match. Non-admins get a private,
+  // self-hosted match (forced in the controller); admins can create public ones.
   app.post(
     '/api/matches',
-    { preHandler: [authMiddleware, requireRole('admin')] },
+    { preHandler: [authMiddleware] },
     createMatch
+  );
+
+  // Invite links for private matches. The preview is public so a guest without
+  // an account can see what they're joining; joining requires a session.
+  app.get('/api/matches/join/:token', getJoinPreview);
+  app.post(
+    '/api/matches/join/:token',
+    { preHandler: [authMiddleware] },
+    joinMatch
   );
 
   app.put(

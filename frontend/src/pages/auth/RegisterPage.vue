@@ -178,7 +178,7 @@
       </q-card-section>
 
       <q-card-section class="text-center q-pt-none">
-        <router-link to="/auth/login" class="text-primary">
+        <router-link :to="loginTo" class="text-primary">
           Already have an account? Sign in
         </router-link>
       </q-card-section>
@@ -192,7 +192,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useAuth } from 'src/composables/useAuth';
 import { useAuthStore } from 'src/stores/auth.store';
 import { api } from 'src/boot/axios';
@@ -209,8 +209,23 @@ interface Claimable {
 
 const $q = useQuasar();
 const router = useRouter();
+const route = useRoute();
 const { register } = useAuth();
 const authStore = useAuthStore();
+
+// A pending destination (e.g. a /join/<token> invite opened before signing up).
+const redirect = computed(() =>
+  typeof route.query.redirect === 'string' &&
+  route.query.redirect.startsWith('/') &&
+  !route.query.redirect.startsWith('//')
+    ? route.query.redirect
+    : null,
+);
+const loginTo = computed(() =>
+  redirect.value
+    ? { path: '/auth/login', query: { redirect: redirect.value } }
+    : { path: '/auth/login' },
+);
 
 const showPassword = ref(false);
 const loading = ref(false);
@@ -297,7 +312,7 @@ async function handleSubmit() {
         password: form.password,
       });
       $q.notify({ type: 'positive', message: 'Record claimed — welcome!' });
-      await router.push('/shooter/performance');
+      await router.push(redirect.value ?? '/shooter/performance');
       return;
     }
     const input: RegisterInput = {
@@ -306,7 +321,7 @@ async function handleSubmit() {
       display_name: form.display_name,
     };
     if (form.member_number) input.member_number = form.member_number;
-    await register(input);
+    await register(input, redirect.value);
     $q.notify({ type: 'positive', message: 'Account created!' });
   } catch (err: unknown) {
     const message =

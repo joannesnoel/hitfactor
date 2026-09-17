@@ -6,6 +6,15 @@
       <q-btn
         color="primary"
         outline
+        icon="qr_code_2"
+        label="Host a match"
+        to="/shooter/host"
+        no-caps
+        class="q-mr-sm"
+      />
+      <q-btn
+        color="primary"
+        outline
         icon="insights"
         label="My Performance"
         to="/shooter/performance"

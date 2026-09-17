@@ -1,18 +1,27 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
-import { eq, and, isNull } from 'drizzle-orm';
+import { randomBytes } from 'node:crypto';
+import { eq, and, isNull, sql } from 'drizzle-orm';
 import {
   createMatchSchema,
   updateMatchSchema,
+  joinMatchSchema,
   assignMatchOfficerSchema,
   assignStageOfficerSchema,
   addRegistrationSchema,
   isValidDivisionForOrg,
+  getDivisionsForOrg,
   MATCH_LEVEL_OFFICIAL_ROLES,
 } from '@hitfactor/shared';
 import type { Organization } from '@hitfactor/shared';
 import { db } from '../../config/database.js';
 import { matches, stages, matchAdmins, matchOfficers, stageOfficers, users, registrations } from '../../db/schema.js';
 import { normalizeShooterName, cleanDisplayName } from '../import/shooter-identity.js';
+import { isMatchHost } from './match-authz.js';
+
+/** URL-safe invite token for a private match's QR/deep link. */
+function generateJoinToken(): string {
+  return randomBytes(9).toString('base64url'); // 12 chars, [A-Za-z0-9_-]
+}
 
 async function isMatchAdmin(
   matchId: string,
@@ -86,10 +95,35 @@ export async function createMatch(
     });
   }
 
+  const isGlobalAdmin = request.user.roles.includes('admin');
+
+  // Two kinds of match, kept deliberately separate:
+  //  - Admin-created (public): uses the match_admins / match_officers machinery,
+  //    creator becomes match admin + MA, as before.
+  //  - Shooter-created (private): a lightweight, self-hosted match. Always
+  //    private, gets an invite token, and has NO admin/officer rows — the host's
+  //    sole authority is matches.created_by (see isMatchHost).
+  if (!isGlobalAdmin) {
+    const [match] = await db
+      .insert(matches)
+      .values({
+        ...parsed.data,
+        is_private: true,
+        join_token: generateJoinToken(),
+        // A host wants their casual match open to invitees immediately.
+        registration_open: true,
+        created_by: request.user.id,
+      })
+      .returning();
+    return reply.status(201).send(match);
+  }
+
   const [match] = await db
     .insert(matches)
     .values({
       ...parsed.data,
+      // A private admin match still gets an invite token so it can be shared.
+      join_token: parsed.data.is_private ? generateJoinToken() : null,
       created_by: request.user.id,
     })
     .returning();
@@ -109,17 +143,173 @@ export async function createMatch(
   return reply.status(201).send(match);
 }
 
+/**
+ * Public preview of a private match by its invite token — enough to render the
+ * "Join <match>?" page to a guest who may not have an account yet. No auth.
+ */
+export async function getJoinPreview(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const { token } = request.params as { token: string };
+
+  const [match] = await db
+    .select({
+      id: matches.id,
+      name: matches.name,
+      start_date: matches.start_date,
+      end_date: matches.end_date,
+      location: matches.location,
+      organization: matches.organization,
+      status: matches.status,
+      registration_open: matches.registration_open,
+      created_by: matches.created_by,
+    })
+    .from(matches)
+    .where(and(eq(matches.join_token, token), eq(matches.is_private, true)))
+    .limit(1);
+
+  if (!match) {
+    return reply.status(404).send({
+      statusCode: 404,
+      error: 'Not Found',
+      message: 'This invite link is invalid or has expired.',
+    });
+  }
+
+  const [host] = await db
+    .select({ display_name: users.display_name })
+    .from(users)
+    .where(eq(users.id, match.created_by))
+    .limit(1);
+
+  const [{ count } = { count: 0 }] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(registrations)
+    .where(eq(registrations.match_id, match.id));
+
+  return reply.send({
+    id: match.id,
+    name: match.name,
+    start_date: match.start_date,
+    end_date: match.end_date,
+    location: match.location,
+    organization: match.organization,
+    status: match.status,
+    registration_open: match.registration_open,
+    host_name: host?.display_name ?? null,
+    participant_count: count,
+    divisions: getDivisionsForOrg(match.organization as Organization),
+  });
+}
+
+/**
+ * Authenticated self-registration into a private match via its invite token.
+ * Idempotent: if the user already has a registration in this match, it's
+ * returned instead of creating a duplicate.
+ */
+export async function joinMatch(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const { token } = request.params as { token: string };
+  const parsed = joinMatchSchema.safeParse(request.body);
+  if (!parsed.success) {
+    return reply.status(400).send({
+      statusCode: 400,
+      error: 'Bad Request',
+      message: 'Validation failed',
+      details: parsed.error.flatten(),
+    });
+  }
+
+  const [match] = await db
+    .select({
+      id: matches.id,
+      organization: matches.organization,
+      registration_open: matches.registration_open,
+    })
+    .from(matches)
+    .where(and(eq(matches.join_token, token), eq(matches.is_private, true)))
+    .limit(1);
+
+  if (!match) {
+    return reply.status(404).send({
+      statusCode: 404,
+      error: 'Not Found',
+      message: 'This invite link is invalid or has expired.',
+    });
+  }
+
+  if (!match.registration_open) {
+    return reply.status(403).send({
+      statusCode: 403,
+      error: 'Forbidden',
+      message: 'Registration for this match is closed.',
+    });
+  }
+
+  if (
+    !isValidDivisionForOrg(
+      match.organization as Organization,
+      parsed.data.division
+    )
+  ) {
+    return reply.status(400).send({
+      statusCode: 400,
+      error: 'Bad Request',
+      message: `Division "${parsed.data.division}" is not valid for ${match.organization}.`,
+    });
+  }
+
+  // Already registered? Return the existing registration (idempotent join).
+  const [existing] = await db
+    .select()
+    .from(registrations)
+    .where(
+      and(
+        eq(registrations.match_id, match.id),
+        eq(registrations.user_id, request.user.id)
+      )
+    )
+    .limit(1);
+  if (existing) {
+    return reply.status(200).send({ match_id: match.id, registration: existing });
+  }
+
+  const [me] = await db
+    .select({ display_name: users.display_name })
+    .from(users)
+    .where(eq(users.id, request.user.id))
+    .limit(1);
+
+  const [registration] = await db
+    .insert(registrations)
+    .values({
+      match_id: match.id,
+      user_id: request.user.id,
+      shooter_name: me?.display_name ?? 'Shooter',
+      division: parsed.data.division,
+      power_factor: 'minor',
+    })
+    .returning();
+
+  return reply.status(201).send({ match_id: match.id, registration });
+}
+
 export async function updateMatch(
   request: FastifyRequest,
   reply: FastifyReply
 ): Promise<void> {
   const { id } = request.params as { id: string };
 
-  // Check authorization
+  // Check authorization — a match admin, the global admin, or the private
+  // match's host.
   const isAdmin = await isMatchAdmin(id, request.user.id);
   const isGlobalAdmin = request.user.roles.includes('admin');
+  const isHost = await isMatchHost(id, request.user.id);
 
-  if (!isAdmin && !isGlobalAdmin) {
+  if (!isAdmin && !isGlobalAdmin && !isHost) {
     return reply.status(403).send({
       statusCode: 403,
       error: 'Forbidden',
@@ -160,11 +350,13 @@ export async function deleteMatch(
 ): Promise<void> {
   const { id } = request.params as { id: string };
 
-  // Check authorization
+  // Check authorization — a match admin, the global admin, or the private
+  // match's host.
   const isAdmin = await isMatchAdmin(id, request.user.id);
   const isGlobalAdmin = request.user.roles.includes('admin');
+  const isHost = await isMatchHost(id, request.user.id);
 
-  if (!isAdmin && !isGlobalAdmin) {
+  if (!isAdmin && !isGlobalAdmin && !isHost) {
     return reply.status(403).send({
       statusCode: 403,
       error: 'Forbidden',
@@ -376,7 +568,8 @@ export async function addRegistration(
 
   const isAdmin =
     (await isMatchAdmin(matchId, request.user.id)) ||
-    request.user.roles.includes('admin');
+    request.user.roles.includes('admin') ||
+    (await isMatchHost(matchId, request.user.id));
 
   const parsed = addRegistrationSchema.safeParse(request.body);
   if (!parsed.success) {
@@ -524,7 +717,8 @@ export async function removeRegistration(
 
   const isAdmin = await isMatchAdmin(matchId, request.user.id);
   const isGlobalAdmin = request.user.roles.includes('admin');
-  if (!isAdmin && !isGlobalAdmin) {
+  const isHost = await isMatchHost(matchId, request.user.id);
+  if (!isAdmin && !isGlobalAdmin && !isHost) {
     return reply.status(403).send({
       statusCode: 403,
       error: 'Forbidden',
