@@ -28,25 +28,23 @@
             :rules="[(v: string) => !!v || 'Location is required']"
           />
 
-          <div class="row q-col-gutter-md">
-            <q-input
-              v-model="form.start_date"
-              label="Date"
-              type="date"
-              outlined
-              class="col-12 col-sm-6"
-              :rules="[(v: string) => !!v || 'Date is required']"
-            />
-            <q-select
-              v-model="form.organization"
-              :options="orgOptions"
-              emit-value
-              map-options
-              label="Organization"
-              outlined
-              class="col-12 col-sm-6"
-            />
-          </div>
+          <q-input
+            v-model="form.start_date"
+            label="Date"
+            type="date"
+            outlined
+            stack-label
+            :rules="[(v: string) => !!v || 'Date is required']"
+          />
+
+          <q-select
+            v-model="form.organization"
+            :options="orgOptions"
+            emit-value
+            map-options
+            label="Organization"
+            outlined
+          />
 
           <q-input
             v-model.number="form.max_shooters"
