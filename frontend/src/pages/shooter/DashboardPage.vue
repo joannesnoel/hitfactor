@@ -97,15 +97,21 @@ onMounted(async () => {
 
 const today = new Date().toISOString().split('T')[0];
 
+// The dashboard shows only the shooter's own matches (ones they're registered
+// in / have participated in). participatedIds syncs from their registrations.
+const myMatches = computed(() =>
+  allMatches.value.filter((m) => participatedIds.value.has(m.id)),
+);
+
 const upcomingMatches = computed(() => {
-  return allMatches.value
+  return myMatches.value
     .filter((m) => m.start_date >= today && ['registration', 'active', 'scoring'].includes(m.status))
     .sort((a, b) => a.start_date.localeCompare(b.start_date))
     .slice(0, 6);
 });
 
 const recentMatches = computed(() => {
-  return allMatches.value
+  return myMatches.value
     .filter((m) => m.start_date < today || m.status === 'final')
     .sort((a, b) => b.start_date.localeCompare(a.start_date))
     .slice(0, 6);
