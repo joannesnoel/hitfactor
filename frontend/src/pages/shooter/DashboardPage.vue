@@ -97,10 +97,13 @@ onMounted(async () => {
 
 const today = new Date().toISOString().split('T')[0];
 
-// The dashboard shows only the shooter's own matches (ones they're registered
-// in / have participated in). participatedIds syncs from their registrations.
+// The dashboard shows every public match, plus private matches the shooter
+// actually participated in (their own hosted-but-not-entered matches live under
+// /shooter/host). participatedIds syncs from their registrations.
 const myMatches = computed(() =>
-  allMatches.value.filter((m) => participatedIds.value.has(m.id)),
+  allMatches.value.filter(
+    (m) => !m.is_private || participatedIds.value.has(m.id),
+  ),
 );
 
 const upcomingMatches = computed(() => {

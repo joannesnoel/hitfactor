@@ -77,6 +77,9 @@ export async function getMyPerformance(
     const field = fieldByKey.get(key);
     if (!field) continue; // results not computed for this match/division yet
     const match = matchById.get(reg.match_id);
+    // Private (shooter-hosted) matches are casual and never official, so they're
+    // excluded from career stats, trends and accuracy/speed metrics.
+    if (match?.is_private) continue;
     const srMap = stageResByKey.get(key) ?? new Map<string, StageResultEntry[]>();
     const bundleStages = (stagesByMatch.get(reg.match_id) ?? [])
       .slice()
