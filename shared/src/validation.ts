@@ -110,6 +110,18 @@ export const addRegistrationSchema = z.object({
 });
 export type AddRegistrationInput = z.infer<typeof addRegistrationSchema>;
 
+// Edit an existing registration — e.g. a host fixing a shooter's division or
+// power factor. All fields optional; only those present are changed.
+export const updateRegistrationSchema = z
+  .object({
+    division: z.enum(DIVISIONS),
+    power_factor: z.enum(POWER_FACTORS),
+    member_number: z.string().max(20).nullable(),
+    classification: z.enum(CLASSIFICATIONS).nullable(),
+  })
+  .partial();
+export type UpdateRegistrationInput = z.infer<typeof updateRegistrationSchema>;
+
 // ─── Stage ───────────────────────────────────────
 
 export const createStageSchema = z.object({

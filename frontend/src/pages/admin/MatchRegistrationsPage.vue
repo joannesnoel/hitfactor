@@ -71,9 +71,18 @@
               round
               dense
               size="sm"
+              icon="edit"
+              color="grey-7"
+              class="q-ml-sm"
+              @click="openEdit(r)"
+            />
+            <q-btn
+              flat
+              round
+              dense
+              size="sm"
               icon="delete"
               color="grey-6"
-              class="q-ml-sm"
               @click="confirmRemove(r)"
             />
           </q-card-section>
@@ -100,6 +109,17 @@
       >
         <template #body-cell-actions="props">
           <q-td :props="props" class="text-right">
+            <q-btn
+              flat
+              round
+              dense
+              size="sm"
+              icon="edit"
+              color="grey-7"
+              @click="openEdit(props.row)"
+            >
+              <q-tooltip>Edit division / power factor</q-tooltip>
+            </q-btn>
             <q-btn
               flat
               round
@@ -169,7 +189,8 @@
             v-model="addForm.power_factor"
             label="Power Factor"
             outlined
-            :options="POWER_FACTORS"
+            :options="addPfOptions"
+            :hint="addPfOptions.length === 1 ? 'This division is Minor only' : ''"
           />
           <q-input
             v-model="addForm.member_number"
@@ -197,11 +218,60 @@
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <!-- Edit shooter -->
+    <q-dialog v-model="showEdit">
+      <q-card style="min-width: 340px; max-width: 90vw">
+        <q-card-section class="text-h6 q-pb-none">
+          {{ editTarget?.shooter_name }}
+        </q-card-section>
+        <q-card-section class="q-gutter-md">
+          <q-select
+            v-model="editForm.division"
+            label="Division"
+            outlined
+            emit-value
+            map-options
+            :options="divisionOptions"
+          />
+          <q-select
+            v-model="editForm.power_factor"
+            label="Power Factor"
+            outlined
+            :options="editPfOptions"
+            :hint="editPfOptions.length === 1 ? 'This division is Minor only' : ''"
+          />
+          <q-input
+            v-model="editForm.member_number"
+            label="Member Number (optional)"
+            outlined
+          />
+          <q-select
+            v-model="editForm.classification"
+            label="Classification (optional)"
+            outlined
+            clearable
+            :options="CLASSIFICATIONS"
+          />
+        </q-card-section>
+        <q-card-actions align="right">
+          <q-btn flat label="Cancel" v-close-popup />
+          <q-btn
+            color="primary"
+            label="Save"
+            unelevated
+            :loading="editing"
+            :disable="!editForm.division"
+            @click="submitEdit"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, inject } from 'vue';
+import { ref, reactive, computed, watch, inject } from 'vue';
 import type { Ref } from 'vue';
 import { useQuasar } from 'quasar';
 import type { Registration, Match, PowerFactor, Classification } from '@hitfactor/shared';
@@ -211,6 +281,8 @@ import {
   DEFAULT_ORGANIZATION,
   POWER_FACTORS,
   CLASSIFICATIONS,
+  divisionAllowsMajor,
+  powerFactorsForDivision,
 } from '@hitfactor/shared';
 import type { QTableColumn } from 'quasar';
 import { api } from 'src/boot/axios';
@@ -257,6 +329,79 @@ const divisionOptions = computed(() =>
     (d) => ({ label: d.label, value: d.key }),
   ),
 );
+
+// Power factor choices depend on the division — some divisions are Minor only.
+const addPfOptions = computed<PowerFactor[]>(() =>
+  addForm.division ? powerFactorsForDivision(addForm.division) : [...POWER_FACTORS],
+);
+watch(
+  () => addForm.division,
+  () => {
+    if (addForm.division && !divisionAllowsMajor(addForm.division)) {
+      addForm.power_factor = 'Minor';
+    }
+  },
+);
+
+// ─── Edit shooter (division / power factor / member# / class) ───
+const showEdit = ref(false);
+const editing = ref(false);
+const editTarget = ref<Registration | null>(null);
+const editForm = reactive<{
+  division: string | null;
+  power_factor: PowerFactor;
+  member_number: string;
+  classification: Classification | null;
+}>({ division: null, power_factor: 'Minor', member_number: '', classification: null });
+
+const editPfOptions = computed<PowerFactor[]>(() =>
+  editForm.division ? powerFactorsForDivision(editForm.division) : [...POWER_FACTORS],
+);
+watch(
+  () => editForm.division,
+  () => {
+    if (editForm.division && !divisionAllowsMajor(editForm.division)) {
+      editForm.power_factor = 'Minor';
+    }
+  },
+);
+
+function openEdit(r: Registration) {
+  editTarget.value = r;
+  editForm.division = r.division;
+  editForm.power_factor = r.power_factor as PowerFactor;
+  editForm.member_number = r.member_number ?? '';
+  editForm.classification = (r.classification ?? null) as Classification | null;
+  showEdit.value = true;
+}
+
+async function submitEdit() {
+  if (!editTarget.value || !match.value || !editForm.division) return;
+  editing.value = true;
+  try {
+    const { data } = await api.patch<Registration>(
+      `/api/matches/${match.value.id}/registrations/${editTarget.value.id}`,
+      {
+        division: editForm.division,
+        power_factor: editForm.power_factor,
+        member_number: editForm.member_number.trim() || null,
+        classification: editForm.classification ?? null,
+      },
+    );
+    registrations.value = registrations.value
+      .map((x) => (x.id === data.id ? data : x))
+      .sort((a, b) => a.shooter_name.localeCompare(b.shooter_name));
+    $q.notify({ type: 'positive', message: `${data.shooter_name} updated` });
+    showEdit.value = false;
+  } catch (err: unknown) {
+    const message =
+      (err as { response?: { data?: { message?: string } } })?.response?.data
+        ?.message ?? 'Failed to update shooter';
+    $q.notify({ type: 'negative', message });
+  } finally {
+    editing.value = false;
+  }
+}
 
 // A name (picked or typed) plus division + PF are required.
 const shooterName = computed(() =>

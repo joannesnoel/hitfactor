@@ -9,6 +9,7 @@ import {
   listOfficers,
   removeOfficer,
   addRegistration,
+  updateRegistration,
   removeRegistration,
   getJoinPreview,
   joinMatch,
@@ -107,6 +108,12 @@ export async function matchesRoutes(app: FastifyInstance): Promise<void> {
     '/api/matches/:id/registrations',
     { preHandler: [authMiddleware] },
     addRegistration
+  );
+
+  app.patch(
+    '/api/matches/:id/registrations/:registrationId',
+    { preHandler: [authMiddleware] },
+    updateRegistration
   );
 
   app.delete(

@@ -8,14 +8,16 @@ import {
   assignMatchOfficerSchema,
   assignStageOfficerSchema,
   addRegistrationSchema,
+  updateRegistrationSchema,
   isValidDivisionForOrg,
   getDivisionsForOrg,
   divisionAllowsMajor,
+  computeScore,
   MATCH_LEVEL_OFFICIAL_ROLES,
 } from '@hitfactor/shared';
-import type { Organization } from '@hitfactor/shared';
+import type { Organization, PowerFactor, ScoringType } from '@hitfactor/shared';
 import { db } from '../../config/database.js';
-import { matches, stages, matchAdmins, matchOfficers, stageOfficers, users, registrations } from '../../db/schema.js';
+import { matches, stages, matchAdmins, matchOfficers, stageOfficers, users, registrations, scores, matchRecomputeState } from '../../db/schema.js';
 import { normalizeShooterName, cleanDisplayName } from '../import/shooter-identity.js';
 import { isMatchHost } from './match-authz.js';
 
@@ -751,4 +753,151 @@ export async function removeRegistration(
     );
 
   return reply.status(204).send();
+}
+
+/** Edit a registration (e.g. a host fixing a shooter's division / power factor).
+ * Validates the division/PF combination and, if either changed, recomputes the
+ * shooter's existing scores and marks the match for results recompute. */
+export async function updateRegistration(
+  request: FastifyRequest,
+  reply: FastifyReply
+): Promise<void> {
+  const { id: matchId, registrationId } = request.params as {
+    id: string;
+    registrationId: string;
+  };
+
+  const isAdmin = await isMatchAdmin(matchId, request.user.id);
+  const isGlobalAdmin = request.user.roles.includes('admin');
+  const isHost = await isMatchHost(matchId, request.user.id);
+  if (!isAdmin && !isGlobalAdmin && !isHost) {
+    return reply.status(403).send({
+      statusCode: 403,
+      error: 'Forbidden',
+      message: 'Not authorized to edit shooters in this match',
+    });
+  }
+
+  const parsed = updateRegistrationSchema.safeParse(request.body);
+  if (!parsed.success) {
+    return reply.status(400).send({
+      statusCode: 400,
+      error: 'Bad Request',
+      message: 'Validation failed',
+      details: parsed.error.flatten(),
+    });
+  }
+
+  const [reg] = await db
+    .select()
+    .from(registrations)
+    .where(
+      and(
+        eq(registrations.id, registrationId),
+        eq(registrations.match_id, matchId)
+      )
+    )
+    .limit(1);
+  if (!reg) {
+    return reply.status(404).send({
+      statusCode: 404,
+      error: 'Not Found',
+      message: 'Registration not found',
+    });
+  }
+
+  const [match] = await db
+    .select({ organization: matches.organization })
+    .from(matches)
+    .where(eq(matches.id, matchId))
+    .limit(1);
+
+  const newDivision = parsed.data.division ?? reg.division;
+  const newPf = (parsed.data.power_factor ?? reg.power_factor) as PowerFactor;
+
+  if (!isValidDivisionForOrg(match!.organization as Organization, newDivision)) {
+    return reply.status(400).send({
+      statusCode: 400,
+      error: 'Bad Request',
+      message: `Division "${newDivision}" is not valid for ${match!.organization}.`,
+    });
+  }
+  if (newPf === 'Major' && !divisionAllowsMajor(newDivision)) {
+    return reply.status(400).send({
+      statusCode: 400,
+      error: 'Bad Request',
+      message: `Division "${newDivision}" is Minor only.`,
+    });
+  }
+
+  const patch: Record<string, unknown> = {};
+  if (parsed.data.division !== undefined) patch.division = parsed.data.division;
+  if (parsed.data.power_factor !== undefined) patch.power_factor = parsed.data.power_factor;
+  if (parsed.data.member_number !== undefined) patch.member_number = parsed.data.member_number;
+  if (parsed.data.classification !== undefined) patch.classification = parsed.data.classification;
+
+  const [updated] = await db
+    .update(registrations)
+    .set(patch)
+    .where(eq(registrations.id, registrationId))
+    .returning();
+
+  // If division or PF changed, keep this shooter's already-entered scores in
+  // sync (division + PF are snapshotted onto each score and drive the points),
+  // then flag the match so standings recompute.
+  const divChanged = parsed.data.division !== undefined && parsed.data.division !== reg.division;
+  const pfChanged = parsed.data.power_factor !== undefined && parsed.data.power_factor !== reg.power_factor;
+  if (divChanged || pfChanged) {
+    const scoreRows = await db
+      .select()
+      .from(scores)
+      .where(eq(scores.registration_id, registrationId));
+    for (const s of scoreRows) {
+      const [stage] = await db
+        .select({ scoring_type: stages.scoring_type })
+        .from(stages)
+        .where(eq(stages.id, s.stage_id))
+        .limit(1);
+      const computed = computeScore(
+        {
+          alpha_count: s.alpha_count,
+          charlie_count: s.charlie_count,
+          delta_count: s.delta_count,
+          miss_count: s.miss_count,
+          no_shoot_count: s.no_shoot_count,
+          procedural_count: s.procedural_count,
+          steel_hits: s.steel_hits,
+          steel_misses: s.steel_misses,
+          time: Number(s.time),
+          power_factor: newPf,
+          dqed: s.dqed,
+          dnf: s.dnf,
+        },
+        (stage?.scoring_type ?? 'comstock') as ScoringType
+      );
+      await db
+        .update(scores)
+        .set({
+          division: newDivision,
+          power_factor: newPf,
+          raw_points: computed.raw_points,
+          penalty_points: computed.penalty_points,
+          total_points: computed.total_points,
+          hit_factor: computed.hit_factor.toString(),
+          modified_at: new Date(),
+          modified_by: request.user.id,
+        })
+        .where(eq(scores.id, s.id));
+    }
+    const now = new Date();
+    await db
+      .insert(matchRecomputeState)
+      .values({ match_id: matchId, scores_changed_at: now })
+      .onConflictDoUpdate({
+        target: matchRecomputeState.match_id,
+        set: { scores_changed_at: now },
+      });
+  }
+
+  return reply.send(updated);
 }
