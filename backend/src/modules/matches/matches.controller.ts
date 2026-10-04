@@ -10,6 +10,7 @@ import {
   addRegistrationSchema,
   isValidDivisionForOrg,
   getDivisionsForOrg,
+  divisionAllowsMajor,
   MATCH_LEVEL_OFFICIAL_ROLES,
 } from '@hitfactor/shared';
 import type { Organization } from '@hitfactor/shared';
@@ -266,6 +267,16 @@ export async function joinMatch(
     });
   }
 
+  // Default to Minor; reject Major for a Minor-only division.
+  const powerFactor = parsed.data.power_factor ?? 'Minor';
+  if (powerFactor === 'Major' && !divisionAllowsMajor(parsed.data.division)) {
+    return reply.status(400).send({
+      statusCode: 400,
+      error: 'Bad Request',
+      message: `Division "${parsed.data.division}" is Minor only.`,
+    });
+  }
+
   // Already registered? Return the existing registration (idempotent join).
   const [existing] = await db
     .select()
@@ -294,7 +305,7 @@ export async function joinMatch(
       user_id: request.user.id,
       shooter_name: me?.display_name ?? 'Shooter',
       division: parsed.data.division,
-      power_factor: 'Minor',
+      power_factor: powerFactor,
     })
     .returning();
 

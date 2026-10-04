@@ -152,6 +152,32 @@ export type Classification = (typeof CLASSIFICATIONS)[number];
 export const POWER_FACTORS = ['Major', 'Minor'] as const;
 export type PowerFactor = (typeof POWER_FACTORS)[number];
 
+// Divisions that score Minor only (no Major scoring): the production-class
+// divisions, all PCC variants, and rimfire / mini rifle. Every other division
+// may declare Major or Minor. Keyed by canonical division key, so it holds for
+// both organizations.
+export const MINOR_ONLY_DIVISIONS: readonly DivisionKey[] = [
+  'production',
+  'production_optics',
+  'pcc_optics',
+  'pcc_iron',
+  'pcc_sb_unlimited',
+  'prr_limited',
+  'prr_unlimited',
+];
+
+/** Whether a division offers Major scoring (false → Minor only). */
+export function divisionAllowsMajor(key: DivisionKey | string): boolean {
+  return !MINOR_ONLY_DIVISIONS.includes(key as DivisionKey);
+}
+
+/** The power factors a division may declare, in display order. */
+export function powerFactorsForDivision(
+  key: DivisionKey | string
+): PowerFactor[] {
+  return divisionAllowsMajor(key) ? ['Major', 'Minor'] : ['Minor'];
+}
+
 export const SCORING_TYPES = [
   'comstock',
   'virginia_count',

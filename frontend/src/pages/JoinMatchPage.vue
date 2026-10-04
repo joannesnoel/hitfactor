@@ -99,8 +99,32 @@
             map-options
             outlined
             label="Division"
-            class="q-mb-md"
+            class="q-mb-sm"
           />
+
+          <!-- Power factor — only divisions that offer Major get a choice;
+               Minor-only divisions are fixed to Minor. -->
+          <div class="q-mb-md">
+            <div class="text-caption text-grey-7 q-mb-xs">Power factor</div>
+            <q-btn-toggle
+              v-if="allowsMajor"
+              v-model="powerFactor"
+              spread
+              no-caps
+              unelevated
+              toggle-color="primary"
+              color="grey-3"
+              text-color="grey-9"
+              :options="[
+                { label: 'Minor', value: 'Minor' },
+                { label: 'Major', value: 'Major' },
+              ]"
+            />
+            <div v-else class="text-body2">
+              Minor <span class="text-grey-6">(this division is Minor only)</span>
+            </div>
+          </div>
+
           <q-btn
             color="primary"
             label="Join match"
@@ -122,11 +146,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import { api } from 'src/boot/axios';
 import { useAuthStore } from 'src/stores/auth.store';
+import { divisionAllowsMajor, type PowerFactor } from '@hitfactor/shared';
 
 const props = defineProps<{ token: string }>();
 
@@ -152,7 +177,17 @@ const loading = ref(true);
 const loadError = ref('');
 const preview = ref<JoinPreview | null>(null);
 const division = ref<string | null>(null);
+const powerFactor = ref<PowerFactor>('Minor');
 const joining = ref(false);
+
+// Only some divisions offer Major scoring; the rest are Minor only.
+const allowsMajor = computed(() =>
+  division.value ? divisionAllowsMajor(division.value) : false,
+);
+// Switching to a Minor-only division forces Minor.
+watch(allowsMajor, (ok) => {
+  if (!ok) powerFactor.value = 'Minor';
+});
 const error = ref('');
 const alreadyJoined = ref(false);
 
@@ -209,7 +244,7 @@ async function join() {
   try {
     const { data } = await api.post<{ match_id: string }>(
       `/api/matches/join/${props.token}`,
-      { division: division.value },
+      { division: division.value, power_factor: powerFactor.value },
     );
     $q.notify({ type: 'positive', message: `You're registered for ${preview.value.name}!` });
     // Replace (not push) so browser Back doesn't return to this now-stale invite.

@@ -75,6 +75,9 @@ export type CreateMatchInput = z.infer<typeof createMatchSchema>;
 // division is validated server-side against the match's organization.
 export const joinMatchSchema = z.object({
   division: z.string().min(1).max(50),
+  // Optional — defaults to Minor server-side; rejected if Major is chosen for a
+  // Minor-only division.
+  power_factor: z.enum(POWER_FACTORS).optional(),
 });
 export type JoinMatchInput = z.infer<typeof joinMatchSchema>;
 
