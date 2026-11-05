@@ -105,7 +105,7 @@ spec:
             - name: DOCKER_TLS_CERTDIR
               value: ""
           resources:
-            requests: { cpu: "500m", memory: "1Gi" }
+            requests: { cpu: "100m", memory: "512Mi" }
             limits: { cpu: "6", memory: "8Gi" }
           volumeMounts:
             - { name: docker-storage, mountPath: /var/lib/docker }
@@ -134,7 +134,7 @@ spec:
                   name: github-runner-secret
                   key: GITHUB_PAT
           resources:
-            requests: { cpu: "250m", memory: "512Mi" }
+            requests: { cpu: "100m", memory: "256Mi" }
             limits: { cpu: "2", memory: "2Gi" }
           volumeMounts:
             - { name: runner-workdir, mountPath: /tmp/runner }
