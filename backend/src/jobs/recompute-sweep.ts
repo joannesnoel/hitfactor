@@ -1,5 +1,5 @@
 /**
- * One pass of the auto-recompute scheduler: recompute results for every ACTIVE
+ * One pass of the auto-recompute scheduler: recompute results for every non-final
  * match whose scores changed since its last recompute (cheap dirty-check on
  * match_recompute_state). Idle matches cost one indexed query and nothing else.
  * The per-match advisory lock lives inside recomputeMatchResults, so this is safe
@@ -23,7 +23,10 @@ export async function recomputeDirtyMatches(): Promise<{
     .innerJoin(matches, eq(matches.id, matchRecomputeState.match_id))
     .where(
       and(
-        inArray(matches.status, ['active', 'scoring']),
+        // Any match that isn't finalised/archived: scores can land while a match
+        // is still 'draft' (a host who never advanced the status) and shooters
+        // expect results to follow.
+        inArray(matches.status, ['draft', 'registration', 'active', 'scoring']),
         or(
           isNull(matchRecomputeState.results_computed_at),
           gt(

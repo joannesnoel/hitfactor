@@ -106,9 +106,17 @@ const myMatches = computed(() =>
   ),
 );
 
+// A match the shooter is registered in always shows while it's current, whatever
+// its status — a host may run a match that was never moved out of 'draft', and
+// hiding it leaves QR-joined shooters with no way back to their results.
 const upcomingMatches = computed(() => {
   return myMatches.value
-    .filter((m) => m.start_date >= today && ['registration', 'active', 'scoring'].includes(m.status))
+    .filter(
+      (m) =>
+        m.start_date >= today &&
+        (participatedIds.value.has(m.id) ||
+          ['registration', 'active', 'scoring'].includes(m.status)),
+    )
     .sort((a, b) => a.start_date.localeCompare(b.start_date))
     .slice(0, 6);
 });

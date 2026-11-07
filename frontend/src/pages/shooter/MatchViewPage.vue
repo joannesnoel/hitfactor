@@ -379,6 +379,26 @@ onMounted(async () => {
     },
     { signal: watchAbort.signal },
   );
+
+  // Results are computed server-side after the match row last changed, so the
+  // watch above never re-fires for them. Watch match_results directly so the
+  // Results tab fills in as soon as standings sync down (no leave-and-return).
+  db.watch(
+    'SELECT results FROM match_results WHERE match_id = ?',
+    [matchId],
+    {
+      onResult: (res) => {
+        const rows = (res.rows?._array as Array<{ results: string }> | undefined) ?? [];
+        if (rows.length === 0) return; // keep any public-API fallback we already have
+        try {
+          matchResults.value = rows.flatMap((r) => JSON.parse(r.results) as MatchResultEntry[]);
+        } catch {
+          /* malformed row — leave current results */
+        }
+      },
+    },
+    { signal: watchAbort.signal },
+  );
 });
 
 onUnmounted(() => watchAbort.abort());
