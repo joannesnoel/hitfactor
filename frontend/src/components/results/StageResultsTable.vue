@@ -320,8 +320,9 @@ const columns = computed<QTableColumn[]>(() => [
   // Ranking signal first (Stage%), then what it earns (Stage Pts), then the raw HF.
   { name: 'stage_percentage', label: 'Stage%', field: 'stage_percentage', align: 'center', sortable: true },
   // Stage points = stage% of the stage's max points (rounds × 5); feeds match points.
-  { name: 'stage_points', label: 'Stage Pts', field: 'stage_points', align: 'center', sortable: true, format: (val: number) => (val ?? 0).toFixed(2) },
-  { name: 'hit_factor', label: 'HF', field: 'hit_factor', align: 'center', sortable: true },
+  // Not sortable: Stage Pts and HF order exactly as Stage% does, so sorting by them is redundant.
+  { name: 'stage_points', label: 'Stage Pts', field: 'stage_points', align: 'center', sortable: false, format: (val: number) => (val ?? 0).toFixed(2) },
+  { name: 'hit_factor', label: 'HF', field: 'hit_factor', align: 'center', sortable: false },
 ]);
 </script>
 
