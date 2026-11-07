@@ -88,14 +88,14 @@
             <div class="col-4">
               <div class="text-caption text-grey">A / C / D</div>
               <div class="text-weight-medium">
-                {{ row.alpha_count }} / {{ row.charlie_count }} /
+                {{ row.alpha_count + row.steel_hits }} / {{ row.charlie_count }} /
                 {{ row.delta_count }}
               </div>
             </div>
             <div class="col-4">
               <div class="text-caption text-grey">M / NS / Proc</div>
               <div class="text-weight-medium">
-                {{ row.miss_count }} / {{ row.no_shoot_count }} /
+                {{ row.miss_count + row.steel_misses }} / {{ row.no_shoot_count }} /
                 {{ row.procedural_count }}
               </div>
             </div>
@@ -159,10 +159,14 @@
             {{ getDivisionLabel(organization, props.row.division) }}
           </q-td>
           <q-td key="power_factor" :props="props">{{ props.row.power_factor }}</q-td>
-          <q-td key="alpha_count" :props="props">{{ props.row.alpha_count }}</q-td>
+          <q-td key="alpha_count" :props="props">
+            {{ props.row.alpha_count + props.row.steel_hits }}
+          </q-td>
           <q-td key="charlie_count" :props="props">{{ props.row.charlie_count }}</q-td>
           <q-td key="delta_count" :props="props">{{ props.row.delta_count }}</q-td>
-          <q-td key="miss_count" :props="props">{{ props.row.miss_count }}</q-td>
+          <q-td key="miss_count" :props="props">
+            {{ props.row.miss_count + props.row.steel_misses }}
+          </q-td>
           <q-td key="no_shoot_count" :props="props">{{ props.row.no_shoot_count }}</q-td>
           <q-td key="procedural_count" :props="props">
             {{ props.row.procedural_count }}
@@ -302,10 +306,11 @@ const columns = computed<QTableColumn[]>(() => [
   { name: 'shooter_name', label: 'Name', field: 'shooter_name', align: 'left', sortable: true },
   { name: 'division', label: 'Div', field: 'division', align: 'center', sortable: true, format: (val: string) => getDivisionLabel(props.organization, val) },
   { name: 'power_factor', label: 'PF', field: 'power_factor', align: 'center', sortable: true },
-  { name: 'alpha_count', label: 'A', field: 'alpha_count', align: 'center', sortable: true },
+  // Steel folds into A (hits) and M (misses), matching the scoring screen's tally.
+  { name: 'alpha_count', label: 'A', field: (row: StageResultEntry) => row.alpha_count + row.steel_hits, align: 'center', sortable: true },
   { name: 'charlie_count', label: 'C', field: 'charlie_count', align: 'center', sortable: true },
   { name: 'delta_count', label: 'D', field: 'delta_count', align: 'center', sortable: true },
-  { name: 'miss_count', label: 'M', field: 'miss_count', align: 'center', sortable: true },
+  { name: 'miss_count', label: 'M', field: (row: StageResultEntry) => row.miss_count + row.steel_misses, align: 'center', sortable: true },
   { name: 'no_shoot_count', label: 'NS', field: 'no_shoot_count', align: 'center', sortable: true },
   { name: 'procedural_count', label: 'Proc', field: 'procedural_count', align: 'center', sortable: true },
   {
