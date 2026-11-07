@@ -85,24 +85,18 @@
         </template>
         <q-card flat bordered>
           <q-card-section class="row q-col-gutter-sm text-center">
-            <div class="col-4">
+            <div class="col-6">
               <div class="text-caption text-grey">A / C / D</div>
               <div class="text-weight-medium">
                 {{ row.alpha_count + row.steel_hits }} / {{ row.charlie_count }} /
                 {{ row.delta_count }}
               </div>
             </div>
-            <div class="col-4">
+            <div class="col-6">
               <div class="text-caption text-grey">M / NS / Proc</div>
               <div class="text-weight-medium">
                 {{ row.miss_count + row.steel_misses }} / {{ row.no_shoot_count }} /
                 {{ row.procedural_count }}
-              </div>
-            </div>
-            <div class="col-4">
-              <div class="text-caption text-grey">Steel</div>
-              <div class="text-weight-medium">
-                {{ row.steel_hits }}/{{ row.steel_hits + row.steel_misses }}
               </div>
             </div>
             <div class="col-4">
@@ -170,11 +164,6 @@
           <q-td key="no_shoot_count" :props="props">{{ props.row.no_shoot_count }}</q-td>
           <q-td key="procedural_count" :props="props">
             {{ props.row.procedural_count }}
-          </q-td>
-          <q-td key="steel" :props="props">
-            {{ props.row.steel_hits }}/{{
-              props.row.steel_hits + props.row.steel_misses
-            }}
           </q-td>
           <q-td key="time" :props="props">{{ props.row.time.toFixed(2) }}</q-td>
           <q-td key="total_points" :props="props">{{ props.row.total_points }}</q-td>
@@ -313,13 +302,6 @@ const columns = computed<QTableColumn[]>(() => [
   { name: 'miss_count', label: 'M', field: (row: StageResultEntry) => row.miss_count + row.steel_misses, align: 'center', sortable: true },
   { name: 'no_shoot_count', label: 'NS', field: 'no_shoot_count', align: 'center', sortable: true },
   { name: 'procedural_count', label: 'Proc', field: 'procedural_count', align: 'center', sortable: true },
-  {
-    name: 'steel',
-    label: 'Steel',
-    field: (row: StageResultEntry) => `${row.steel_hits}/${row.steel_hits + row.steel_misses}`,
-    align: 'center',
-    sortable: false,
-  },
   { name: 'time', label: 'Time', field: 'time', align: 'center', sortable: true, format: (val: number) => val.toFixed(2) },
   { name: 'total_points', label: 'Points', field: 'total_points', align: 'center', sortable: true },
   // Ranking signal first (Stage%), then what it earns (Stage Pts), then the raw HF.
