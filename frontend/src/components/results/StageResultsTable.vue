@@ -77,9 +77,10 @@
             <q-item-label class="text-weight-bold text-body1 text-grey-9">
               HF {{ row.hit_factor.toFixed(4) }}
             </q-item-label>
-            <q-item-label caption>{{
-              row.stage_percentage.toFixed(2)
-            }}%</q-item-label>
+            <q-item-label caption>
+              {{ row.stage_percentage.toFixed(2) }}% ·
+              {{ (row.stage_points ?? 0).toFixed(2) }} pts
+            </q-item-label>
           </q-item-section>
         </template>
         <q-card flat bordered>
@@ -104,13 +105,19 @@
                 {{ row.steel_hits }}/{{ row.steel_hits + row.steel_misses }}
               </div>
             </div>
-            <div class="col-6">
+            <div class="col-4">
               <div class="text-caption text-grey">Time</div>
               <div class="text-weight-medium">{{ row.time.toFixed(2) }}s</div>
             </div>
-            <div class="col-6">
+            <div class="col-4">
               <div class="text-caption text-grey">Points</div>
               <div class="text-weight-medium">{{ row.total_points }}</div>
+            </div>
+            <div class="col-4">
+              <div class="text-caption text-grey">Stage Pts</div>
+              <div class="text-weight-medium">
+                {{ (row.stage_points ?? 0).toFixed(2) }}
+              </div>
             </div>
           </q-card-section>
         </q-card>
@@ -176,6 +183,9 @@
             <span class="text-weight-bold">{{
               props.row.stage_percentage.toFixed(2)
             }}%</span>
+          </q-td>
+          <q-td key="stage_points" :props="props">
+            {{ (props.row.stage_points ?? 0).toFixed(2) }}
           </q-td>
         </q-tr>
       </template>
@@ -311,6 +321,8 @@ const columns = computed<QTableColumn[]>(() => [
   { name: 'total_points', label: 'Points', field: 'total_points', align: 'center', sortable: true },
   { name: 'hit_factor', label: 'HF', field: 'hit_factor', align: 'center', sortable: true },
   { name: 'stage_percentage', label: 'Stage%', field: 'stage_percentage', align: 'center', sortable: true },
+  // Stage points = stage% of the stage's max points (rounds × 5); feeds match points.
+  { name: 'stage_points', label: 'Stage Pts', field: 'stage_points', align: 'center', sortable: true, format: (val: number) => (val ?? 0).toFixed(2) },
 ]);
 </script>
 
