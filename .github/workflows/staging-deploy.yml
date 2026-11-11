@@ -86,11 +86,17 @@ jobs:
             namespace: ${{ env.NAMESPACE }}
             labels: { app.kubernetes.io/name: migrate, app.kubernetes.io/part-of: hitfactor }
           spec:
-            backoffLimit: 2
+            backoffLimit: 4
             ttlSecondsAfterFinished: 300
             template:
               spec:
                 restartPolicy: Never
+                # A brand-new pod can be refused for a second or two before network
+                # policy enforcement catches up; wait instead of failing on the first try.
+                initContainers:
+                  - name: wait-for-db
+                    image: busybox:1.36
+                    command: ["sh", "-c", "until nc -z -w 2 hitfactor-postgres 5432; do sleep 1; done"]
                 containers:
                   - name: migrate
                     image: ${{ env.REGISTRY }}/${{ env.BACKEND_IMAGE }}:${{ steps.tag.outputs.tag }}
