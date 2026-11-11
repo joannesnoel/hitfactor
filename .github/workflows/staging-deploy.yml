@@ -36,7 +36,7 @@ jobs:
             echo "kubectl already installed: $(kubectl version --client 2>/dev/null | head -1)"
           else
             VER="$(curl -sL --retry 3 --max-time 20 https://dl.k8s.io/release/stable.txt)"
-            curl -LO --retry 3 --max-time 120 "https://dl.k8s.io/release/${VER}/bin/linux/amd64/kubectl"
+            curl -fLO --retry 5 --retry-all-errors -C - --max-time 600 "https://dl.k8s.io/release/${VER}/bin/linux/amd64/kubectl"
             chmod +x kubectl
             sudo mv kubectl /usr/local/bin/
             kubectl version --client
