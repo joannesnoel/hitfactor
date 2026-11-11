@@ -6,3 +6,5 @@ export * from './validation.js';
 export * from './stage-lock.js';
 export * from './match-analysis.js';
 export * from './perf-bundles.js';
+export * from './match-comparison.js';
+export * from './stage-breakdown.js';

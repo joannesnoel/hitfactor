@@ -74,15 +74,14 @@
           <q-item-section>Results</q-item-section>
         </q-item>
 
-        <!-- Hosts who shot in their own match: their personal analysis -->
+        <!-- Analysis of any shooter in the match, including the host's own -->
         <q-item
-          v-if="iShot"
           clickable
           v-ripple
           :to="{ path: `/shooter/matches/${matchId}`, query: { tab: 'analysis' } }"
         >
           <q-item-section avatar><q-icon name="insights" /></q-item-section>
-          <q-item-section>My analysis</q-item-section>
+          <q-item-section>Analysis</q-item-section>
         </q-item>
       </q-list>
     </q-drawer>
@@ -98,7 +97,6 @@ import { ref, computed, provide } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useMatch } from 'src/composables/useMatch';
 import { useSync } from 'src/composables/useSync';
-import { useAuthStore } from 'src/stores/auth.store';
 import { pageHeaderTitle, pageHeaderBackTo } from 'src/composables/usePageHeader';
 import SyncStatusIndicator from 'src/components/common/SyncStatusIndicator.vue';
 
@@ -109,11 +107,6 @@ const base = `/shooter/host/matches/${matchId}`;
 const drawerOpen = ref(false);
 
 const { match, stages, registrations, loading } = useMatch(matchId);
-const authStore = useAuthStore();
-// Whether the host is also a shooter in this match (has their own registration).
-const iShot = computed(() =>
-  registrations.value.some((r) => r.user_id === authStore.user?.id),
-);
 // Drive the header sync indicator (status, pending uploads, upload errors).
 useSync();
 

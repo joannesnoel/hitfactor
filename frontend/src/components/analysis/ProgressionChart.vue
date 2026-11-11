@@ -2,7 +2,7 @@
   <div class="viz-root">
     <!-- Legend: line keys that mirror the marks -->
     <div class="row items-center q-gutter-md q-mb-sm text-caption legend">
-      <span class="key"><i class="key-line key-me" />You</span>
+      <span class="key"><i class="key-line key-me" />{{ meLabel }}</span>
       <span v-if="leader && !leader.isMe" class="key">
         <i class="key-line key-leader" />{{ leader.shooter_name }} (leader)
       </span>
@@ -108,7 +108,7 @@
         <div class="tip-row">
           <i class="key-line key-me" />
           <strong>{{ ordinal(me.place[active]) }}</strong>
-          <span class="tip-sub">You · {{ round(me.pct[active]) }}% of leader · {{ round(me.points[active]) }} pts</span>
+          <span class="tip-sub">{{ meLabel }} · {{ round(me.pct[active]) }}% of leader · {{ round(me.points[active]) }} pts</span>
         </div>
         <div v-if="leader && !leader.isMe" class="tip-row">
           <i class="key-line key-leader" />
@@ -125,9 +125,9 @@
         <thead>
           <tr>
             <th class="text-left">After stage</th>
-            <th class="text-right">Your place</th>
+            <th class="text-right">Place</th>
             <th class="text-right">% of leader</th>
-            <th class="text-right">Your points</th>
+            <th class="text-right">Points</th>
             <th class="text-right">Leader points</th>
           </tr>
         </thead>
@@ -149,10 +149,15 @@
 import { computed, ref } from 'vue';
 import type { Progression, ProgressionShooter } from '@hitfactor/shared';
 
-const props = defineProps<{
-  progression: Progression;
-  metric: 'place' | 'pct';
-}>();
+const props = withDefaults(
+  defineProps<{
+    progression: Progression;
+    metric: 'place' | 'pct';
+    /** How the analysed shooter is named in labels ("You" for yourself). */
+    meLabel?: string;
+  }>(),
+  { meLabel: 'You' },
+);
 
 const W = 640;
 const H = 300;
@@ -218,7 +223,7 @@ function path(s: ProgressionShooter): string {
 const endLabels = computed(() => {
   if (!me.value || n.value === 0) return [];
   const last = n.value - 1;
-  const out = [{ text: 'You', y: y(val(me.value, last)) }];
+  const out = [{ text: props.meLabel, y: y(val(me.value, last)) }];
   if (leader.value && !leader.value.isMe) {
     let ly = y(val(leader.value, last));
     if (Math.abs(ly - out[0].y) < 14) ly = out[0].y + (ly >= out[0].y ? 14 : -14);
@@ -267,7 +272,7 @@ function leaderPoints(i: number): string {
 const ariaLabel = computed(() => {
   if (!me.value || n.value === 0) return 'Stage by stage standings';
   const last = n.value - 1;
-  return `Your standing across ${n.value} stages. After the last stage you are ${ordinal(me.value.place[last])} of ${fieldSize.value}.`;
+  return `${props.meLabel}'s standing across ${n.value} stages. After the last stage: ${ordinal(me.value.place[last])} of ${fieldSize.value}.`;
 });
 </script>
 

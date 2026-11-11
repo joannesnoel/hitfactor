@@ -70,7 +70,7 @@
       >
         <q-tab name="stages" label="Stages" />
         <q-tab name="results" label="Results" />
-        <q-tab v-if="isRegistered" name="analysis" label="My analysis" />
+        <q-tab v-if="canAnalyze" name="analysis" label="Analysis" />
       </q-tabs>
 
       <q-tab-panels v-model="activeTab" animated>
@@ -134,8 +134,8 @@
           </div>
         </q-tab-panel>
 
-        <!-- My analysis: how the match went for me, stage by stage -->
-        <q-tab-panel v-if="isRegistered" name="analysis">
+        <!-- Analysis: how any shooter's match went, stage by stage -->
+        <q-tab-panel v-if="canAnalyze" name="analysis">
           <MatchAnalysis
             :match-id="match.id"
             :match-name="match.name"
@@ -394,6 +394,8 @@ const isHost = computed(
     !!match.value?.is_private &&
     match.value.created_by === authStore.user?.id,
 );
+// Shooters in the match, its host and its scorers can analyse any shooter in it.
+const canAnalyze = computed(() => isRegistered.value || isHost.value || isScorer.value);
 // Hosts and scorers can enter scores for any stage.
 const canScore = computed(
   () => isHost.value || (isScorer.value && match.value?.status !== 'final'),
