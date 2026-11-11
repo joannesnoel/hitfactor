@@ -1,5 +1,6 @@
 import { boot } from 'quasar/wrappers';
 import { useSyncStore } from 'src/stores/sync.store';
+import { shouldReconnect } from 'src/db/reconnectPolicy';
 
 type PSDb = import('@powersync/web').PowerSyncDatabase;
 type PSConnector = import('@powersync/web').PowerSyncBackendConnector;
@@ -79,12 +80,17 @@ export default boot(({ app }) => {
 /**
  * Re-establish the PowerSync sync stream (e.g. after the app returns to the
  * foreground). No-op until connectPowerSync() has run; debounced so rapid
- * foreground/blur flips don't thrash the connection.
+ * foreground/blur flips don't thrash the connection, and skipped while a
+ * connect/download is in progress (see reconnectPolicy).
  */
 export async function reconnectPowerSync(): Promise<void> {
   if (!db || !connector) return;
   const nowMs = Date.now();
-  if (nowMs - lastConnectAttempt < 3000) return;
+  // connect() tears down the current stream, so don't restart one that is still
+  // connecting or downloading (a big first sync) — only a stuck one.
+  const status = db.currentStatus;
+  const busy = !!status?.connecting || !!status?.dataFlowStatus?.downloading;
+  if (!shouldReconnect(busy, nowMs - lastConnectAttempt)) return;
   lastConnectAttempt = nowMs;
   try {
     await db.connect(connector, connectOptions);
