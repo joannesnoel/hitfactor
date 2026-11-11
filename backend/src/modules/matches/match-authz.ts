@@ -1,6 +1,7 @@
 import { eq, and } from 'drizzle-orm';
 import { db } from '../../config/database.js';
-import { matches } from '../../db/schema.js';
+import { matches, matchAdmins, matchOfficers, registrations } from '../../db/schema.js';
+import type { MatchMembership } from './match-visibility.js';
 
 /**
  * Whether a user is the HOST of a shooter-created private match — i.e. they
@@ -25,4 +26,48 @@ export async function isMatchHost(
     )
     .limit(1);
   return !!row;
+}
+
+/**
+ * The matches a user admins, officiates, or is registered in — for the match
+ * visibility rules. Pass `matchId` to look at a single match.
+ */
+export async function loadMatchMembership(
+  userId: string,
+  matchId?: string
+): Promise<MatchMembership> {
+  const [admins, officers, regs] = await Promise.all([
+    db
+      .select({ id: matchAdmins.match_id })
+      .from(matchAdmins)
+      .where(
+        and(
+          eq(matchAdmins.user_id, userId),
+          matchId ? eq(matchAdmins.match_id, matchId) : undefined
+        )
+      ),
+    db
+      .select({ id: matchOfficers.match_id })
+      .from(matchOfficers)
+      .where(
+        and(
+          eq(matchOfficers.user_id, userId),
+          matchId ? eq(matchOfficers.match_id, matchId) : undefined
+        )
+      ),
+    db
+      .select({ id: registrations.match_id })
+      .from(registrations)
+      .where(
+        and(
+          eq(registrations.user_id, userId),
+          matchId ? eq(registrations.match_id, matchId) : undefined
+        )
+      ),
+  ]);
+  return {
+    adminOf: new Set(admins.map((r) => r.id)),
+    officerOf: new Set(officers.map((r) => r.id)),
+    registeredIn: new Set(regs.map((r) => r.id)),
+  };
 }

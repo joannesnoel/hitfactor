@@ -96,6 +96,35 @@ export const updateMatchSchema = createMatchSchema.partial().extend({
 });
 export type UpdateMatchInput = z.infer<typeof updateMatchSchema>;
 
+// What the host of a private (shooter-created) match may change. Deliberately
+// narrow and strict: is_private, level and organization are NOT editable by a
+// host (flipping is_private would publish the match and revoke the host's own
+// authority; organization would invalidate registered divisions), and unknown
+// keys are rejected rather than silently ignored.
+export const HOST_EDITABLE_MATCH_STATUSES = [
+  'registration',
+  'active',
+  'scoring',
+  'final',
+] as const;
+
+export const hostUpdateMatchSchema = createMatchSchema
+  .pick({
+    name: true,
+    start_date: true,
+    end_date: true,
+    location: true,
+    description: true,
+    max_shooters: true,
+  })
+  .extend({
+    status: z.enum(HOST_EDITABLE_MATCH_STATUSES),
+    registration_open: z.boolean(),
+  })
+  .partial()
+  .strict();
+export type HostUpdateMatchInput = z.infer<typeof hostUpdateMatchSchema>;
+
 // Admin manually registers a shooter into a match. `user_id` links an existing
 // shooter account; when omitted, the backend resolves/creates an unclaimed
 // shooter from `shooter_name` (same as an import). Division must be offered by

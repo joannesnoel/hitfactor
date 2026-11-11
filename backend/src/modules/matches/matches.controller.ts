@@ -4,6 +4,7 @@ import { eq, and, isNull, sql } from 'drizzle-orm';
 import {
   createMatchSchema,
   updateMatchSchema,
+  hostUpdateMatchSchema,
   joinMatchSchema,
   assignMatchOfficerSchema,
   assignStageOfficerSchema,
@@ -19,7 +20,15 @@ import type { Organization, PowerFactor, ScoringType } from '@hitfactor/shared';
 import { db } from '../../config/database.js';
 import { matches, stages, matchAdmins, matchOfficers, stageOfficers, users, registrations, scores, matchRecomputeState } from '../../db/schema.js';
 import { normalizeShooterName, cleanDisplayName } from '../import/shooter-identity.js';
-import { isMatchHost } from './match-authz.js';
+import { isMatchHost, loadMatchMembership } from './match-authz.js';
+import {
+  accessFlagsFor,
+  canViewMatch,
+  canRegisterIntoMatch,
+  isJoinableStatus,
+  redactMatch,
+  visibleMatchesFor,
+} from './match-visibility.js';
 
 /** URL-safe invite token for a private match's QR/deep link. */
 function generateJoinToken(): string {
@@ -53,7 +62,13 @@ export async function listMatches(
   }
 
   const result = await query;
-  return reply.send(result);
+
+  // Private matches (and their invite tokens) are only for people involved.
+  const isGlobalAdmin = request.user.roles.includes('admin');
+  const membership = await loadMatchMembership(request.user.id);
+  return reply.send(
+    visibleMatchesFor(result, request.user.id, isGlobalAdmin, membership)
+  );
 }
 
 export async function getMatch(
@@ -76,12 +91,29 @@ export async function getMatch(
     });
   }
 
+  // A private match is only visible to people involved; to anyone else it
+  // doesn't exist. The invite token is further limited to the host/admins.
+  const membership = await loadMatchMembership(request.user.id, id);
+  const flags = accessFlagsFor(
+    match,
+    request.user.id,
+    request.user.roles.includes('admin'),
+    membership
+  );
+  if (!canViewMatch(match.is_private, flags)) {
+    return reply.status(404).send({
+      statusCode: 404,
+      error: 'Not Found',
+      message: 'Match not found',
+    });
+  }
+
   const matchStages = await db
     .select()
     .from(stages)
     .where(eq(stages.match_id, id));
 
-  return reply.send({ ...match, stages: matchStages });
+  return reply.send({ ...redactMatch(match, flags), stages: matchStages });
 }
 
 export async function createMatch(
@@ -112,6 +144,8 @@ export async function createMatch(
       .values({
         ...parsed.data,
         is_private: true,
+        // Hosted matches are always Level I.
+        level: 'I',
         join_token: generateJoinToken(),
         // A host wants their casual match open to invitees immediately.
         registration_open: true,
@@ -203,7 +237,9 @@ export async function getJoinPreview(
     location: match.location,
     organization: match.organization,
     status: match.status,
-    registration_open: match.registration_open,
+    // Not open for joining once the match is past/before its joinable statuses,
+    // so the join page shows "registration closed".
+    registration_open: match.registration_open && isJoinableStatus(match.status),
     host_name: host?.display_name ?? null,
     participant_count: count,
     divisions: getDivisionsForOrg(match.organization as Organization),
@@ -235,6 +271,7 @@ export async function joinMatch(
       id: matches.id,
       organization: matches.organization,
       registration_open: matches.registration_open,
+      status: matches.status,
     })
     .from(matches)
     .where(and(eq(matches.join_token, token), eq(matches.is_private, true)))
@@ -245,6 +282,14 @@ export async function joinMatch(
       statusCode: 404,
       error: 'Not Found',
       message: 'This invite link is invalid or has expired.',
+    });
+  }
+
+  if (!isJoinableStatus(match.status)) {
+    return reply.status(403).send({
+      statusCode: 403,
+      error: 'Forbidden',
+      message: 'This match is not accepting new shooters.',
     });
   }
 
@@ -334,7 +379,12 @@ export async function updateMatch(
     });
   }
 
-  const parsed = updateMatchSchema.safeParse(request.body);
+  // A host who is not also an admin gets the restricted schema: they can't
+  // make the match public, change its level/organization, or archive it.
+  const hostOnly = isHost && !isAdmin && !isGlobalAdmin;
+  const parsed = (hostOnly ? hostUpdateMatchSchema : updateMatchSchema).safeParse(
+    request.body
+  );
   if (!parsed.success) {
     return reply.status(400).send({
       statusCode: 400,
@@ -604,6 +654,7 @@ export async function addRegistration(
     .select({
       organization: matches.organization,
       registration_open: matches.registration_open,
+      is_private: matches.is_private,
     })
     .from(matches)
     .where(eq(matches.id, matchId))
@@ -616,9 +667,19 @@ export async function addRegistration(
     });
   }
 
+  // Private matches are joined via the invite token (joinMatch), never by
+  // self-registering here — only an admin or the host may add people directly.
+  if (!canRegisterIntoMatch(match.is_private, isAdmin)) {
+    return reply.status(403).send({
+      statusCode: 403,
+      error: 'Forbidden',
+      message: 'This match is private — join it with an invite link',
+    });
+  }
+
   // Non-admins may only self-register, and only while registration is open.
-  // (Private matches never reach here for a stranger — they can't load the
-  // match to call this.) Admins can add anyone, any time.
+  // (Private matches are excluded above for non-admins; they join via the invite
+  // token.) Admins can add anyone, any time.
   if (!isAdmin && !match.registration_open) {
     return reply.status(403).send({
       statusCode: 403,
