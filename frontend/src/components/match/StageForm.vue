@@ -4,7 +4,7 @@
     <q-toolbar v-if="fullscreen" class="bg-primary text-white">
       <q-btn flat round dense icon="close" @click="$emit('cancel')" />
       <q-toolbar-title>{{ isEditing ? 'Edit Stage' : 'Add Stage' }}</q-toolbar-title>
-      <q-btn flat label="Save" @click="handleSubmit" />
+      <q-btn flat label="Save" :loading="saving" :disable="saving" @click="handleSubmit" />
     </q-toolbar>
 
     <q-card-section :class="{ 'scroll-area': fullscreen }">
@@ -291,6 +291,8 @@
             color="primary"
             :label="isEditing ? 'Update Stage' : 'Add Stage'"
             unelevated
+            :loading="saving"
+            :disable="saving"
           />
         </div>
       </q-form>
@@ -325,6 +327,8 @@ const props = defineProps<{
   hideOfficers?: boolean;
   // Prefill the stage number for a new stage (last stage + 1).
   nextStageNumber?: number;
+  // The parent is persisting this form — block repeat submits.
+  saving?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -528,6 +532,7 @@ function removeOfficer(officer: StageOfficerAssignment) {
 }
 
 function handleSubmit() {
+  if (props.saving) return;
   const data: CreateStageInput = {
     stage_number: form.stage_number,
     name: form.name,

@@ -1,11 +1,9 @@
 <template>
   <q-page padding>
-    <!-- Loading -->
-    <div v-if="loading" class="flex flex-center q-pa-xl">
-      <q-spinner color="primary" size="3em" />
-    </div>
+    <!-- Loading: inline, so the page (and any rows already synced locally) stays usable -->
+    <q-linear-progress v-if="loading" indeterminate color="primary" class="q-mb-md" />
 
-    <template v-else>
+    <div>
       <!-- Add Stage Button -->
       <div class="q-mb-md">
         <q-btn
@@ -22,6 +20,7 @@
         <StageForm
           :hide-officers="isHost"
           :next-stage-number="nextStageNumber"
+          :saving="saving"
           @submit="handleAddStage"
           @cancel="showAddForm = false"
         />
@@ -40,19 +39,19 @@
                 label="Score"
                 @click="router.push(`/shooter/host/matches/${matchId}/score/${s.id}`)"
               />
-              <q-btn flat color="primary" label="Edit" @click="startEdit(s)" />
-              <q-btn flat color="negative" label="Delete" @click="confirmDelete(s)" />
+              <q-btn flat color="primary" label="Edit" :disable="saving" @click="startEdit(s)" />
+              <q-btn flat color="negative" label="Delete" :disable="saving" @click="confirmDelete(s)" />
             </template>
           </StageCard>
         </div>
       </div>
 
-      <div v-if="stages.length === 0 && !showAddForm" class="text-center text-grey q-pa-xl">
+      <div v-if="stages.length === 0 && !showAddForm && !loading" class="text-center text-grey q-pa-xl">
         <q-icon name="flag" size="4em" class="q-mb-md" />
         <div class="text-h6">No stages yet</div>
         <div>Click "Add Stage" to create your first stage</div>
       </div>
-    </template>
+    </div>
 
     <!-- Edit Stage Dialog -->
     <q-dialog v-model="showEditDialog" :full-width="!$q.screen.lt.sm" :maximized="$q.screen.lt.sm">
@@ -61,6 +60,7 @@
         :fullscreen="$q.screen.lt.sm"
         :existing-officers="editingStageOfficers"
         :hide-officers="isHost"
+        :saving="saving"
         @submit="handleUpdateStage"
         @cancel="showEditDialog = false"
       />
@@ -72,9 +72,12 @@
 import { ref, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
+import type { PowerSyncDatabase } from '@powersync/web';
 import { api } from 'src/boot/axios';
+import { getPowerSyncDb } from 'src/boot/powersync';
 import { useMatch } from 'src/composables/useMatch';
-import type { Stage } from '@hitfactor/shared';
+import { computeStageRounds } from '@hitfactor/shared';
+import type { Stage, CreateStageInput } from '@hitfactor/shared';
 import StageCard from 'src/components/match/StageCard.vue';
 import StageForm from 'src/components/match/StageForm.vue';
 import type { StageFormData, StageOfficerAssignment } from 'src/components/match/StageForm.vue';
@@ -93,6 +96,7 @@ const nextStageNumber = computed(
   () => stages.value.reduce((max, s) => Math.max(max, s.stage_number), 0) + 1,
 );
 
+const saving = ref(false);
 const showAddForm = ref(false);
 const showEditDialog = ref(false);
 const editingStage = ref<Stage | null>(null);
@@ -116,20 +120,99 @@ async function assignOfficersToStage(stageId: string, officers: StageOfficerAssi
   );
 }
 
+// The host flow is local-first: writes go to local SQLite and PowerSync uploads
+// them, so a stage appears instantly and works offline / on a bad signal. The
+// admin flow assigns stage officers over REST right after creating the stage,
+// which needs it to exist on the server first — so it (and any session without
+// a local db) keeps using the REST API.
+function localDb(): PowerSyncDatabase | null {
+  return isHost ? getPowerSyncDb() : null;
+}
+
+function stageNumberTaken(stageNumber: number, excludeStageId?: string): boolean {
+  return stages.value.some(
+    (s) => s.stage_number === stageNumber && s.id !== excludeStageId,
+  );
+}
+
+// Surface the server's message for a duplicate stage number (409).
+function failureMessage(err: unknown, fallback: string): string {
+  const res = (err as { response?: { status?: number; data?: { message?: string } } })
+    ?.response;
+  return res?.status === 409 && res.data?.message ? res.data.message : fallback;
+}
+
+async function insertStageLocally(db: PowerSyncDatabase, s: CreateStageInput) {
+  const { min_rounds, max_points } = computeStageRounds(s);
+  const now = new Date().toISOString();
+  await db.execute(
+    `INSERT INTO stages (
+      id, match_id, stage_number, name, description, scoring_type,
+      min_rounds, max_points, number_of_targets, number_of_steel,
+      number_of_no_shoots, paper_target_rounds, fixed_time, is_classifier,
+      classifier_number, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      crypto.randomUUID(), matchId, s.stage_number, s.name, s.description ?? null,
+      s.scoring_type, min_rounds, max_points, s.number_of_targets, s.number_of_steel,
+      s.number_of_no_shoots,
+      JSON.stringify(s.paper_target_rounds ?? Array(s.number_of_targets).fill(2)),
+      s.fixed_time ?? null, s.is_classifier ? 1 : 0, s.classifier_number ?? null,
+      now, now,
+    ],
+  );
+}
+
+async function updateStageLocally(db: PowerSyncDatabase, stageId: string, s: CreateStageInput) {
+  const { min_rounds, max_points } = computeStageRounds(s);
+  // Optional text fields use COALESCE so, like the REST PATCH, an omitted value
+  // leaves the existing one untouched.
+  await db.execute(
+    `UPDATE stages SET
+      stage_number = ?, name = ?, description = COALESCE(?, description),
+      scoring_type = ?, min_rounds = ?, max_points = ?, number_of_targets = ?,
+      number_of_steel = ?, number_of_no_shoots = ?, paper_target_rounds = ?,
+      fixed_time = COALESCE(?, fixed_time), is_classifier = ?,
+      classifier_number = COALESCE(?, classifier_number), updated_at = ?
+    WHERE id = ?`,
+    [
+      s.stage_number, s.name, s.description ?? null, s.scoring_type, min_rounds,
+      max_points, s.number_of_targets, s.number_of_steel, s.number_of_no_shoots,
+      JSON.stringify(s.paper_target_rounds ?? Array(s.number_of_targets).fill(2)),
+      s.fixed_time ?? null, s.is_classifier ? 1 : 0, s.classifier_number ?? null,
+      new Date().toISOString(), stageId,
+    ],
+  );
+}
+
 async function handleAddStage(data: StageFormData) {
+  if (saving.value) return;
+  if (stageNumberTaken(data.stage.stage_number)) {
+    $q.notify({ type: 'negative', message: `Stage ${data.stage.stage_number} already exists` });
+    return;
+  }
+
+  saving.value = true;
   try {
-    const response = await api.post<Stage>(`/api/matches/${matchId}/stages`, data.stage);
-    const newStageId = response.data.id;
+    const db = localDb();
+    if (db) {
+      await insertStageLocally(db, data.stage);
+    } else {
+      const response = await api.post<Stage>(`/api/matches/${matchId}/stages`, data.stage);
+      const newStageId = response.data.id;
 
-    if (data.officers.length > 0) {
-      await assignOfficersToStage(newStageId, data.officers);
+      if (data.officers.length > 0) {
+        await assignOfficersToStage(newStageId, data.officers);
+      }
+
+      await loadStages(matchId);
     }
-
-    await loadStages(matchId);
     showAddForm.value = false;
     $q.notify({ type: 'positive', message: 'Stage added!' });
-  } catch {
-    $q.notify({ type: 'negative', message: 'Failed to add stage' });
+  } catch (err) {
+    $q.notify({ type: 'negative', message: failureMessage(err, 'Failed to add stage') });
+  } finally {
+    saving.value = false;
   }
 }
 
@@ -166,20 +249,34 @@ async function startEdit(stage: Stage) {
 }
 
 async function handleUpdateStage(data: StageFormData) {
-  if (!editingStage.value) return;
+  if (!editingStage.value || saving.value) return;
+  const stageId = editingStage.value.id;
+  if (stageNumberTaken(data.stage.stage_number, stageId)) {
+    $q.notify({ type: 'negative', message: `Stage ${data.stage.stage_number} already exists` });
+    return;
+  }
+
+  saving.value = true;
   try {
-    await api.patch(`/api/matches/${matchId}/stages/${editingStage.value.id}`, data.stage);
+    const db = localDb();
+    if (db) {
+      await updateStageLocally(db, stageId, data.stage);
+    } else {
+      await api.patch(`/api/matches/${matchId}/stages/${stageId}`, data.stage);
 
-    if (data.officers.length > 0) {
-      await assignOfficersToStage(editingStage.value.id, data.officers);
+      if (data.officers.length > 0) {
+        await assignOfficersToStage(stageId, data.officers);
+      }
+
+      await loadStages(matchId);
     }
-
-    await loadStages(matchId);
     showEditDialog.value = false;
     editingStage.value = null;
     $q.notify({ type: 'positive', message: 'Stage updated!' });
-  } catch {
-    $q.notify({ type: 'negative', message: 'Failed to update stage' });
+  } catch (err) {
+    $q.notify({ type: 'negative', message: failureMessage(err, 'Failed to update stage') });
+  } finally {
+    saving.value = false;
   }
 }
 
@@ -190,12 +287,21 @@ function confirmDelete(stage: Stage) {
     cancel: true,
     persistent: true,
   }).onOk(async () => {
+    if (saving.value) return;
+    saving.value = true;
     try {
-      await api.delete(`/api/matches/${matchId}/stages/${stage.id}`);
-      await loadStages(matchId);
+      const db = localDb();
+      if (db) {
+        await db.execute('DELETE FROM stages WHERE id = ?', [stage.id]);
+      } else {
+        await api.delete(`/api/matches/${matchId}/stages/${stage.id}`);
+        await loadStages(matchId);
+      }
       $q.notify({ type: 'positive', message: 'Stage deleted' });
     } catch {
       $q.notify({ type: 'negative', message: 'Failed to delete stage' });
+    } finally {
+      saving.value = false;
     }
   });
 }

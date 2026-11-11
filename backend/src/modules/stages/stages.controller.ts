@@ -1,5 +1,5 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, ne } from 'drizzle-orm';
 import { createStageSchema, updateStageSchema, computeStageRounds } from '@hitfactor/shared';
 import { db } from '../../config/database.js';
 import { stages, matchAdmins } from '../../db/schema.js';
@@ -7,7 +7,7 @@ import { isMatchHost } from '../matches/match-authz.js';
 
 // May the user set up stages for this match? A match admin (public match) or the
 // host (private, shooter-created match). Callers also allow the global admin.
-async function canManageStages(
+export async function canManageStages(
   matchId: string,
   userId: string
 ): Promise<boolean> {
@@ -20,6 +20,41 @@ async function canManageStages(
     .limit(1);
   if (admin) return true;
   return isMatchHost(matchId, userId);
+}
+
+// Whether `stageNumber` is already used by another stage in the match
+// (stages_match_stage_unique). `excludeStageId` lets an update keep its own number.
+export async function stageNumberTaken(
+  matchId: string,
+  stageNumber: number,
+  excludeStageId?: string
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: stages.id })
+    .from(stages)
+    .where(
+      and(
+        eq(stages.match_id, matchId),
+        eq(stages.stage_number, stageNumber),
+        excludeStageId ? ne(stages.id, excludeStageId) : undefined
+      )
+    )
+    .limit(1);
+  return !!row;
+}
+
+function stageNumberConflict(reply: FastifyReply, stageNumber: number) {
+  return reply.status(409).send({
+    statusCode: 409,
+    error: 'Conflict',
+    message: `Stage ${stageNumber} already exists in this match`,
+  });
+}
+
+// Postgres unique_violation, possibly wrapped by the driver/ORM as `cause`.
+function isUniqueViolation(err: unknown): boolean {
+  const e = err as { code?: string; cause?: { code?: string } } | null;
+  return e?.code === '23505' || e?.cause?.code === '23505';
 }
 
 export async function listStages(
@@ -63,21 +98,33 @@ export async function createStage(
     });
   }
 
+  if (await stageNumberTaken(matchId, parsed.data.stage_number)) {
+    return stageNumberConflict(reply, parsed.data.stage_number);
+  }
+
   const { min_rounds, max_points } = computeStageRounds(parsed.data);
 
-  const [stage] = await db
-    .insert(stages)
-    .values({
-      ...parsed.data,
-      match_id: matchId,
-      min_rounds,
-      max_points,
-      paper_target_rounds: parsed.data.paper_target_rounds ?? Array(parsed.data.number_of_targets).fill(2),
-      fixed_time: parsed.data.fixed_time?.toString() ?? null,
-    })
-    .returning();
+  try {
+    const [stage] = await db
+      .insert(stages)
+      .values({
+        ...parsed.data,
+        match_id: matchId,
+        min_rounds,
+        max_points,
+        paper_target_rounds: parsed.data.paper_target_rounds ?? Array(parsed.data.number_of_targets).fill(2),
+        fixed_time: parsed.data.fixed_time?.toString() ?? null,
+      })
+      .returning();
 
-  return reply.status(201).send(stage);
+    return reply.status(201).send(stage);
+  } catch (err) {
+    // Lost a race with a concurrent create of the same stage number.
+    if (isUniqueViolation(err)) {
+      return stageNumberConflict(reply, parsed.data.stage_number);
+    }
+    throw err;
+  }
 }
 
 export async function updateStage(
@@ -108,6 +155,13 @@ export async function updateStage(
       message: 'Validation failed',
       details: parsed.error.flatten(),
     });
+  }
+
+  if (
+    parsed.data.stage_number !== undefined &&
+    (await stageNumberTaken(matchId, parsed.data.stage_number, stageId))
+  ) {
+    return stageNumberConflict(reply, parsed.data.stage_number);
   }
 
   const updateData: Record<string, unknown> = { ...parsed.data, updated_at: new Date() };

@@ -257,6 +257,7 @@ async function run(commit: boolean) {
         in_progress: inProgress.value ? 'true' : 'false',
       },
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300_000, // large upload + server-side import
     });
     summary.value = res.data;
     if (commit) {

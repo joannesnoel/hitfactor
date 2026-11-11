@@ -5,6 +5,8 @@ import { whenPowerSyncReady } from 'src/boot/powersync';
 export function useSync() {
   const syncStore = useSyncStore();
   let statusListener: (() => void) | null = null;
+  let pendingTimer: ReturnType<typeof setInterval> | null = null;
+  let unmounted = false;
 
   const syncStatus = computed(() => syncStore.syncStatus);
   const pendingUploads = computed(() => syncStore.pendingUploads);
@@ -14,24 +16,37 @@ export function useSync() {
 
   async function startTracking() {
     const db = await whenPowerSyncReady();
-    if (!db) return;
+    if (!db || unmounted) return;
+
+    // Pending uploads: the CRUD queue has no change event, so refresh it on every
+    // status change and on a short poll (cheap local query) while tracking.
+    const refreshPending = async () => {
+      try {
+        syncStore.setPendingUploads((await db.getUploadQueueStats()).count);
+      } catch {
+        // db closed (e.g. logout) — leave the last value
+      }
+    };
+    void refreshPending();
+    pendingTimer = setInterval(() => void refreshPending(), 2000);
 
     // Track connection status changes
     const subscription = db.registerListener({
       statusChanged: (status) => {
-        if (status.connected) {
-          syncStore.updateStatus('connected');
-        } else if (status.dataFlowStatus?.uploading) {
+        const flow = status.dataFlowStatus;
+        const err = flow?.uploadError ?? flow?.downloadError;
+        if (err) {
+          // e.g. a failing upload keeps retrying and blocks the queue — show it.
+          syncStore.setError(err.message || 'Sync error');
+        } else if (flow?.uploading || flow?.downloading) {
           syncStore.updateStatus('syncing');
+        } else if (status.connected) {
+          syncStore.updateStatus('connected');
         } else {
           syncStore.updateStatus('offline');
         }
-
-        // Track pending uploads
-        const uploading = status.dataFlowStatus?.uploading;
-        if (uploading) {
-          syncStore.updateStatus('syncing');
-        }
+        if (status.lastSyncedAt) syncStore.lastSyncTime = status.lastSyncedAt;
+        void refreshPending();
       },
     });
 
@@ -45,9 +60,14 @@ export function useSync() {
   });
 
   onUnmounted(() => {
+    unmounted = true;
     if (statusListener) {
       statusListener();
       statusListener = null;
+    }
+    if (pendingTimer) {
+      clearInterval(pendingTimer);
+      pendingTimer = null;
     }
   });
 

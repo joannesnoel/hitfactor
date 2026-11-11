@@ -2,6 +2,9 @@ import type { FastifyRequest, FastifyReply } from 'fastify';
 import { eq, and, inArray } from 'drizzle-orm';
 import {
   computeScore,
+  computeStageRounds,
+  createStageSchema,
+  updateStageSchema,
   isValidDivisionForOrg,
   MATCH_LEVEL_OFFICIAL_ROLES,
 } from '@hitfactor/shared';
@@ -23,6 +26,7 @@ import {
   matchRecomputeState,
 } from '../../db/schema.js';
 import { isMatchHost } from '../matches/match-authz.js';
+import { canManageStages, stageNumberTaken } from '../stages/stages.controller.js';
 
 // Mark a match dirty so the auto-recompute scheduler picks it up. Kept in a
 // separate (non-synced) table so this per-score write doesn't fan out to clients.
@@ -405,6 +409,164 @@ async function handleScoreDelete(id: string): Promise<void> {
   if (s) await markScoresChanged(s.match_id);
 }
 
+// ─── Stages (local-first host flow) ──────────────────────────────────────────
+// Mirrors the REST stages controller: same authorization (global admin, match
+// admin, or the private match's host), same schemas, server-computed
+// min_rounds/max_points, and the (match_id, stage_number) uniqueness check.
+// Failures throw → per-op 207 errors; the client surfaces them.
+
+// Local SQLite stores booleans as 0/1, jsonb as a JSON string, and absent
+// optionals as null. Convert back to what the zod schemas expect (keys not sent
+// by a PATCH stay absent).
+function normalizeStageData(
+  data: Record<string, unknown>
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(data)) {
+    if (v === null) continue;
+    if (k === 'is_classifier') out[k] = Boolean(v);
+    else if (k === 'paper_target_rounds' && typeof v === 'string') {
+      try {
+        out[k] = JSON.parse(v);
+      } catch {
+        out[k] = v; // fails validation below
+      }
+    } else out[k] = v;
+  }
+  return out;
+}
+
+async function assertCanManageStages(
+  matchId: string,
+  userId: string,
+  isSystemAdmin: boolean,
+  action: string
+): Promise<void> {
+  if (isSystemAdmin || (await canManageStages(matchId, userId))) return;
+  throw new Error(`Not authorized to ${action} stages for this match`);
+}
+
+async function handleStagePut(
+  data: Record<string, unknown>,
+  id: string,
+  userId: string,
+  isSystemAdmin: boolean
+): Promise<void> {
+  const matchId = data.match_id as string;
+  if (!matchId) throw new Error('match_id is required');
+  await assertCanManageStages(matchId, userId, isSystemAdmin, 'add');
+
+  const parsed = createStageSchema.safeParse(normalizeStageData(data));
+  if (!parsed.success) {
+    throw new Error(`Invalid stage: ${parsed.error.issues[0]?.message ?? 'validation failed'}`);
+  }
+
+  const [existing] = await db
+    .select({ match_id: stages.match_id })
+    .from(stages)
+    .where(eq(stages.id, id))
+    .limit(1);
+  // A retried upload of an already-created stage updates in place, but never
+  // across matches.
+  if (existing && existing.match_id !== matchId) {
+    throw new Error('Stage belongs to a different match');
+  }
+
+  if (await stageNumberTaken(matchId, parsed.data.stage_number, id)) {
+    throw new Error(`Stage ${parsed.data.stage_number} already exists in this match`);
+  }
+
+  const { min_rounds, max_points } = computeStageRounds(parsed.data);
+  const values = {
+    ...parsed.data,
+    min_rounds,
+    max_points,
+    paper_target_rounds:
+      parsed.data.paper_target_rounds ??
+      Array(parsed.data.number_of_targets).fill(2),
+    fixed_time: parsed.data.fixed_time?.toString() ?? null,
+  };
+
+  if (existing) {
+    await db
+      .update(stages)
+      .set({ ...values, updated_at: new Date() })
+      .where(eq(stages.id, id));
+  } else {
+    await db.insert(stages).values({ id, match_id: matchId, ...values });
+  }
+}
+
+async function handleStagePatch(
+  data: Record<string, unknown>,
+  id: string,
+  userId: string,
+  isSystemAdmin: boolean
+): Promise<void> {
+  const [existing] = await db
+    .select()
+    .from(stages)
+    .where(eq(stages.id, id))
+    .limit(1);
+  if (!existing) throw new Error(`Stage ${id} not found`);
+  const matchId = existing.match_id;
+  await assertCanManageStages(matchId, userId, isSystemAdmin, 'update');
+
+  // match_id / min_rounds / max_points are not in the schema, so a PATCH can't
+  // move a stage between matches or set computed fields.
+  const parsed = updateStageSchema.safeParse(normalizeStageData(data));
+  if (!parsed.success) {
+    throw new Error(`Invalid stage: ${parsed.error.issues[0]?.message ?? 'validation failed'}`);
+  }
+
+  if (
+    parsed.data.stage_number !== undefined &&
+    (await stageNumberTaken(matchId, parsed.data.stage_number, id))
+  ) {
+    throw new Error(`Stage ${parsed.data.stage_number} already exists in this match`);
+  }
+
+  const updateData: Record<string, unknown> = {
+    ...parsed.data,
+    updated_at: new Date(),
+  };
+  if (parsed.data.fixed_time !== undefined) {
+    updateData.fixed_time = parsed.data.fixed_time.toString();
+  }
+  if (
+    parsed.data.number_of_targets !== undefined ||
+    parsed.data.number_of_steel !== undefined ||
+    parsed.data.paper_target_rounds !== undefined
+  ) {
+    const computed = computeStageRounds({
+      number_of_targets: parsed.data.number_of_targets ?? existing.number_of_targets,
+      number_of_steel: parsed.data.number_of_steel ?? existing.number_of_steel,
+      paper_target_rounds:
+        parsed.data.paper_target_rounds ??
+        (existing.paper_target_rounds as number[] | undefined),
+    });
+    updateData.min_rounds = computed.min_rounds;
+    updateData.max_points = computed.max_points;
+  }
+
+  await db.update(stages).set(updateData).where(eq(stages.id, id));
+}
+
+async function handleStageDelete(
+  id: string,
+  userId: string,
+  isSystemAdmin: boolean
+): Promise<void> {
+  const [existing] = await db
+    .select({ match_id: stages.match_id })
+    .from(stages)
+    .where(eq(stages.id, id))
+    .limit(1);
+  if (!existing) return; // already gone — deletes are idempotent
+  await assertCanManageStages(existing.match_id, userId, isSystemAdmin, 'delete');
+  await db.delete(stages).where(eq(stages.id, id));
+}
+
 export async function handleUploadData(
   request: FastifyRequest,
   reply: FastifyReply
@@ -494,6 +656,15 @@ export async function handleUploadData(
           await db
             .delete(registrations)
             .where(eq(registrations.id, op.id));
+        }
+      } else if (op.type === 'stages') {
+        const isSystemAdmin = request.user.roles.includes('admin');
+        if (op.op === 'PUT' && op.data) {
+          await handleStagePut(op.data, op.id, request.user.id, isSystemAdmin);
+        } else if (op.op === 'PATCH' && op.data) {
+          await handleStagePatch(op.data, op.id, request.user.id, isSystemAdmin);
+        } else if (op.op === 'DELETE') {
+          await handleStageDelete(op.id, request.user.id, isSystemAdmin);
         }
       }
       // Other table types can be added here as needed

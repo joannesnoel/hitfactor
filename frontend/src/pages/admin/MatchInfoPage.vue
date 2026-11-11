@@ -196,7 +196,7 @@ async function uploadBanner() {
     const { data } = await api.post<{ banner_updated_at: string }>(
       `/api/matches/${matchId}/banner`,
       form,
-      { headers: { 'Content-Type': 'multipart/form-data' } },
+      { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 60_000 },
     );
     if (match.value) match.value.banner_updated_at = data.banner_updated_at;
     bannerFile.value = null;

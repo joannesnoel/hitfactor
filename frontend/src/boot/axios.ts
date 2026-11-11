@@ -6,8 +6,13 @@ import axios, {
 
 const baseURL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
+// Without a timeout a request on a dead/very weak link can hang for minutes with
+// no feedback. Long-running calls (file uploads/imports) override this per request.
+const REQUEST_TIMEOUT_MS = 20_000;
+
 const api: AxiosInstance = axios.create({
   baseURL,
+  timeout: REQUEST_TIMEOUT_MS,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -42,10 +47,16 @@ async function refreshAccessToken(): Promise<string> {
   const refreshToken = localStorage.getItem('refresh_token');
   if (!refreshToken) throw new Error('No refresh token');
   // Bare axios (no interceptors) so a failed refresh can't recurse.
+  // Own timeout: a hung refresh would otherwise stall every request queued behind
+  // the single-flight promise.
   const { data } = await axios.post<{
     access_token: string;
     refresh_token: string;
-  }>(`${baseURL}/api/auth/refresh`, { refresh_token: refreshToken });
+  }>(
+    `${baseURL}/api/auth/refresh`,
+    { refresh_token: refreshToken },
+    { timeout: REQUEST_TIMEOUT_MS },
+  );
   localStorage.setItem('access_token', data.access_token);
   localStorage.setItem('refresh_token', data.refresh_token);
   return data.access_token;

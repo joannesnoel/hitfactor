@@ -86,6 +86,7 @@
 import { ref, computed, provide } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useMatch } from 'src/composables/useMatch';
+import { useSync } from 'src/composables/useSync';
 import { pageHeaderTitle, pageHeaderBackTo } from 'src/composables/usePageHeader';
 import SyncStatusIndicator from 'src/components/common/SyncStatusIndicator.vue';
 
@@ -96,6 +97,8 @@ const base = `/shooter/host/matches/${matchId}`;
 const drawerOpen = ref(false);
 
 const { match, stages, registrations, loading } = useMatch(matchId);
+// Drive the header sync indicator (status, pending uploads, upload errors).
+useSync();
 
 // Scoring runs full-width (no drawer); a page there drives the header + back
 // button via setPageHeader, matching the officer scoring experience.
