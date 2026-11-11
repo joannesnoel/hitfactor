@@ -64,6 +64,27 @@
         </q-card-section>
       </q-card>
 
+      <!-- The host shot too: jump to their own analysis -->
+      <q-card
+        v-if="iShot"
+        flat
+        bordered
+        class="q-mb-md cursor-pointer"
+        style="max-width: 620px"
+        @click="$router.push({ path: `/shooter/matches/${matchId}`, query: { tab: 'analysis' } })"
+      >
+        <q-card-section class="row items-center no-wrap">
+          <q-icon name="insights" color="primary" size="28px" class="q-mr-md" />
+          <div class="col">
+            <div class="text-subtitle1 text-weight-bold">My analysis</div>
+            <div class="text-caption text-grey-7">
+              See how you did in this match, stage by stage, against the field.
+            </div>
+          </div>
+          <q-icon name="chevron_right" color="grey-5" />
+        </q-card-section>
+      </q-card>
+
       <!-- Scorers: shooters the host lets enter scores -->
       <q-card flat bordered class="q-mb-md" style="max-width: 620px">
         <q-card-section>
@@ -305,6 +326,11 @@ async function removeScorer(userId: string) {
 }
 
 onMounted(() => void loadScorers());
+
+// Whether the host is also a shooter in this match.
+const iShot = computed(() =>
+  registrations.value.some((r) => r.user_id === authStore.user?.id),
+);
 
 const isFinished = computed(() => match.value?.status === 'final');
 
