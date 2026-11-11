@@ -5,6 +5,15 @@
       <q-space />
       <q-btn
         color="primary"
+        outline
+        icon="qr_code_scanner"
+        label="Scan to join"
+        no-caps
+        class="q-mr-sm"
+        @click="showScan = true"
+      />
+      <q-btn
+        color="primary"
         icon="add"
         label="Host a match"
         to="/shooter/host/create"
@@ -12,6 +21,8 @@
         unelevated
       />
     </div>
+
+    <ScanJoinDialog v-model="showScan" />
 
     <!-- Loading -->
     <div v-if="loading" class="flex flex-center q-pa-xl">
@@ -35,7 +46,10 @@
             Scan a match's QR code or open its invite link to join, or host one
             of your own and invite your friends.
           </div>
-          <q-btn color="primary" label="Host a match" to="/shooter/host/create" no-caps unelevated />
+          <div class="row justify-center q-gutter-sm">
+            <q-btn color="primary" icon="qr_code_scanner" label="Scan to join" no-caps unelevated @click="showScan = true" />
+            <q-btn color="primary" outline label="Host a match" to="/shooter/host/create" no-caps />
+          </div>
         </q-card>
 
         <div v-else class="row q-col-gutter-md">
@@ -67,14 +81,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import type { Match } from '@hitfactor/shared';
 import { useMatch } from 'src/composables/useMatch';
 import { useMyMatchRoles } from 'src/composables/useMyMatchRoles';
 import MatchCard from 'src/components/match/MatchCard.vue';
+import ScanJoinDialog from 'src/components/common/ScanJoinDialog.vue';
 
 const router = useRouter();
+const showScan = ref(false);
 
 // useMatch() loads the match list via a reactive db.watch — so matches appear
 // as they sync in after login, without needing to leave and return to the page.

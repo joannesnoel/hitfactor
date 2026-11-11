@@ -352,6 +352,7 @@ async function loadDetails(): Promise<void> {
           match.value = { ...data, registration_open: Boolean(data.registration_open) } as Match;
         }
         stages.value = data.stages ?? [];
+        stagesFromApi = (data.stages ?? []).length > 0;
       }
       if (matchResults.value.length === 0) {
         const { data } = await api.get<Array<{ results: MatchResultEntry[] }>>(
@@ -370,6 +371,8 @@ async function loadDetails(): Promise<void> {
 const watchAbort = new AbortController();
 // True when the match host (or an admin) made this user an official of the match.
 const isScorer = ref(false);
+// True when the stage list came from the public API rather than the local db.
+let stagesFromApi = false;
 // The creator of a private match is its host (mirrors the server's isMatchHost).
 const isHost = computed(
   () =>
@@ -436,6 +439,21 @@ onMounted(async () => {
     {
       onResult: (res) => {
         isScorer.value = (res.rows?._array?.length ?? 0) > 0;
+      },
+    },
+    { signal: watchAbort.signal },
+  );
+
+  // Stages are watched too, so a stage the host adds, edits or removes (even
+  // while offline, once it syncs) shows up here without reopening the page. An
+  // empty local result doesn't wipe a list that was filled from the public API.
+  db.watch(
+    'SELECT * FROM stages WHERE match_id = ? ORDER BY stage_number',
+    [matchId],
+    {
+      onResult: (res) => {
+        const rows = (res.rows?._array as Stage[] | undefined) ?? [];
+        if (rows.length > 0 || !stagesFromApi) stages.value = rows;
       },
     },
     { signal: watchAbort.signal },
