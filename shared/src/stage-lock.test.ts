@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { changedLockedStageFields } from './stage-lock.js';
+import { changedLockedStageFields, defaultStageName } from './stage-lock.js';
+import { createStageSchema } from './validation.js';
 
 const existing = {
   number_of_targets: 5,
@@ -52,5 +53,31 @@ describe('changedLockedStageFields', () => {
     const ft = { ...existing, scoring_type: 'fixed_time', fixed_time: '12.50' };
     expect(changedLockedStageFields(ft, { fixed_time: 12.5 })).toEqual([]);
     expect(changedLockedStageFields(ft, { fixed_time: 13 })).toEqual(['fixed_time']);
+  });
+});
+
+describe('stage name is optional', () => {
+  const base = {
+    stage_number: 3,
+    scoring_type: 'comstock',
+    number_of_targets: 5,
+    number_of_steel: 0,
+    number_of_no_shoots: 0,
+  };
+
+  it('accepts a stage without a name', () => {
+    expect(createStageSchema.safeParse(base).success).toBe(true);
+  });
+
+  it('still accepts a name when one is given (imports, old clients)', () => {
+    expect(createStageSchema.safeParse({ ...base, name: 'Shootin Steel' }).success).toBe(true);
+  });
+
+  it('rejects an empty name', () => {
+    expect(createStageSchema.safeParse({ ...base, name: '' }).success).toBe(false);
+  });
+
+  it('defaults the stored name to "Stage N"', () => {
+    expect(defaultStageName(3)).toBe('Stage 3');
   });
 });

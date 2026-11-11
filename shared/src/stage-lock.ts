@@ -83,3 +83,8 @@ export function changedLockedStageFields(
   }
   return changed;
 }
+
+/** The stored name for a stage created without one. */
+export function defaultStageName(stageNumber: number): string {
+  return `Stage ${stageNumber}`;
+}

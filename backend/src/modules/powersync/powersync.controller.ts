@@ -6,6 +6,7 @@ import {
   createStageSchema,
   updateStageSchema,
   changedLockedStageFields,
+  defaultStageName,
   STAGE_HAS_SCORES_MESSAGE,
   STAGE_DELETE_HAS_SCORES_MESSAGE,
   isValidDivisionForOrg,
@@ -489,6 +490,7 @@ async function handleStagePut(
   const { min_rounds, max_points } = computeStageRounds(parsed.data);
   const values = {
     ...parsed.data,
+    name: parsed.data.name ?? defaultStageName(parsed.data.stage_number),
     min_rounds,
     max_points,
     paper_target_rounds:

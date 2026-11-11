@@ -156,7 +156,7 @@
               <q-avatar color="grey-3" text-color="dark" size="32px">{{ s.stage_number }}</q-avatar>
             </q-item-section>
             <q-item-section>
-              <q-item-label>{{ s.name }}</q-item-label>
+              <q-item-label>Stage {{ s.stage_number }}</q-item-label>
               <q-item-label caption>Tap to score shooters</q-item-label>
             </q-item-section>
             <q-item-section side><q-icon name="chevron_right" color="teal" /></q-item-section>

@@ -4,7 +4,7 @@
       <q-btn flat round icon="arrow_back" @click="$router.back()" />
       <div class="q-ml-sm">
         <div class="text-h5 text-weight-bold" v-if="stage">
-          Review: Stage {{ stage.stage_number }} - {{ stage.name }}
+          Review: Stage {{ stage.stage_number }}
         </div>
         <div class="text-caption text-grey">
           {{ scores.length }} scores entered

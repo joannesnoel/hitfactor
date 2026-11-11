@@ -89,7 +89,7 @@
                 <div class="row items-center justify-between">
                   <div>
                     <div class="text-subtitle1 text-weight-bold">
-                      Stage {{ s.stage_number }}: {{ s.name }}
+                      Stage {{ s.stage_number }}
                     </div>
                     <div class="text-caption text-grey">
                       {{ scoringLabel(s.scoring_type) }} | {{ s.min_rounds }} rounds | {{ s.max_points }} pts

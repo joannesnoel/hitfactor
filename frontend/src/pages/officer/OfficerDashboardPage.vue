@@ -41,7 +41,7 @@
                 :key="stage.id"
                 outline
                 color="primary"
-                :label="`Stage ${stage.stage_number}: ${stage.name}`"
+                :label="`Stage ${stage.stage_number}`"
                 @click="$router.push(`/officer/scoring/${am.match.id}/${stage.id}`)"
               />
             </div>

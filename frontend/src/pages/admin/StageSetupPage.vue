@@ -82,6 +82,7 @@ import { useMatch } from 'src/composables/useMatch';
 import {
   computeStageRounds,
   changedLockedStageFields,
+  defaultStageName,
   STAGE_HAS_SCORES_MESSAGE,
   STAGE_DELETE_HAS_SCORES_MESSAGE,
 } from '@hitfactor/shared';
@@ -182,7 +183,7 @@ async function insertStageLocally(db: PowerSyncDatabase, s: CreateStageInput) {
       classifier_number, created_at, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      crypto.randomUUID(), matchId, s.stage_number, s.name, s.description ?? null,
+      crypto.randomUUID(), matchId, s.stage_number, s.name ?? defaultStageName(s.stage_number), s.description ?? null,
       s.scoring_type, min_rounds, max_points, s.number_of_targets, s.number_of_steel,
       s.number_of_no_shoots,
       JSON.stringify(s.paper_target_rounds ?? Array(s.number_of_targets).fill(2)),
@@ -198,14 +199,14 @@ async function updateStageLocally(db: PowerSyncDatabase, stageId: string, s: Cre
   // leaves the existing one untouched.
   await db.execute(
     `UPDATE stages SET
-      stage_number = ?, name = ?, description = COALESCE(?, description),
+      stage_number = ?, description = COALESCE(?, description),
       scoring_type = ?, min_rounds = ?, max_points = ?, number_of_targets = ?,
       number_of_steel = ?, number_of_no_shoots = ?, paper_target_rounds = ?,
       fixed_time = COALESCE(?, fixed_time), is_classifier = ?,
       classifier_number = COALESCE(?, classifier_number), updated_at = ?
     WHERE id = ?`,
     [
-      s.stage_number, s.name, s.description ?? null, s.scoring_type, min_rounds,
+      s.stage_number, s.description ?? null, s.scoring_type, min_rounds,
       max_points, s.number_of_targets, s.number_of_steel, s.number_of_no_shoots,
       JSON.stringify(s.paper_target_rounds ?? Array(s.number_of_targets).fill(2)),
       s.fixed_time ?? null, s.is_classifier ? 1 : 0, s.classifier_number ?? null,
@@ -323,7 +324,7 @@ function confirmDelete(stage: Stage) {
   }
   $q.dialog({
     title: 'Delete Stage',
-    message: `Are you sure you want to delete Stage ${stage.stage_number}: ${stage.name}?`,
+    message: `Are you sure you want to delete Stage ${stage.stage_number}?`,
     cancel: true,
     persistent: true,
   }).onOk(async () => {

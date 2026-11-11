@@ -166,7 +166,7 @@ const abort = new AbortController();
 const loading = ref(true);
 const regs = ref<{ id: string; division: string }[]>([]);
 const regId = ref<string | null>(null);
-const stageRows = ref<{ id: string; stage_number: number; name: string; max_points: number }[]>([]);
+const stageRows = ref<{ id: string; stage_number: number; max_points: number }[]>([]);
 const stageResultRows = ref<{ stage_id: string; division: string; results: string }[]>([]);
 const matchResultRows = ref<{ division: string; results: string }[]>([]);
 const metric = ref<'place' | 'pct'>('place');
@@ -197,7 +197,7 @@ onMounted(async () => {
     opts,
   );
   db.watch(
-    'SELECT id, stage_number, name, max_points FROM stages WHERE match_id = ?',
+    'SELECT id, stage_number, max_points FROM stages WHERE match_id = ?',
     [props.matchId],
     { onResult: (r) => (stageRows.value = rows(r)) },
     opts,
@@ -291,12 +291,8 @@ const headline = computed(() => {
   ];
 });
 
-const stageNames = computed(
-  () => new Map(stageRows.value.map((s) => [s.id, s.name])),
-);
-function stageLabel(id: string, n: number): string {
-  const name = stageNames.value.get(id);
-  return name ? `Stage ${n} · ${name}` : `Stage ${n}`;
+function stageLabel(_id: string, n: number): string {
+  return `Stage ${n}`;
 }
 
 const pctOf = (v: number | null) => (v === null ? null : Math.round(v * 100));

@@ -5,6 +5,7 @@ import {
   updateStageSchema,
   computeStageRounds,
   changedLockedStageFields,
+  defaultStageName,
   STAGE_HAS_SCORES_MESSAGE,
   STAGE_DELETE_HAS_SCORES_MESSAGE,
 } from '@hitfactor/shared';
@@ -134,6 +135,7 @@ export async function createStage(
       .insert(stages)
       .values({
         ...parsed.data,
+        name: parsed.data.name ?? defaultStageName(parsed.data.stage_number),
         match_id: matchId,
         min_rounds,
         max_points,

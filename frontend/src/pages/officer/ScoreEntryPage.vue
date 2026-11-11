@@ -1084,7 +1084,7 @@ onMounted(async () => {
     } as Stage;
 
     setPageHeader(
-      `Stage ${stage.value.stage_number}: ${stage.value.name}`,
+      `Stage ${stage.value.stage_number}`,
       scoringBackTo,
     );
 

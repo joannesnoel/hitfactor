@@ -10,7 +10,7 @@
         <q-btn flat round icon="arrow_back" aria-label="Back" @click="goBack" />
         <div class="q-ml-sm">
           <div class="text-h5 text-weight-bold">
-            Stage {{ stage.stage_number }}: {{ stage.name }}
+            Stage {{ stage.stage_number }}
           </div>
           <div class="text-caption text-grey">
             {{ scoringLabel(stage.scoring_type) }} | {{ stage.min_rounds }} rounds | {{ stage.max_points }} max pts

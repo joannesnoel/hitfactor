@@ -161,7 +161,9 @@ export type UpdateRegistrationInput = z.infer<typeof updateRegistrationSchema>;
 
 export const createStageSchema = z.object({
   stage_number: z.number().int().min(1).max(30),
-  name: z.string().min(1).max(200),
+  // Optional: stages are identified by their number. When omitted the stored
+  // name defaults to "Stage N" (see defaultStageName); imports may still set one.
+  name: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).optional(),
   scoring_type: z.enum(SCORING_TYPES),
   number_of_targets: z.number().int().min(0).max(32),

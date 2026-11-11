@@ -3,7 +3,7 @@
     <q-card-section>
       <div class="row items-center justify-between q-mb-sm">
         <div class="text-subtitle1 text-weight-bold">
-          Stage {{ stage.stage_number }}: {{ stage.name }}
+          Stage {{ stage.stage_number }}
         </div>
         <q-badge
           v-if="stage.is_classifier"

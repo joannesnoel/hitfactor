@@ -12,34 +12,20 @@
       <q-form @submit.prevent="handleSubmit" class="q-gutter-y-md">
         <q-banner v-if="scoreLocked" dense rounded class="bg-orange-1 text-orange-10">
           This stage already has scores, so its targets, rounds and scoring type
-          are locked. You can still change the name, number and description.
+          are locked. You can still change the number and description.
         </q-banner>
 
-        <div class="row q-col-gutter-md">
-          <div class="col-4 col-xs-12">
-            <q-input
-              v-model.number="form.stage_number"
-              label="Stage Number"
-              type="number"
-              :rules="[
-                (val: number) => (val >= 1 && val <= 30) || 'Must be 1-30',
-              ]"
-              outlined
-              dense
-            />
-          </div>
-          <div class="col-8 col-xs-12">
-            <q-input
-              v-model="form.name"
-              label="Stage Name"
-              :rules="[
-                (val: string) => (val && val.length > 0) || 'Required',
-              ]"
-              outlined
-              dense
-            />
-          </div>
-        </div>
+        <q-input
+          v-model.number="form.stage_number"
+          label="Stage Number"
+          type="number"
+          :rules="[
+            (val: number) => (val >= 1 && val <= 30) || 'Must be 1-30',
+          ]"
+          outlined
+          dense
+          style="max-width: 200px"
+        />
 
         <q-input
           v-model="form.description"
@@ -374,7 +360,6 @@ const moOfficers = computed(() =>
 
 const form = reactive<{
   stage_number: number;
-  name: string;
   description: string;
   scoring_type: ScoringType;
   number_of_targets: number;
@@ -386,7 +371,6 @@ const form = reactive<{
   classifier_number: string;
 }>({
   stage_number: props.nextStageNumber ?? 1,
-  name: '',
   description: '',
   scoring_type: 'comstock',
   number_of_targets: 5,
@@ -412,7 +396,6 @@ const computedMaxPoints = computed(() => computedValues.value.max_points);
 watchEffect(() => {
   if (props.stage) {
     form.stage_number = props.stage.stage_number;
-    form.name = props.stage.name;
     form.description = props.stage.description ?? '';
     form.scoring_type = props.stage.scoring_type as ScoringType;
     form.number_of_targets = props.stage.number_of_targets;
@@ -552,7 +535,6 @@ function handleSubmit() {
   if (props.saving) return;
   const data: CreateStageInput = {
     stage_number: form.stage_number,
-    name: form.name,
     scoring_type: form.scoring_type,
     number_of_targets: form.number_of_targets,
     number_of_steel: form.number_of_steel,

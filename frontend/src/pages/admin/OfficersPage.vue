@@ -54,7 +54,7 @@
           <q-card-section class="q-pb-none">
             <div class="row items-center justify-between">
               <div class="text-subtitle2 text-weight-bold">
-                Stage {{ s.stage_number }}: {{ s.name }}
+                Stage {{ s.stage_number }}
               </div>
               <q-btn
                 flat dense
@@ -190,7 +190,7 @@
                 :key="s.id"
                 v-model="assignStageIds"
                 :val="s.id"
-                :label="`Stage ${s.stage_number}: ${s.name}`"
+                :label="`Stage ${s.stage_number}`"
                 dense
               />
             </div>
