@@ -50,6 +50,61 @@
         </q-card-section>
       </q-card>
 
+      <!-- Scorers: shooters the host lets enter scores -->
+      <q-card flat bordered class="q-mb-md" style="max-width: 620px">
+        <q-card-section>
+          <div class="text-subtitle1 text-weight-bold q-mb-xs">Scorers</div>
+          <div class="text-caption text-grey-7 q-mb-sm">
+            Let a shooter who has joined enter scores for any stage. They can't
+            re-open locked scores or change the match.
+          </div>
+
+          <q-list v-if="scorers.length" dense separator class="q-mb-sm">
+            <q-item v-for="sc in scorers" :key="sc.user_id">
+              <q-item-section>{{ sc.display_name }}</q-item-section>
+              <q-item-section side>
+                <q-btn
+                  flat
+                  dense
+                  no-caps
+                  color="negative"
+                  label="Remove"
+                  :disable="scorerSaving"
+                  @click="removeScorer(sc.user_id)"
+                />
+              </q-item-section>
+            </q-item>
+          </q-list>
+          <div v-else-if="!scorersLoading" class="text-caption text-grey-7 q-mb-sm">
+            No scorers yet — you score everything yourself.
+          </div>
+
+          <div class="row items-center q-gutter-sm no-wrap">
+            <q-select
+              v-model="newScorerId"
+              :options="scorerOptions"
+              emit-value
+              map-options
+              dense
+              outlined
+              label="Add a shooter"
+              class="col"
+              :disable="scorerSaving || scorerOptions.length === 0"
+              :hint="scorerOptions.length === 0 ? 'Shooters appear here once they join' : undefined"
+            />
+            <q-btn
+              color="primary"
+              unelevated
+              no-caps
+              label="Add"
+              :loading="scorerSaving"
+              :disable="!newScorerId || scorerSaving"
+              @click="addScorer"
+            />
+          </div>
+        </q-card-section>
+      </q-card>
+
       <!-- Score a stage (primary action while running the match) -->
       <div class="text-subtitle1 text-weight-medium q-mb-sm">
         <q-icon name="sports_score" color="teal" class="q-mr-xs" />Score
@@ -113,18 +168,24 @@
 </template>
 
 <script setup lang="ts">
-import { computed, inject, ref } from 'vue';
+import { computed, inject, onMounted, ref } from 'vue';
 import type { Ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useQuasar, copyToClipboard } from 'quasar';
 import { api } from 'src/boot/axios';
 import QrCode from 'src/components/common/QrCode.vue';
+import { useAuthStore } from 'src/stores/auth.store';
 
 interface MatchRow {
   id: string;
   name: string;
   join_token: string | null;
   registration_open: number | boolean;
+}
+interface RegistrationRow {
+  id: string;
+  user_id: string;
+  shooter_name: string;
 }
 interface StageRow {
   id: string;
@@ -135,7 +196,7 @@ interface StageRow {
 const ctx = inject<{
   match: Ref<MatchRow | null>;
   stages: Ref<StageRow[]>;
-  registrations: Ref<unknown[]>;
+  registrations: Ref<RegistrationRow[]>;
   loading: Ref<boolean>;
   matchId: string;
 }>('matchContext')!;
@@ -146,6 +207,79 @@ const $q = useQuasar();
 const router = useRouter();
 const base = `/shooter/host/matches/${matchId}`;
 const saving = ref(false);
+const authStore = useAuthStore();
+
+// Scorers live on the server (not synced to the host), so they use the REST API.
+const scorers = ref<{ user_id: string; display_name: string }[]>([]);
+const scorersLoading = ref(false);
+const scorerSaving = ref(false);
+const newScorerId = ref<string | null>(null);
+
+// Joined shooters who aren't the host or already a scorer.
+const scorerOptions = computed(() => {
+  const taken = new Set(scorers.value.map((s) => s.user_id));
+  const seen = new Set<string>();
+  const out: { label: string; value: string }[] = [];
+  for (const r of registrations.value) {
+    if (!r.user_id || r.user_id === authStore.user?.id) continue;
+    if (taken.has(r.user_id) || seen.has(r.user_id)) continue;
+    seen.add(r.user_id);
+    out.push({ label: r.shooter_name, value: r.user_id });
+  }
+  return out;
+});
+
+function apiMessage(err: unknown, fallback: string): string {
+  return (
+    (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+    fallback
+  );
+}
+
+async function loadScorers() {
+  scorersLoading.value = true;
+  try {
+    const { data } = await api.get<{ user_id: string; display_name: string }[]>(
+      `/api/matches/${matchId}/scorers`,
+    );
+    scorers.value = data;
+  } catch {
+    // offline / slow — leave the list as is
+  } finally {
+    scorersLoading.value = false;
+  }
+}
+
+async function addScorer() {
+  if (!newScorerId.value || scorerSaving.value) return;
+  scorerSaving.value = true;
+  try {
+    await api.post(`/api/matches/${matchId}/scorers`, { user_id: newScorerId.value });
+    newScorerId.value = null;
+    await loadScorers();
+    $q.notify({ type: 'positive', message: 'Scorer added', timeout: 1200 });
+  } catch (err) {
+    $q.notify({ type: 'negative', message: apiMessage(err, 'Could not add the scorer') });
+  } finally {
+    scorerSaving.value = false;
+  }
+}
+
+async function removeScorer(userId: string) {
+  if (scorerSaving.value) return;
+  scorerSaving.value = true;
+  try {
+    await api.delete(`/api/matches/${matchId}/scorers/${userId}`);
+    await loadScorers();
+    $q.notify({ type: 'positive', message: 'Scorer removed', timeout: 1200 });
+  } catch (err) {
+    $q.notify({ type: 'negative', message: apiMessage(err, 'Could not remove the scorer') });
+  } finally {
+    scorerSaving.value = false;
+  }
+}
+
+onMounted(() => void loadScorers());
 
 const inviteUrl = computed(() =>
   match.value?.join_token

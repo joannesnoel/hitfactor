@@ -22,6 +22,14 @@
         />
       </div>
 
+      <!-- Scorer: the host let this shooter enter scores for the match -->
+      <q-banner v-if="isScorer" dense rounded class="bg-teal-1 text-teal-10 q-mb-md">
+        You can score this match.
+        <template #action>
+          <q-btn flat dense no-caps color="teal" label="Open scoring" to="/officer/dashboard" />
+        </template>
+      </q-banner>
+
       <!-- Description (only real content — org/level/registration chips removed
            as clutter). -->
       <q-card v-if="match.description" flat bordered class="q-mb-md">
@@ -338,6 +346,8 @@ async function loadDetails(): Promise<void> {
 }
 
 const watchAbort = new AbortController();
+// True when the match host (or an admin) made this user an official of the match.
+const isScorer = ref(false);
 
 onMounted(async () => {
   db = await whenPowerSyncReady();
@@ -375,6 +385,18 @@ onMounted(async () => {
       },
       onError: () => {
         loading.value = false;
+      },
+    },
+    { signal: watchAbort.signal },
+  );
+
+  // Reactive: an assignment may sync in after the page opens (or be removed).
+  db.watch(
+    'SELECT 1 FROM match_officers WHERE match_id = ? AND user_id = ? LIMIT 1',
+    [matchId, authStore.user?.id ?? ''],
+    {
+      onResult: (res) => {
+        isScorer.value = (res.rows?._array?.length ?? 0) > 0;
       },
     },
     { signal: watchAbort.signal },

@@ -19,6 +19,7 @@ import {
   getBanner,
   deleteBanner,
 } from './match-banner.controller.js';
+import { listScorers, addScorer, removeScorer } from './match-scorers.controller.js';
 import { authMiddleware } from '../../middleware/auth.middleware.js';
 
 export async function matchesRoutes(app: FastifyInstance): Promise<void> {
@@ -120,5 +121,24 @@ export async function matchesRoutes(app: FastifyInstance): Promise<void> {
     '/api/matches/:id/registrations/:registrationId',
     { preHandler: [authMiddleware] },
     removeRegistration
+  );
+
+  // Scorers: shooters the host of a private match lets enter scores.
+  app.get(
+    '/api/matches/:id/scorers',
+    { preHandler: [authMiddleware] },
+    listScorers
+  );
+
+  app.post(
+    '/api/matches/:id/scorers',
+    { preHandler: [authMiddleware] },
+    addScorer
+  );
+
+  app.delete(
+    '/api/matches/:id/scorers/:userId',
+    { preHandler: [authMiddleware] },
+    removeScorer
   );
 }

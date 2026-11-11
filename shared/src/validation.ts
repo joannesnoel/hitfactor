@@ -125,6 +125,12 @@ export const hostUpdateMatchSchema = createMatchSchema
   .strict();
 export type HostUpdateMatchInput = z.infer<typeof hostUpdateMatchSchema>;
 
+// The host of a private match lets a registered shooter score it.
+export const addScorerSchema = z.object({
+  user_id: z.string().uuid(),
+});
+export type AddScorerInput = z.infer<typeof addScorerSchema>;
+
 // Admin manually registers a shooter into a match. `user_id` links an existing
 // shooter account; when omitted, the backend resolves/creates an unclaimed
 // shooter from `shooter_name` (same as an import). Division must be offered by
