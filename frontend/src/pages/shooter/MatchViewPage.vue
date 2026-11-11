@@ -70,6 +70,7 @@
       >
         <q-tab name="stages" label="Stages" />
         <q-tab name="results" label="Results" />
+        <q-tab v-if="isRegistered" name="analysis" label="My analysis" />
       </q-tabs>
 
       <q-tab-panels v-model="activeTab" animated>
@@ -131,6 +132,16 @@
               </q-card-section>
             </q-card>
           </div>
+        </q-tab-panel>
+
+        <!-- My analysis: how the match went for me, stage by stage -->
+        <q-tab-panel v-if="isRegistered" name="analysis">
+          <MatchAnalysis
+            :match-id="match.id"
+            :match-name="match.name"
+            :match-date="match.start_date"
+            :organization="match.organization"
+          />
         </q-tab-panel>
 
         <!-- Results Tab -->
@@ -208,6 +219,7 @@ import { useAuthStore } from 'src/stores/auth.store';
 import { matchStatusLabel, matchStatusColor } from 'src/composables/matchStatus';
 import { useGoBack } from 'src/composables/useGoBack';
 import MatchResultsViewer from 'src/components/results/MatchResultsViewer.vue';
+import MatchAnalysis from 'src/components/analysis/MatchAnalysis.vue';
 
 const route = useRoute();
 const $q = useQuasar();
