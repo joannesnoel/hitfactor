@@ -257,7 +257,8 @@ async function loadStageResults(
     return [];
   }
 }
-const activeTab = ref('stages');
+// Deep link from My Performance: /shooter/matches/:id?tab=analysis
+const activeTab = ref(route.query.tab === 'analysis' ? 'analysis' : 'stages');
 const showRegisterDialog = ref(false);
 const isRegistered = ref(false);
 

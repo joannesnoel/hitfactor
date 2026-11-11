@@ -6,30 +6,27 @@
       <q-spinner color="primary" size="3em" />
     </div>
 
-    <!-- Empty / not-yet-claimed -->
+    <!-- No matches shot yet -->
     <q-card
-      v-else-if="!perf || perf.totals.matches === 0"
+      v-else-if="perf.totals.matches === 0"
       flat
       bordered
       class="q-pa-lg text-center"
     >
       <q-icon name="insights" size="3em" color="grey-5" class="q-mb-sm" />
-      <div class="text-subtitle1 text-weight-medium">No match history yet</div>
+      <div class="text-subtitle1 text-weight-medium">Shoot a match to see your stats</div>
       <div class="text-grey-7 q-mt-xs">
-        Once you've shot a match (and claimed your record), your accuracy,
-        hit-factor and placement analytics show up here.
+        After you've been scored in a match, your results, strengths and
+        progress over time show up here. It all works offline.
       </div>
-      <q-btn
-        class="q-mt-md"
-        color="primary"
-        unelevated
-        label="Find & claim my record"
-        to="/auth/register"
-      />
+      <div class="row justify-center q-gutter-sm q-mt-md">
+        <q-btn color="primary" unelevated no-caps label="Find a match" to="/shooter/dashboard" />
+        <q-btn color="primary" outline no-caps label="Host a match" to="/shooter/host/create" />
+      </div>
     </q-card>
 
     <template v-else>
-      <!-- Career summary -->
+      <!-- Summary -->
       <div class="row q-col-gutter-sm q-mb-md">
         <div v-for="c in summaryCards" :key="c.label" class="col-6 col-sm-4 col-md">
           <q-card flat bordered class="text-center q-pa-sm">
@@ -40,10 +37,8 @@
       </div>
 
       <!-- Accuracy vs speed -->
-      <q-card flat bordered class="q-pa-md q-mb-md">
-        <div class="text-subtitle1 text-weight-medium q-mb-xs">
-          Accuracy vs. speed
-        </div>
+      <q-card v-if="hasFactors" flat bordered class="q-pa-md q-mb-md">
+        <div class="text-subtitle1 text-weight-medium q-mb-xs">Accuracy vs. speed</div>
         <div class="text-caption text-grey-7 q-mb-md">
           On average, how your points and pace compare to each stage winner.
         </div>
@@ -52,24 +47,14 @@
             <div class="col">Accuracy — your points</div>
             <div class="col-auto text-weight-medium">{{ pct(perf.totals.avg_accuracy_factor) }}</div>
           </div>
-          <q-linear-progress
-            :value="bar(perf.totals.avg_accuracy_factor)"
-            color="teal"
-            size="14px"
-            rounded
-          />
+          <q-linear-progress :value="bar(perf.totals.avg_accuracy_factor)" color="teal" size="14px" rounded />
         </div>
         <div>
           <div class="row items-center q-mb-xs">
             <div class="col">Speed — your pace</div>
             <div class="col-auto text-weight-medium">{{ pct(perf.totals.avg_speed_factor) }}</div>
           </div>
-          <q-linear-progress
-            :value="bar(perf.totals.avg_speed_factor)"
-            color="deep-orange"
-            size="14px"
-            rounded
-          />
+          <q-linear-progress :value="bar(perf.totals.avg_speed_factor)" color="deep-orange" size="14px" rounded />
         </div>
         <q-banner v-if="focusText" dense class="bg-blue-1 rounded-borders q-mt-md">
           <template #avatar><q-icon name="lightbulb" color="amber-8" /></template>
@@ -77,20 +62,37 @@
         </q-banner>
       </q-card>
 
-      <!-- Trends -->
+      <!-- Progress over time -->
       <q-card v-if="perf.trend.length >= 2" flat bordered class="q-pa-md q-mb-md">
-        <div class="text-subtitle1 text-weight-medium q-mb-sm">Trends</div>
-        <div class="row q-col-gutter-md">
-          <div v-for="t in trendCharts" :key="t.label" class="col-12 col-sm-4">
-            <div class="text-caption text-grey-7">
-              {{ t.label }} <span class="text-weight-medium text-grey-9">· latest {{ t.last }}</span>
-            </div>
-            <svg :viewBox="`0 0 ${SPARK_W} ${SPARK_H}`" class="spark" preserveAspectRatio="none">
-              <polyline :points="t.points" fill="none" :stroke="t.color" stroke-width="2" />
-              <circle :cx="t.lastX" :cy="t.lastY" r="2.5" :fill="t.color" />
-            </svg>
-          </div>
+        <div class="row items-center q-mb-xs">
+          <div class="text-subtitle1 text-weight-medium">Your progress</div>
+          <q-space />
+          <q-btn-toggle
+            v-model="trendMetric"
+            no-caps
+            dense
+            unelevated
+            toggle-color="primary"
+            :options="[
+              { label: 'Match %', value: 'match_pct' },
+              { label: 'Alpha %', value: 'alpha_pct' },
+            ]"
+          />
         </div>
+        <div class="text-caption text-grey-7 q-mb-sm">
+          {{
+            trendMetric === 'match_pct'
+              ? "How close you finished to each match's winner (100% = the winner)."
+              : 'The share of your hits that were in the A zone.'
+          }}
+        </div>
+        <TrendChart
+          v-if="trendPoints.length >= 2"
+          :points="trendPoints"
+          :metric-label="trendMetric === 'match_pct' ? 'Match %' : 'Alpha %'"
+          unit="%"
+        />
+        <div v-else class="text-caption text-grey-7">Not enough matches with this stat yet.</div>
         <div class="row q-gutter-xs q-mt-sm">
           <q-chip dense square color="grey-2" text-color="grey-9" icon="star">
             Best match {{ perf.personal_best.match_pct?.toFixed(1) }}%
@@ -104,63 +106,63 @@
         </div>
       </q-card>
 
-      <!-- Past matches -->
-      <div class="text-subtitle1 text-weight-medium q-mb-xs">Past matches</div>
-      <div class="text-caption text-grey-6 q-mb-sm">
-        A = alpha % · pts = your points vs the winner · pace = your speed vs the
-        winner · ± = stage-to-stage consistency (lower = steadier) · top % =
-        percentile
-      </div>
+      <!-- Matches -->
+      <div class="text-subtitle1 text-weight-medium q-mb-xs">Your matches</div>
+      <div class="text-caption text-grey-6 q-mb-sm">Tap a match for your stage-by-stage analysis.</div>
       <q-card
         v-for="m in perf.matches"
         :key="m.match_id + m.division"
         flat
         bordered
         class="q-mb-sm cursor-pointer"
-        @click="$router.push(`/shooter/matches/${m.match_id}`)"
+        @click="$router.push({ path: `/shooter/matches/${m.match_id}`, query: { tab: 'analysis' } })"
       >
         <q-card-section class="q-py-sm">
-          <div class="row items-center">
-            <div class="col">
-              <div class="text-weight-medium">{{ m.match_name }}</div>
+          <div class="row items-center no-wrap">
+            <div class="col" style="min-width: 0">
+              <div class="row items-center no-wrap">
+                <div class="text-weight-medium ellipsis">{{ m.match_name }}</div>
+                <q-chip
+                  v-if="hostedIds.has(m.match_id)"
+                  dense
+                  size="sm"
+                  color="teal"
+                  text-color="white"
+                  icon="manage_accounts"
+                  label="Host"
+                  class="q-ml-sm"
+                />
+              </div>
               <div class="text-caption text-grey-7">
-                {{ formatDate(m.match_date) }} ·
-                {{ divLabel(m.organization, m.division) }}
+                {{ formatDate(m.match_date) }} · {{ divLabel(m.organization, m.division) }}
               </div>
             </div>
-            <div class="col-auto text-right">
+            <div class="col-auto text-right q-ml-sm">
               <div class="text-weight-bold" :class="placeClass(m.place)">
                 {{ m.dqed ? 'DQ' : ordinal(m.place) }}
-                <span class="text-grey-6 text-caption">/ {{ m.field_size }}</span>
+                <span class="text-grey-6 text-caption">of {{ m.field_size }}</span>
               </div>
               <div class="text-caption text-grey-7">{{ m.total_percentage.toFixed(1) }}%</div>
             </div>
           </div>
           <div class="row items-center q-gutter-sm q-mt-xs text-caption text-grey-8">
             <div v-if="m.alpha_pct !== null">
-              A {{ m.alpha_pct.toFixed(0) }}%
-              <q-tooltip>Alpha hits — % of your hits in the A zone</q-tooltip>
+              Alpha {{ m.alpha_pct.toFixed(0) }}%
+              <q-tooltip>The share of your hits that were in the A zone</q-tooltip>
             </div>
             <div v-if="m.accuracy_factor !== null">
-              pts {{ (m.accuracy_factor * 100).toFixed(0) }}%
-              <q-tooltip>Accuracy — your points as a % of the stage winner's</q-tooltip>
+              Points {{ (m.accuracy_factor * 100).toFixed(0) }}%
+              <q-tooltip>Your points as a % of each stage winner's</q-tooltip>
             </div>
             <div v-if="m.speed_factor !== null">
-              pace {{ (m.speed_factor * 100).toFixed(0) }}%
-              <q-tooltip>Speed — your pace as a % of the stage winner's</q-tooltip>
+              Pace {{ (m.speed_factor * 100).toFixed(0) }}%
+              <q-tooltip>Your pace as a % of each stage winner's</q-tooltip>
             </div>
-            <div v-if="m.consistency !== null">
-              ± {{ m.consistency.toFixed(1) }} swing
-              <q-tooltip>
-                Consistency — how much your stage %s varied (standard deviation).
-                Lower = you shot every stage at a similar level.
-              </q-tooltip>
+            <div v-if="m.stage_wins > 0" class="text-teal">
+              {{ m.stage_wins }} stage win{{ m.stage_wins > 1 ? 's' : '' }}
             </div>
-            <div v-if="m.stage_wins > 0" class="text-teal">{{ m.stage_wins }} stage win{{ m.stage_wins > 1 ? 's' : '' }}</div>
             <q-space />
-            <q-badge color="grey-3" text-color="grey-9" :label="`top ${(100 - m.percentile).toFixed(0)}%`">
-              <q-tooltip>Percentile — you placed in the top {{ (100 - m.percentile).toFixed(0) }}% of your division</q-tooltip>
-            </q-badge>
+            <q-icon name="chevron_right" color="grey-5" />
           </div>
         </q-card-section>
       </q-card>
@@ -169,29 +171,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { useQuasar } from 'quasar';
-import { api } from 'src/boot/axios';
+import { ref, computed } from 'vue';
 import { getDivisionLabel } from '@hitfactor/shared';
-import type { ShooterPerformance, Organization } from '@hitfactor/shared';
+import type { Organization } from '@hitfactor/shared';
+import { useMyPerformance } from 'src/composables/useMyPerformance';
+import { useMyMatchRoles } from 'src/composables/useMyMatchRoles';
+import TrendChart from 'src/components/analysis/TrendChart.vue';
 
-const $q = useQuasar();
-const perf = ref<ShooterPerformance | null>(null);
-const loading = ref(true);
+// Computed on the phone from synced results — hosted/private matches included.
+const { perf, loading } = useMyPerformance();
+const { hostedIds } = useMyMatchRoles();
 
-const SPARK_W = 120;
-const SPARK_H = 32;
-
-onMounted(async () => {
-  try {
-    const { data } = await api.get<ShooterPerformance>('/api/shooter/performance');
-    perf.value = data;
-  } catch {
-    $q.notify({ type: 'negative', message: 'Failed to load performance' });
-  } finally {
-    loading.value = false;
-  }
-});
+const trendMetric = ref<'match_pct' | 'alpha_pct'>('match_pct');
 
 const pct = (f: number | null): string => (f === null ? '—' : `${(f * 100).toFixed(0)}%`);
 const bar = (f: number | null): number => (f === null ? 0 : Math.min(1, f));
@@ -208,21 +199,29 @@ function placeClass(place: number): string {
 function formatDate(d: string): string {
   return d ? new Date(d).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : '';
 }
+const divLabel = (org: string, div: string): string => getDivisionLabel(org as Organization, div);
+
+const hasFactors = computed(
+  () => perf.value.totals.avg_accuracy_factor !== null || perf.value.totals.avg_speed_factor !== null,
+);
 
 const summaryCards = computed(() => {
-  const t = perf.value!.totals;
+  const t = perf.value.totals;
+  const finished = perf.value.matches.filter((m) => !m.dqed);
+  const wins = finished.filter((m) => m.place === 1).length;
+  const podiums = finished.filter((m) => m.place <= 3).length;
   return [
     { label: 'Matches', value: t.matches },
-    { label: 'Best finish', value: ordinal(t.best_finish) },
-    { label: 'Avg finish', value: t.avg_finish?.toFixed(1) ?? '—' },
+    { label: 'Wins', value: wins },
+    { label: 'Podiums', value: podiums },
     { label: 'Avg match %', value: t.avg_match_pct !== null ? `${t.avg_match_pct.toFixed(1)}%` : '—' },
-    { label: 'Alpha %', value: t.alpha_pct !== null ? `${t.alpha_pct.toFixed(0)}%` : '—' },
     { label: 'Stage wins', value: t.stage_wins },
+    { label: 'Alpha %', value: t.alpha_pct !== null ? `${t.alpha_pct.toFixed(0)}%` : '—' },
   ];
 });
 
 const focusText = computed(() => {
-  switch (perf.value?.focus) {
+  switch (perf.value.focus) {
     case 'speed':
       return 'Your accuracy is strong relative to your speed — the biggest gains are in shooting faster.';
     case 'accuracy':
@@ -234,46 +233,13 @@ const focusText = computed(() => {
   }
 });
 
-// Inline SVG sparklines — no charting dependency.
-function sparkline(values: number[], color: string, label: string) {
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const span = max - min || 1;
-  const n = values.length;
-  const x = (i: number) => (n === 1 ? SPARK_W / 2 : (i / (n - 1)) * (SPARK_W - 4) + 2);
-  const y = (v: number) => SPARK_H - 3 - ((v - min) / span) * (SPARK_H - 6);
-  const points = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
-  const li = n - 1;
-  return {
-    label,
-    color,
-    points,
-    lastX: x(li),
-    lastY: y(values[li]),
-    last: values[li],
-  };
-}
-
-const trendCharts = computed(() => {
-  const tr = perf.value!.trend;
-  return [
-    { ...sparkline(tr.map((t) => t.match_pct), '#1976d2', 'Match %'), last: `${tr[tr.length - 1].match_pct.toFixed(1)}%` },
-    { ...sparkline(tr.map((t) => t.avg_hf), '#e65100', 'Avg hit factor'), last: tr[tr.length - 1].avg_hf.toFixed(2) },
-    {
-      ...sparkline(tr.map((t) => t.alpha_pct ?? 0), '#00897b', 'Alpha %'),
-      last: tr[tr.length - 1].alpha_pct !== null ? `${tr[tr.length - 1].alpha_pct!.toFixed(0)}%` : '—',
-    },
-  ];
-});
-
-const divLabel = (org: string, div: string): string =>
-  getDivisionLabel(org as Organization, div);
+const trendPoints = computed(() =>
+  perf.value.trend
+    .map((t) => ({
+      label: t.match_name,
+      date: t.date,
+      value: trendMetric.value === 'match_pct' ? t.match_pct : t.alpha_pct,
+    }))
+    .filter((p): p is { label: string; date: string; value: number } => p.value !== null),
+);
 </script>
-
-<style scoped>
-.spark {
-  width: 100%;
-  height: 40px;
-  display: block;
-}
-</style>
