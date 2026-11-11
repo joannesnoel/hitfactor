@@ -401,7 +401,7 @@ function confirmDelete() {
     try {
       await api.delete(`/api/matches/${matchId}`);
       $q.notify({ type: 'positive', message: 'Match deleted' });
-      await router.replace('/shooter/host');
+      await router.replace('/shooter/dashboard');
     } catch {
       $q.notify({ type: 'negative', message: 'Could not delete the match' });
     }

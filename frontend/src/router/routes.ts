@@ -161,9 +161,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('src/pages/officer/ScoreEntryPage.vue'),
         props: true,
       },
+      // The old "My Hosted Matches" list is gone — hosted matches show on the
+      // dashboard's "Your matches". Kept as a redirect for old links/bookmarks.
       {
         path: 'host',
-        component: () => import('src/pages/shooter/host/HostMatchesPage.vue'),
+        redirect: '/shooter/dashboard',
       },
       {
         path: 'host/create',

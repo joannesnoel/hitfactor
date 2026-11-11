@@ -37,9 +37,9 @@
       class="bg-grey-1"
     >
       <q-list>
-        <q-item clickable v-ripple to="/shooter/host" class="text-grey-7">
+        <q-item clickable v-ripple to="/shooter/dashboard" class="text-grey-7">
           <q-item-section avatar><q-icon name="arrow_back" /></q-item-section>
-          <q-item-section>My Hosted Matches</q-item-section>
+          <q-item-section>Back to Matches</q-item-section>
         </q-item>
 
         <q-separator spaced />
