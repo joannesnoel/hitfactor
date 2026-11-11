@@ -2,8 +2,18 @@
   <q-layout view="lHh Lpr lFf">
     <q-header elevated class="bg-dark text-white">
       <q-toolbar>
-        <img src="/logo.png" alt="HitFactor" class="q-mr-sm" style="height: 30px" />
-        <q-toolbar-title>HitFactor</q-toolbar-title>
+        <q-btn
+          v-if="pageHeaderBackTo"
+          flat
+          dense
+          round
+          icon="arrow_back"
+          aria-label="Back"
+          class="q-mr-sm"
+          @click="router.push(pageHeaderBackTo)"
+        />
+        <img v-else src="/logo.png" alt="HitFactor" class="q-mr-sm" style="height: 30px" />
+        <q-toolbar-title class="ellipsis">{{ pageHeaderTitle || 'HitFactor' }}</q-toolbar-title>
         <SyncStatusIndicator />
         <q-btn flat round dense icon="account_circle">
           <q-menu>
@@ -38,7 +48,8 @@
       <router-view />
     </q-page-container>
 
-    <q-footer elevated class="bg-white text-primary">
+    <!-- Tabs hide on full-screen task pages (e.g. scoring a stage) -->
+    <q-footer v-if="!pageHeaderBackTo" elevated class="bg-white text-primary">
       <q-tabs
         v-model="activeTab"
         active-color="primary"
@@ -75,6 +86,7 @@ import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth.store';
 import { useRoleSwitch } from 'src/composables/useRoleSwitch';
+import { pageHeaderTitle, pageHeaderBackTo } from 'src/composables/usePageHeader';
 import SyncStatusIndicator from 'src/components/common/SyncStatusIndicator.vue';
 import EmailVerifyBanner from 'src/components/common/EmailVerifyBanner.vue';
 

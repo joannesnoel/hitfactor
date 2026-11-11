@@ -154,6 +154,13 @@ const routes: RouteRecordRaw[] = [
         component: () => import('src/pages/shooter/StageScorePage.vue'),
         props: true,
       },
+      // Scoring a stage as a scorer (or the host) — same page the host/officer
+      // flows use, reached from the match page.
+      {
+        path: 'matches/:id/score/:stageId',
+        component: () => import('src/pages/officer/ScoreEntryPage.vue'),
+        props: true,
+      },
       {
         path: 'host',
         component: () => import('src/pages/shooter/host/HostMatchesPage.vue'),

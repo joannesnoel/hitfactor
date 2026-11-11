@@ -1,6 +1,7 @@
 import { computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth.store';
+import { OFFICIAL_MATCHES_ENABLED } from 'src/config/features';
 
 export type RoleArea = 'admin' | 'officer' | 'shooter';
 
@@ -30,9 +31,9 @@ export function useRoleSwitch() {
   // Every dashboard the user can reach, in a stable order. Everyone is a shooter.
   const allTargets = computed<RoleTarget[]>(() => {
     const t: RoleTarget[] = [];
-    if (auth.isAdmin)
+    if (OFFICIAL_MATCHES_ENABLED && auth.isAdmin)
       t.push({ key: 'admin', label: 'Admin Dashboard', icon: 'shield', to: '/admin/dashboard' });
-    if (auth.isOfficer)
+    if (OFFICIAL_MATCHES_ENABLED && auth.isOfficer)
       t.push({ key: 'officer', label: 'Officer Dashboard', icon: 'sports_score', to: '/officer/dashboard' });
     t.push({ key: 'shooter', label: 'Shooter Dashboard', icon: 'emoji_events', to: '/shooter/dashboard' });
     return t;

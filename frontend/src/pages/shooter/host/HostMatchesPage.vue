@@ -45,7 +45,7 @@
             <div class="row items-center no-wrap">
               <div class="text-subtitle1 text-weight-bold ellipsis">{{ m.name }}</div>
               <q-space />
-              <q-badge :color="statusColor(m.status)" :label="m.status" />
+              <q-badge :color="matchStatusColor(m.status)" :label="matchStatusLabel(m.status)" />
             </div>
             <div class="text-caption text-grey-7 q-mt-xs">{{ summary(m) }}</div>
           </q-card-section>
@@ -61,6 +61,7 @@
 </template>
 
 <script setup lang="ts">
+import { matchStatusLabel, matchStatusColor } from 'src/composables/matchStatus';
 import { ref, onMounted } from 'vue';
 import { whenPowerSyncReady } from 'src/boot/powersync';
 import { useAuthStore } from 'src/stores/auth.store';
@@ -104,16 +105,5 @@ function summary(m: HostMatch): string {
     ? m.start_date
     : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   return [date, m.location, m.organization].filter(Boolean).join(' · ');
-}
-
-function statusColor(status: string): string {
-  switch (status) {
-    case 'draft': return 'grey';
-    case 'registration': return 'blue';
-    case 'active': return 'green';
-    case 'scoring': return 'orange';
-    case 'final': return 'purple';
-    default: return 'grey';
-  }
 }
 </script>

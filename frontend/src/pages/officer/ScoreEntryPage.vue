@@ -402,7 +402,9 @@ const stageId = route.params.stageId as string;
 // dashboard for the officer flow.
 const scoringBackTo = route.path.startsWith('/shooter/host')
   ? `/shooter/host/matches/${matchId}`
-  : '/officer/dashboard';
+  : route.path.startsWith('/shooter/matches')
+    ? `/shooter/matches/${matchId}`
+    : '/officer/dashboard';
 
 const loading = ref(true);
 const saving = ref(false);

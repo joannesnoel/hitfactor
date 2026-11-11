@@ -19,19 +19,39 @@
           <q-tooltip>Private — only registered shooters can see it</q-tooltip>
         </q-icon>
         <q-badge
-          :color="statusColor(match.status)"
-          :label="match.status"
+          :color="matchStatusColor(match.status)"
+          :label="matchStatusLabel(match.status)"
           class="match-status-badge q-ml-sm"
         />
       </div>
-      <div v-if="participated" class="q-mb-sm">
+      <!-- What you are in this match: host / scorer / shooter -->
+      <div v-if="roles.length || participated" class="row q-gutter-xs q-mb-sm">
         <q-chip
+          v-if="roles.includes('host')"
+          dense
+          size="sm"
+          color="teal"
+          text-color="white"
+          icon="manage_accounts"
+          label="Host"
+        />
+        <q-chip
+          v-if="roles.includes('scorer')"
+          dense
+          size="sm"
+          color="indigo"
+          text-color="white"
+          icon="sports_score"
+          label="Scorer"
+        />
+        <q-chip
+          v-if="roles.includes('shooter') || participated"
           dense
           size="sm"
           color="positive"
           text-color="white"
           icon="check_circle"
-          label="You participated"
+          :label="isPast ? 'You shot' : 'You\'re in'"
         />
       </div>
       <div class="row items-center q-gutter-sm text-grey-7">
@@ -60,13 +80,23 @@
 import { computed } from 'vue';
 import type { Match } from '@hitfactor/shared';
 import { bannerUrl } from 'src/boot/axios';
+import { matchStatusLabel, matchStatusColor } from 'src/composables/matchStatus';
+import type { MatchRole } from 'src/composables/useMyMatchRoles';
 
 const props = withDefaults(
   defineProps<{
     match: Match;
     participated?: boolean;
+    // Host / scorer / shooter chips; leave empty for public listings.
+    roles?: MatchRole[];
   }>(),
-  { participated: false },
+  { participated: false, roles: () => [] },
+);
+
+const isPast = computed(
+  () =>
+    props.match.status === 'final' ||
+    props.match.start_date < new Date().toISOString().split('T')[0],
 );
 
 defineEmits<{
@@ -95,25 +125,6 @@ function formatDateRange(start: string, end: string | null): string {
     day: 'numeric',
   });
   return `${startDate} – ${endDate}`;
-}
-
-function statusColor(status: string): string {
-  switch (status) {
-    case 'draft':
-      return 'grey';
-    case 'registration':
-      return 'blue';
-    case 'active':
-      return 'green';
-    case 'scoring':
-      return 'orange';
-    case 'final':
-      return 'purple';
-    case 'archived':
-      return 'grey-7';
-    default:
-      return 'grey';
-  }
 }
 </script>
 

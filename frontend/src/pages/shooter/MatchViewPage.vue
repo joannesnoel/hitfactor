@@ -16,19 +16,28 @@
           </div>
         </div>
         <q-badge
-          :color="statusColor(match.status)"
-          :label="match.status"
+          :color="matchStatusColor(match.status)"
+          :label="matchStatusLabel(match.status)"
           class="match-status-badge q-ml-sm"
         />
       </div>
 
-      <!-- Scorer: the host let this shooter enter scores for the match -->
-      <q-banner v-if="isScorer" dense rounded class="bg-teal-1 text-teal-10 q-mb-md">
-        You can score this match.
-        <template #action>
-          <q-btn flat dense no-caps color="teal" label="Open scoring" to="/officer/dashboard" />
-        </template>
-      </q-banner>
+      <!-- What you are in this match -->
+      <div v-if="isHost || isScorer || isRegistered" class="row items-center q-gutter-xs q-mb-md">
+        <q-chip v-if="isHost" dense color="teal" text-color="white" icon="manage_accounts" label="Host" />
+        <q-chip v-if="isScorer" dense color="indigo" text-color="white" icon="sports_score" label="Scorer" />
+        <q-chip v-if="isRegistered" dense color="positive" text-color="white" icon="check_circle" label="You're in" />
+        <q-space />
+        <q-btn
+          v-if="isHost"
+          color="teal"
+          unelevated
+          no-caps
+          icon="tune"
+          label="Manage match"
+          :to="`/shooter/host/matches/${match.id}`"
+        />
+      </div>
 
       <!-- Description (only real content — org/level/registration chips removed
            as clutter). -->
@@ -94,6 +103,29 @@
                     color="primary"
                     text-color="white"
                     :label="`HF: ${getMyStageScore(s.id)!.hit_factor.toFixed(4)}`"
+                  />
+                </div>
+                <!-- Scorers and the host: score this stage, with progress -->
+                <div v-if="canScore" class="row items-center q-mt-sm">
+                  <q-linear-progress
+                    :value="scoredFraction(s.id)"
+                    color="teal"
+                    track-color="grey-3"
+                    rounded
+                    size="8px"
+                    class="col q-mr-sm"
+                  />
+                  <span class="text-caption text-grey-7 q-mr-sm">
+                    {{ scoredCount(s.id) }}/{{ registrationCount }} scored
+                  </span>
+                  <q-btn
+                    color="teal"
+                    unelevated
+                    dense
+                    no-caps
+                    icon="sports_score"
+                    label="Score"
+                    @click.stop="$router.push(`/shooter/matches/${match.id}/score/${s.id}`)"
                   />
                 </div>
               </q-card-section>
@@ -173,6 +205,7 @@ import type { Match, Stage, Score, MatchResultEntry, StageResultEntry, Division,
 import { POWER_FACTORS, CLASSIFICATIONS, getDivisionsForOrg, DEFAULT_ORGANIZATION } from '@hitfactor/shared';
 import { api } from 'src/boot/axios';
 import { useAuthStore } from 'src/stores/auth.store';
+import { matchStatusLabel, matchStatusColor } from 'src/composables/matchStatus';
 import MatchResultsViewer from 'src/components/results/MatchResultsViewer.vue';
 
 const route = useRoute();
@@ -243,17 +276,6 @@ function formatDate(dateStr: string): string {
     day: 'numeric',
     year: 'numeric',
   });
-}
-
-function statusColor(status: string): string {
-  switch (status) {
-    case 'draft': return 'grey';
-    case 'registration': return 'blue';
-    case 'active': return 'green';
-    case 'scoring': return 'orange';
-    case 'final': return 'purple';
-    default: return 'grey';
-  }
 }
 
 function scoringLabel(type: string): string {
@@ -348,6 +370,23 @@ async function loadDetails(): Promise<void> {
 const watchAbort = new AbortController();
 // True when the match host (or an admin) made this user an official of the match.
 const isScorer = ref(false);
+// The creator of a private match is its host (mirrors the server's isMatchHost).
+const isHost = computed(
+  () =>
+    !!match.value?.is_private &&
+    match.value.created_by === authStore.user?.id,
+);
+// Hosts and scorers can enter scores for any stage.
+const canScore = computed(() => isHost.value || isScorer.value);
+// Per-stage scoring progress (scores entered vs shooters registered).
+const stageScoreCounts = ref<Record<string, number>>({});
+const registrationCount = ref(0);
+function scoredCount(stageId: string): number {
+  return stageScoreCounts.value[stageId] ?? 0;
+}
+function scoredFraction(stageId: string): number {
+  return registrationCount.value ? Math.min(1, scoredCount(stageId) / registrationCount.value) : 0;
+}
 
 onMounted(async () => {
   db = await whenPowerSyncReady();
@@ -397,6 +436,29 @@ onMounted(async () => {
     {
       onResult: (res) => {
         isScorer.value = (res.rows?._array?.length ?? 0) > 0;
+      },
+    },
+    { signal: watchAbort.signal },
+  );
+
+  // Scoring progress for hosts/scorers: live counts as scores sync/save.
+  db.watch(
+    'SELECT stage_id, COUNT(*) AS c FROM scores WHERE match_id = ? GROUP BY stage_id',
+    [matchId],
+    {
+      onResult: (res) => {
+        const rows = (res.rows?._array as Array<{ stage_id: string; c: number }> | undefined) ?? [];
+        stageScoreCounts.value = Object.fromEntries(rows.map((r) => [r.stage_id, Number(r.c)]));
+      },
+    },
+    { signal: watchAbort.signal },
+  );
+  db.watch(
+    'SELECT COUNT(*) AS c FROM registrations WHERE match_id = ?',
+    [matchId],
+    {
+      onResult: (res) => {
+        registrationCount.value = Number((res.rows?._array as Array<{ c: number }> | undefined)?.[0]?.c ?? 0);
       },
     },
     { signal: watchAbort.signal },

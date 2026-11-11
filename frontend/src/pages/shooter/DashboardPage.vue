@@ -1,15 +1,15 @@
 <template>
   <q-page padding>
-    <div class="row items-center q-mb-lg">
-      <div class="text-h5 text-weight-bold">Dashboard</div>
+    <div class="row items-center q-mb-md">
+      <div class="text-h5 text-weight-bold">Matches</div>
       <q-space />
       <q-btn
         color="primary"
-        outline
-        icon="qr_code_2"
+        icon="add"
         label="Host a match"
-        to="/shooter/host"
+        to="/shooter/host/create"
         no-caps
+        unelevated
       />
     </div>
 
@@ -19,112 +19,110 @@
     </div>
 
     <template v-else>
-      <!-- Upcoming Matches -->
-      <div class="q-mb-lg">
-        <div class="text-h6 text-weight-medium q-mb-md">Upcoming Matches</div>
-        <div v-if="upcomingMatches.length === 0" class="text-grey q-pa-md">
-          No upcoming matches
-        </div>
-        <div class="row q-gutter-md">
-          <div
-            v-for="m in upcomingMatches"
-            :key="m.id"
-            class="col-12 col-sm-6 col-md-4"
-          >
-            <MatchCard
-              :match="m"
-              :participated="participatedIds.has(m.id)"
-              @click="$router.push(`/shooter/matches/${m.id}`)"
-            />
-          </div>
-        </div>
-      </div>
+      <!-- Your matches: everything you host, score, or shoot in, in one place -->
+      <section class="q-mb-lg">
+        <div class="text-h6 text-weight-medium q-mb-sm">Your matches</div>
 
-      <!-- Recent Matches with Results -->
-      <div>
-        <div class="text-h6 text-weight-medium q-mb-md">Recent Results</div>
-        <div v-if="recentMatches.length === 0" class="text-grey q-pa-md">
-          No recent match results
-        </div>
-        <div class="row q-gutter-md">
+        <q-card
+          v-if="yourMatches.length === 0"
+          flat
+          bordered
+          class="q-pa-lg text-center text-grey-7"
+        >
+          <q-icon name="emoji_events" size="42px" color="grey-5" class="q-mb-sm" />
+          <div class="text-subtitle1 q-mb-xs">You're not in any matches yet</div>
+          <div class="text-caption q-mb-md">
+            Scan a match's QR code or open its invite link to join, or host one
+            of your own and invite your friends.
+          </div>
+          <q-btn color="primary" label="Host a match" to="/shooter/host/create" no-caps unelevated />
+        </q-card>
+
+        <div v-else class="row q-col-gutter-md">
           <div
-            v-for="m in recentMatches"
+            v-for="m in yourMatches"
             :key="m.id"
             class="col-12 col-sm-6 col-md-4"
           >
-            <MatchCard
-              :match="m"
-              :participated="participatedIds.has(m.id)"
-              @click="$router.push(`/shooter/matches/${m.id}`)"
-            />
+            <MatchCard :match="m" :roles="rolesFor(m.id)" @click="open(m)" />
           </div>
         </div>
-      </div>
+      </section>
+
+      <!-- Find a match: public matches you're not already in -->
+      <section v-if="findMatches.length" class="q-mb-lg">
+        <div class="text-h6 text-weight-medium q-mb-sm">Find a match</div>
+        <div class="row q-col-gutter-md">
+          <div
+            v-for="m in findMatches"
+            :key="m.id"
+            class="col-12 col-sm-6 col-md-4"
+          >
+            <MatchCard :match="m" @click="open(m)" />
+          </div>
+        </div>
+      </section>
     </template>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { computed } from 'vue';
+import { useRouter } from 'vue-router';
+import type { Match } from '@hitfactor/shared';
 import { useMatch } from 'src/composables/useMatch';
-import { whenPowerSyncReady } from 'src/boot/powersync';
-import { useAuthStore } from 'src/stores/auth.store';
+import { useMyMatchRoles } from 'src/composables/useMyMatchRoles';
 import MatchCard from 'src/components/match/MatchCard.vue';
+
+const router = useRouter();
 
 // useMatch() loads the match list via a reactive db.watch — so matches appear
 // as they sync in after login, without needing to leave and return to the page.
 const { matches: allMatches, loading } = useMatch();
 
-// Matches this shooter is registered in — PowerSync syncs their own
-// registrations, so a reactive watch keeps the "participated" markers current.
-const auth = useAuthStore();
-const participatedIds = ref<Set<string>>(new Set());
-
-onMounted(async () => {
-  const db = await whenPowerSyncReady();
-  if (!db || !auth.user) return;
-  db.watch(
-    'SELECT DISTINCT match_id FROM registrations WHERE user_id = ?',
-    [auth.user.id],
-    {
-      onResult: (result) => {
-        const rows = (result.rows?._array as { match_id: string }[]) ?? [];
-        participatedIds.value = new Set(rows.map((r) => r.match_id));
-      },
-    },
-  );
-});
+// What the user is in each match (host / scorer / shooter), live from the local db.
+const { rolesFor } = useMyMatchRoles();
 
 const today = new Date().toISOString().split('T')[0];
 
-// The dashboard shows every public match, plus private matches the shooter
-// actually participated in (their own hosted-but-not-entered matches live under
-// /shooter/host). participatedIds syncs from their registrations.
-const myMatches = computed(() =>
-  allMatches.value.filter(
-    (m) => !m.is_private || participatedIds.value.has(m.id),
-  ),
-);
+// A match that is on now, or still to come, sorts ahead of finished ones.
+function isCurrent(m: Match): boolean {
+  return (
+    m.start_date >= today || m.status === 'active' || m.status === 'scoring'
+  );
+}
 
-// A match the shooter is registered in always shows while it's current, whatever
-// its status — a host may run a match that was never moved out of 'draft', and
-// hiding it leaves QR-joined shooters with no way back to their results.
-const upcomingMatches = computed(() => {
-  return myMatches.value
+// Private matches only ever show up here, and only if you're involved in them.
+const yourMatches = computed(() => {
+  const mine = allMatches.value.filter((m) => rolesFor(m.id).length > 0);
+  const current = mine
+    .filter(isCurrent)
+    .sort((a, b) => a.start_date.localeCompare(b.start_date));
+  const past = mine
+    .filter((m) => !isCurrent(m))
+    .sort((a, b) => b.start_date.localeCompare(a.start_date));
+  return [...current, ...past];
+});
+
+const findMatches = computed(() =>
+  allMatches.value
     .filter(
       (m) =>
+        !m.is_private &&
+        rolesFor(m.id).length === 0 &&
         m.start_date >= today &&
-        (participatedIds.value.has(m.id) ||
-          ['registration', 'active', 'scoring'].includes(m.status)),
+        ['registration', 'active', 'scoring'].includes(m.status),
     )
     .sort((a, b) => a.start_date.localeCompare(b.start_date))
-    .slice(0, 6);
-});
+    .slice(0, 6),
+);
 
-const recentMatches = computed(() => {
-  return myMatches.value
-    .filter((m) => m.start_date < today || m.status === 'final')
-    .sort((a, b) => b.start_date.localeCompare(a.start_date))
-    .slice(0, 6);
-});
+// Hosts land on their match's control page; everyone else on the match view.
+function open(m: Match) {
+  if (rolesFor(m.id).includes('host')) {
+    void router.push(`/shooter/host/matches/${m.id}`);
+  } else {
+    void router.push(`/shooter/matches/${m.id}`);
+  }
+}
 </script>

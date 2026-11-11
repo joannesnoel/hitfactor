@@ -1,6 +1,7 @@
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from 'src/stores/auth.store';
+import { OFFICIAL_MATCHES_ENABLED } from 'src/config/features';
 import type { RegisterInput } from '@hitfactor/shared';
 
 export function useAuth() {
@@ -27,9 +28,9 @@ export function useAuth() {
     const dest = safeRedirect(redirect);
     if (dest) {
       router.push(dest);
-    } else if (authStore.isAdmin) {
+    } else if (OFFICIAL_MATCHES_ENABLED && authStore.isAdmin) {
       router.push('/admin/dashboard');
-    } else if (authStore.isOfficer) {
+    } else if (OFFICIAL_MATCHES_ENABLED && authStore.isOfficer) {
       router.push('/officer/dashboard');
     } else {
       router.push('/shooter/dashboard');
