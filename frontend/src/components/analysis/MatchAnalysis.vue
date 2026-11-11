@@ -151,43 +151,31 @@
           </q-card-section>
         </q-card>
 
-        <!-- Stage details: each stage against the winner (or runner-up, for a winner) and the field -->
-        <q-card v-if="breakdowns.length > 0" flat bordered class="q-mb-md">
-          <q-card-section class="q-pb-none">
-            <div class="text-subtitle1 text-weight-medium">Stage details</div>
-            <div class="text-caption text-grey-7">
-              Tap a stage to compare {{ isSelf ? 'yourself' : subjectName }} with the stage winner
-              and the rest of the field. On a stage they won, the comparison is with the runner-up.
+        <!-- How each stage compared: points, speed or hit factor vs the best of the rest -->
+        <q-card v-if="ratingStages.length > 0" flat bordered class="q-mb-md">
+          <q-card-section>
+            <div class="row items-center q-mb-xs">
+              <div class="text-subtitle1 text-weight-medium">Stage by stage vs the field</div>
+              <q-space />
+              <q-btn-toggle
+                v-model="ratingMetric"
+                no-caps
+                dense
+                unelevated
+                toggle-color="primary"
+                :options="[
+                  { label: 'Points', value: 'points' },
+                  { label: 'Speed', value: 'speed' },
+                  { label: 'Hit factor', value: 'hit_factor' },
+                ]"
+              />
             </div>
+            <div class="text-caption text-grey-7 q-mb-sm">{{ ratingHelp }}</div>
+            <StageRatingChart :ratings="ratingStages" :metric="ratingMetric" :me-label="isSelf ? 'You' : subjectName" />
           </q-card-section>
-          <q-list separator>
-            <q-expansion-item
-              v-for="b in breakdowns"
-              :key="b.stage_id"
-              :label="stageLabel(b.stage_number)"
-              :caption="stageCaption(b)"
-              dense
-            >
-              <div v-if="!b.me" class="q-pa-md text-caption text-grey-7">No score was recorded on this stage.</div>
-              <div v-else class="q-px-md q-pb-md">
-                <div v-if="gapText(b)" class="text-body2 q-mb-sm">{{ gapText(b) }}</div>
-                <!-- One group per measure, each row a labelled bar: always fits the
-                     screen width, so no sideways scrolling on a phone. -->
-                <div v-for="g in detailGroups(b)" :key="g.label" class="cmp-group">
-                  <div class="cmp-title">
-                    {{ g.label }}<span v-if="g.hint" class="cmp-hint"> · {{ g.hint }}</span>
-                  </div>
-                  <div v-for="r in g.rows" :key="r.key" class="cmp-row">
-                    <div class="cmp-name" :title="r.name">{{ r.name }}</div>
-                    <div class="cmp-track">
-                      <div class="cmp-bar" :class="'cmp-bar-' + r.key" :style="{ width: r.frac * 100 + '%' }" />
-                    </div>
-                    <div class="cmp-value" :class="{ 'text-weight-bold': r.key === 'me' }">{{ r.text }}</div>
-                  </div>
-                </div>
-              </div>
-            </q-expansion-item>
-          </q-list>
+        </q-card>
+        <q-card v-else flat bordered class="q-pa-md q-mb-md text-caption text-grey-7">
+          No one else was scored on these stages yet, so there is nothing to compare with.
         </q-card>
 
         <!-- Stage-by-stage table -->
@@ -230,17 +218,19 @@ import {
   buildMatchInsights,
   buildProgression,
   buildStageBreakdowns,
+  buildStageRatings,
   computeShooterPerformance,
   getDivisionLabel,
 } from '@hitfactor/shared';
 import type {
   MatchResultEntry,
   Organization,
-  StageBreakdown,
+  RatingMetric,
   StageInsight,
   StageResultEntry,
 } from '@hitfactor/shared';
 import ProgressionChart from './ProgressionChart.vue';
+import StageRatingChart from './StageRatingChart.vue';
 
 const props = defineProps<{
   matchId: string;
@@ -492,82 +482,25 @@ function weaknessText(s: StageInsight): string {
   return base;
 }
 
-// ── Stage details ──
-const fmt = (n: number | null | undefined, d = 2) => (n === null || n === undefined ? '–' : n.toFixed(d));
-
-function stageCaption(b: StageBreakdown): string {
-  if (!b.me) return 'Not scored';
-  return `${ordinal(b.me.place)} · HF ${fmt(b.me.hit_factor)}`;
-}
-
-function benchmarkLabel(b: StageBreakdown): string {
-  if (!b.benchmark) return '';
-  return `${b.benchmark.role === 'winner' ? 'Winner' : 'Runner-up'} · ${b.benchmark.name}`;
-}
-
-interface CmpRow {
-  key: 'me' | 'bench' | 'avg';
-  name: string;
-  text: string;
-  /** Bar length, 0–1, relative to the largest value in the group. */
-  frac: number;
-}
-
-// The comparison as stacked groups (one per measure) rather than a wide table.
-function detailGroups(b: StageBreakdown): { label: string; hint?: string; rows: CmpRow[] }[] {
-  const m = b.me!;
-  const k = b.benchmark;
-  const a = b.fieldAvg;
-
-  const group = (
-    label: string,
-    pick: (s: { hit_factor: number; points: number; time: number; alpha_pct: number | null }) => number | null,
-    format: (v: number) => string,
-    hint?: string,
-  ) => {
-    const entries: { key: CmpRow['key']; name: string; v: number | null }[] = [
-      { key: 'me', name: isSelf.value ? 'You' : subjectName.value, v: pick(m) },
-    ];
-    if (k) entries.push({ key: 'bench', name: benchmarkLabel(b), v: pick(k) });
-    if (a) entries.push({ key: 'avg', name: 'Field average', v: pick(a) });
-    const top = Math.max(0, ...entries.map((e) => e.v ?? 0));
-    return {
-      label,
-      hint,
-      rows: entries.map((e) => ({
-        key: e.key,
-        name: e.name,
-        text: e.v === null ? '–' : format(e.v),
-        frac: e.v !== null && top > 0 ? e.v / top : 0,
-      })),
-    };
-  };
-
-  return [
-    group('Hit factor', (s) => s.hit_factor, (v) => v.toFixed(2)),
-    group('Points', (s) => s.points, (v) => String(Math.round(v))),
-    group('Time', (s) => s.time, (v) => `${v.toFixed(2)}s`, 'lower is faster'),
-    group('A hits', (s) => s.alpha_pct, (v) => `${Math.round(v)}%`),
-  ];
-}
-
-// One sentence on where the gap to the benchmark came from: points and/or time.
-function gapText(b: StageBreakdown): string {
-  if (!b.me || !b.benchmark || !b.vs) return '';
-  const winner = b.benchmark.role === 'runner_up';
-  const gap = Math.abs(Math.round(b.vs.hit_factor_pct));
-  // Describe from the leader's side: the shooter if they won, otherwise the winner.
-  const lead = winner ? who.value : b.benchmark.name;
-  const trail = winner ? b.benchmark.name : who.value;
-  const pts = winner ? b.vs.points : -b.vs.points; // leader minus trailer
-  const secs = winner ? b.vs.time : -b.vs.time; // leader minus trailer (negative = faster)
-  const parts: string[] = [];
-  if (Math.round(pts) !== 0) parts.push(`${Math.abs(Math.round(pts))} ${pts > 0 ? 'more' : 'fewer'} points`);
-  if (Math.abs(secs) >= 0.05) parts.push(`${Math.abs(secs).toFixed(2)}s ${secs < 0 ? 'faster' : 'slower'}`);
-  const how = parts.length ? `: ${parts.join(' and ')}` : '';
-  const trailName = trail === 'You' ? 'you' : trail;
-  return `${lead} ${lead === 'You' ? 'were' : 'was'} ${gap}% ahead of ${trailName} on hit factor${how}.`;
-}
+// ── Stage by stage vs the field ──
+const ratingMetric = ref<RatingMetric>('points');
+const allRatings = computed(() =>
+  buildStageRatings(bundle.value?.stages ?? [], selectedRegId.value ?? ''),
+);
+const ratingStages = computed(() =>
+  allRatings.value.filter((r) => r.rating[ratingMetric.value] !== null),
+);
+const ratingHelp = computed(() => {
+  const name = isSelf.value ? 'you' : subjectName.value;
+  switch (ratingMetric.value) {
+    case 'speed':
+      return `A lower time rates higher. 100% means ${name} matched the fastest time of anyone else on the stage; above 100% is faster than all of them.`;
+    case 'hit_factor':
+      return `Hit factor balances points and time. 100% means ${name} matched the best hit factor of anyone else; above 100% beat them all.`;
+    default:
+      return `100% means ${name} scored as many points as the best of everyone else on the stage; above 100% is more than all of them.`;
+  }
+});
 
 const focusText = computed(() => {
   const self = isSelf.value;
@@ -589,19 +522,3 @@ const focusText = computed(() => {
   }
 });
 </script>
-
-<style scoped>
-/* Stacked comparison bars. Series colours match the progression chart:
-   the analysed shooter in blue, the benchmark in orange, the field in grey. */
-.cmp-group { margin-top: 12px; }
-.cmp-title { font-size: 12px; font-weight: 600; color: var(--q-grey-8, #424242); margin-bottom: 4px; }
-.cmp-hint { font-weight: 400; color: #7b7a76; }
-.cmp-row { display: flex; align-items: center; gap: 8px; min-height: 22px; }
-.cmp-name { flex: 0 0 38%; min-width: 0; font-size: 12px; color: #52514e; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cmp-track { flex: 1 1 auto; min-width: 0; height: 8px; border-radius: 4px; background: #eeeeea; overflow: hidden; }
-.cmp-bar { height: 100%; border-radius: 4px; }
-.cmp-bar-me { background: #2a78d6; }
-.cmp-bar-bench { background: #eb6834; }
-.cmp-bar-avg { background: #9a9994; }
-.cmp-value { flex: 0 0 58px; text-align: right; font-size: 12px; font-variant-numeric: tabular-nums; }
-</style>
