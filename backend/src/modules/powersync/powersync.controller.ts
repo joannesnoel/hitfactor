@@ -5,6 +5,9 @@ import {
   computeStageRounds,
   createStageSchema,
   updateStageSchema,
+  changedLockedStageFields,
+  STAGE_HAS_SCORES_MESSAGE,
+  STAGE_DELETE_HAS_SCORES_MESSAGE,
   isValidDivisionForOrg,
   MATCH_LEVEL_OFFICIAL_ROLES,
 } from '@hitfactor/shared';
@@ -26,7 +29,7 @@ import {
   matchRecomputeState,
 } from '../../db/schema.js';
 import { isMatchHost } from '../matches/match-authz.js';
-import { canManageStages, stageNumberTaken } from '../stages/stages.controller.js';
+import { canManageStages, stageNumberTaken, stageHasScores } from '../stages/stages.controller.js';
 
 // Mark a match dirty so the auto-recompute scheduler picks it up. Kept in a
 // separate (non-synced) table so this per-score write doesn't fan out to clients.
@@ -462,7 +465,7 @@ async function handleStagePut(
   }
 
   const [existing] = await db
-    .select({ match_id: stages.match_id })
+    .select()
     .from(stages)
     .where(eq(stages.id, id))
     .limit(1);
@@ -470,6 +473,13 @@ async function handleStagePut(
   // across matches.
   if (existing && existing.match_id !== matchId) {
     throw new Error('Stage belongs to a different match');
+  }
+  if (
+    existing &&
+    changedLockedStageFields(existing, parsed.data).length > 0 &&
+    (await stageHasScores(id))
+  ) {
+    throw new Error(STAGE_HAS_SCORES_MESSAGE);
   }
 
   if (await stageNumberTaken(matchId, parsed.data.stage_number, id)) {
@@ -526,6 +536,14 @@ async function handleStagePatch(
     throw new Error(`Stage ${parsed.data.stage_number} already exists in this match`);
   }
 
+  // A stage with scores keeps the shape those scores were entered against.
+  if (
+    changedLockedStageFields(existing, parsed.data).length > 0 &&
+    (await stageHasScores(id))
+  ) {
+    throw new Error(STAGE_HAS_SCORES_MESSAGE);
+  }
+
   const updateData: Record<string, unknown> = {
     ...parsed.data,
     updated_at: new Date(),
@@ -564,6 +582,7 @@ async function handleStageDelete(
     .limit(1);
   if (!existing) return; // already gone — deletes are idempotent
   await assertCanManageStages(existing.match_id, userId, isSystemAdmin, 'delete');
+  if (await stageHasScores(id)) throw new Error(STAGE_DELETE_HAS_SCORES_MESSAGE);
   await db.delete(stages).where(eq(stages.id, id));
 }
 

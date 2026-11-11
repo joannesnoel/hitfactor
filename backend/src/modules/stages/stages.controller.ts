@@ -1,8 +1,15 @@
 import type { FastifyRequest, FastifyReply } from 'fastify';
 import { eq, and, ne } from 'drizzle-orm';
-import { createStageSchema, updateStageSchema, computeStageRounds } from '@hitfactor/shared';
+import {
+  createStageSchema,
+  updateStageSchema,
+  computeStageRounds,
+  changedLockedStageFields,
+  STAGE_HAS_SCORES_MESSAGE,
+  STAGE_DELETE_HAS_SCORES_MESSAGE,
+} from '@hitfactor/shared';
 import { db } from '../../config/database.js';
-import { stages, matchAdmins } from '../../db/schema.js';
+import { stages, matchAdmins, scores } from '../../db/schema.js';
 import { isMatchHost } from '../matches/match-authz.js';
 
 // May the user set up stages for this match? A match admin (public match) or the
@@ -41,6 +48,24 @@ export async function stageNumberTaken(
     )
     .limit(1);
   return !!row;
+}
+
+// Whether any score has been entered on the stage.
+export async function stageHasScores(stageId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: scores.id })
+    .from(scores)
+    .where(eq(scores.stage_id, stageId))
+    .limit(1);
+  return !!row;
+}
+
+function stageLocked(reply: FastifyReply, message: string) {
+  return reply.status(409).send({
+    statusCode: 409,
+    error: 'Conflict',
+    message,
+  });
 }
 
 function stageNumberConflict(reply: FastifyReply, stageNumber: number) {
@@ -164,6 +189,20 @@ export async function updateStage(
     return stageNumberConflict(reply, parsed.data.stage_number);
   }
 
+  // Once a stage has scores, what makes a score valid (targets, steel, rounds,
+  // scoring type…) can't change — scores keep the hits they were entered with.
+  const [current] = await db
+    .select()
+    .from(stages)
+    .where(and(eq(stages.id, stageId), eq(stages.match_id, matchId)));
+  if (
+    current &&
+    changedLockedStageFields(current, parsed.data).length > 0 &&
+    (await stageHasScores(stageId))
+  ) {
+    return stageLocked(reply, STAGE_HAS_SCORES_MESSAGE);
+  }
+
   const updateData: Record<string, unknown> = { ...parsed.data, updated_at: new Date() };
   if (parsed.data.fixed_time !== undefined) {
     updateData.fixed_time = parsed.data.fixed_time?.toString() ?? null;
@@ -219,6 +258,10 @@ export async function deleteStage(
       error: 'Forbidden',
       message: 'Not authorized to delete stages for this match',
     });
+  }
+
+  if (await stageHasScores(stageId)) {
+    return stageLocked(reply, STAGE_DELETE_HAS_SCORES_MESSAGE);
   }
 
   const [deleted] = await db

@@ -3,3 +3,4 @@ export * from './constants.js';
 export * from './scoring.engine.js';
 export * from './analytics.engine.js';
 export * from './validation.js';
+export * from './stage-lock.js';

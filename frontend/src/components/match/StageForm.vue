@@ -10,6 +10,11 @@
     <q-card-section :class="{ 'scroll-area': fullscreen }">
       <div v-if="!fullscreen" class="text-h6 q-mb-md">{{ isEditing ? 'Edit Stage' : 'Add Stage' }}</div>
       <q-form @submit.prevent="handleSubmit" class="q-gutter-y-md">
+        <q-banner v-if="scoreLocked" dense rounded class="bg-orange-1 text-orange-10">
+          This stage already has scores, so its targets, rounds and scoring type
+          are locked. You can still change the name, number and description.
+        </q-banner>
+
         <div class="row q-col-gutter-md">
           <div class="col-4 col-xs-12">
             <q-input
@@ -53,6 +58,7 @@
           map-options
           outlined
           dense
+          :disable="scoreLocked"
         />
 
         <!-- Target Configuration -->
@@ -66,6 +72,7 @@
               :rules="[(val: number) => (val >= 0 && val <= 32) || 'Must be 0-32']"
               outlined
               dense
+              :disable="scoreLocked"
               @update:model-value="onPaperCountChange"
             />
           </div>
@@ -77,6 +84,7 @@
               :rules="[(val: number) => (val >= 0 && val <= 32) || 'Must be 0-32']"
               outlined
               dense
+              :disable="scoreLocked"
             />
           </div>
         </div>
@@ -87,6 +95,7 @@
             <q-toggle
               v-model="hasNoShoots"
               label="No-Shoots"
+              :disable="scoreLocked"
             />
           </div>
           <div v-if="hasNoShoots" class="col-auto">
@@ -97,6 +106,7 @@
               :rules="[(val: number) => (val >= 1 && val <= 16) || 'Must be 1-16']"
               outlined
               dense
+              :disable="scoreLocked"
               style="width: 100px"
             />
           </div>
@@ -112,6 +122,7 @@
               size="sm"
               label="Set all to"
               class="q-mr-xs"
+              :disable="scoreLocked"
             >
               <q-menu>
                 <q-list dense>
@@ -155,6 +166,7 @@
           step="0.01"
           outlined
           dense
+          :disable="scoreLocked"
         />
 
         <div class="row items-center q-col-gutter-md">
@@ -329,6 +341,8 @@ const props = defineProps<{
   nextStageNumber?: number;
   // The parent is persisting this form — block repeat submits.
   saving?: boolean;
+  // The stage already has scores: targets/rounds/scoring type can't change.
+  scoreLocked?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -449,14 +463,17 @@ function onPaperCountChange(val: number | null) {
 }
 
 function setAllRounds(n: number) {
+  if (props.scoreLocked) return;
   form.paper_target_rounds = form.paper_target_rounds.map(() => n);
 }
 
 function incrementRounds(index: number) {
+  if (props.scoreLocked) return;
   form.paper_target_rounds[index]++;
 }
 
 function resetRounds(index: number) {
+  if (props.scoreLocked) return;
   form.paper_target_rounds[index] = 2;
 }
 

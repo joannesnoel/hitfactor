@@ -40,7 +40,9 @@
                 @click="router.push(`/shooter/host/matches/${matchId}/score/${s.id}`)"
               />
               <q-btn flat color="primary" label="Edit" :disable="saving" @click="startEdit(s)" />
-              <q-btn flat color="negative" label="Delete" :disable="saving" @click="confirmDelete(s)" />
+              <q-btn flat color="negative" label="Delete" :disable="saving" @click="confirmDelete(s)">
+                <q-tooltip v-if="scoredStageIds.has(s.id)">Has scores — can't be deleted</q-tooltip>
+              </q-btn>
             </template>
           </StageCard>
         </div>
@@ -61,6 +63,7 @@
         :existing-officers="editingStageOfficers"
         :hide-officers="isHost"
         :saving="saving"
+        :score-locked="!!editingStage && scoredStageIds.has(editingStage.id)"
         @submit="handleUpdateStage"
         @cancel="showEditDialog = false"
       />
@@ -69,14 +72,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useQuasar } from 'quasar';
 import type { PowerSyncDatabase } from '@powersync/web';
 import { api } from 'src/boot/axios';
-import { getPowerSyncDb } from 'src/boot/powersync';
+import { getPowerSyncDb, whenPowerSyncReady } from 'src/boot/powersync';
 import { useMatch } from 'src/composables/useMatch';
-import { computeStageRounds } from '@hitfactor/shared';
+import {
+  computeStageRounds,
+  changedLockedStageFields,
+  STAGE_HAS_SCORES_MESSAGE,
+  STAGE_DELETE_HAS_SCORES_MESSAGE,
+} from '@hitfactor/shared';
 import type { Stage, CreateStageInput } from '@hitfactor/shared';
 import StageCard from 'src/components/match/StageCard.vue';
 import StageForm from 'src/components/match/StageForm.vue';
@@ -97,6 +105,27 @@ const nextStageNumber = computed(
 );
 
 const saving = ref(false);
+
+// Stages that already have scores (from the local db; the server enforces the
+// same rule, so this only gives instant feedback). Empty without a local db.
+const scoredStageIds = ref<Set<string>>(new Set());
+const scoredAbort = new AbortController();
+onMounted(async () => {
+  const db = await whenPowerSyncReady();
+  if (!db) return;
+  db.watch(
+    'SELECT DISTINCT stage_id FROM scores WHERE match_id = ?',
+    [matchId],
+    {
+      onResult: (res) => {
+        const rows = (res.rows?._array as Array<{ stage_id: string }> | undefined) ?? [];
+        scoredStageIds.value = new Set(rows.map((r) => r.stage_id));
+      },
+    },
+    { signal: scoredAbort.signal },
+  );
+});
+onUnmounted(() => scoredAbort.abort());
 const showAddForm = ref(false);
 const showEditDialog = ref(false);
 const editingStage = ref<Stage | null>(null);
@@ -251,6 +280,13 @@ async function startEdit(stage: Stage) {
 async function handleUpdateStage(data: StageFormData) {
   if (!editingStage.value || saving.value) return;
   const stageId = editingStage.value.id;
+  if (
+    scoredStageIds.value.has(stageId) &&
+    changedLockedStageFields(editingStage.value, data.stage).length > 0
+  ) {
+    $q.notify({ type: 'negative', message: STAGE_HAS_SCORES_MESSAGE });
+    return;
+  }
   if (stageNumberTaken(data.stage.stage_number, stageId)) {
     $q.notify({ type: 'negative', message: `Stage ${data.stage.stage_number} already exists` });
     return;
@@ -281,6 +317,10 @@ async function handleUpdateStage(data: StageFormData) {
 }
 
 function confirmDelete(stage: Stage) {
+  if (scoredStageIds.value.has(stage.id)) {
+    $q.notify({ type: 'negative', message: STAGE_DELETE_HAS_SCORES_MESSAGE });
+    return;
+  }
   $q.dialog({
     title: 'Delete Stage',
     message: `Are you sure you want to delete Stage ${stage.stage_number}: ${stage.name}?`,
@@ -298,8 +338,8 @@ function confirmDelete(stage: Stage) {
         await loadStages(matchId);
       }
       $q.notify({ type: 'positive', message: 'Stage deleted' });
-    } catch {
-      $q.notify({ type: 'negative', message: 'Failed to delete stage' });
+    } catch (err) {
+      $q.notify({ type: 'negative', message: failureMessage(err, 'Failed to delete stage') });
     } finally {
       saving.value = false;
     }
