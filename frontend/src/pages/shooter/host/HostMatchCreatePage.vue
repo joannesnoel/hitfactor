@@ -1,7 +1,7 @@
 <template>
   <q-page padding>
     <div class="row items-center q-mb-md">
-      <q-btn flat dense round icon="arrow_back" aria-label="Back" @click="$router.back()" />
+      <q-btn flat dense round icon="arrow_back" aria-label="Back" @click="goBack" />
       <div class="text-h6 text-weight-bold q-ml-sm">Host a match</div>
     </div>
 
@@ -73,6 +73,7 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { useGoBack } from 'src/composables/useGoBack';
 import { useQuasar } from 'quasar';
 import { api } from 'src/boot/axios';
 import {
@@ -83,6 +84,7 @@ import {
 
 const $q = useQuasar();
 const router = useRouter();
+const goBack = useGoBack('/shooter/dashboard');
 const loading = ref(false);
 
 const orgOptions = ORGANIZATIONS.map((o) => ({ label: o, value: o }));

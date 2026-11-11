@@ -86,6 +86,7 @@ import { useRouter } from 'vue-router';
 import type { Match } from '@hitfactor/shared';
 import { useMatch } from 'src/composables/useMatch';
 import { useMyMatchRoles } from 'src/composables/useMyMatchRoles';
+import { sortYourMatches } from 'src/composables/matchStatus';
 import MatchCard from 'src/components/match/MatchCard.vue';
 import ScanJoinDialog from 'src/components/common/ScanJoinDialog.vue';
 
@@ -101,24 +102,14 @@ const { rolesFor } = useMyMatchRoles();
 
 const today = new Date().toISOString().split('T')[0];
 
-// A match that is on now, or still to come, sorts ahead of finished ones.
-function isCurrent(m: Match): boolean {
-  return (
-    m.start_date >= today || m.status === 'active' || m.status === 'scoring'
-  );
-}
-
 // Private matches only ever show up here, and only if you're involved in them.
-const yourMatches = computed(() => {
-  const mine = allMatches.value.filter((m) => rolesFor(m.id).length > 0);
-  const current = mine
-    .filter(isCurrent)
-    .sort((a, b) => a.start_date.localeCompare(b.start_date));
-  const past = mine
-    .filter((m) => !isCurrent(m))
-    .sort((a, b) => b.start_date.localeCompare(a.start_date));
-  return [...current, ...past];
-});
+// Upcoming/ongoing first (soonest first), then past matches (newest first).
+const yourMatches = computed(() =>
+  sortYourMatches(
+    allMatches.value.filter((m) => rolesFor(m.id).length > 0),
+    today,
+  ),
+);
 
 const findMatches = computed(() =>
   allMatches.value

@@ -8,7 +8,7 @@
     <template v-else-if="match">
       <!-- Match Header -->
       <div class="row items-center no-wrap q-mb-md">
-        <q-btn flat round icon="arrow_back" @click="$router.back()" />
+        <q-btn flat round icon="arrow_back" aria-label="Back" @click="goBack" />
         <div class="col q-ml-sm" style="min-width: 0">
           <div class="text-h5 text-weight-bold ellipsis">{{ match.name }}</div>
           <div class="text-grey ellipsis">
@@ -206,6 +206,7 @@ import { POWER_FACTORS, CLASSIFICATIONS, getDivisionsForOrg, DEFAULT_ORGANIZATIO
 import { api } from 'src/boot/axios';
 import { useAuthStore } from 'src/stores/auth.store';
 import { matchStatusLabel, matchStatusColor } from 'src/composables/matchStatus';
+import { useGoBack } from 'src/composables/useGoBack';
 import MatchResultsViewer from 'src/components/results/MatchResultsViewer.vue';
 
 const route = useRoute();
@@ -213,6 +214,7 @@ const $q = useQuasar();
 let db: PowerSyncDatabase | null = null;
 const authStore = useAuthStore();
 const matchId = route.params.id as string;
+const goBack = useGoBack('/shooter/dashboard');
 
 const loading = ref(true);
 const match = ref<Match | null>(null);
@@ -380,7 +382,9 @@ const isHost = computed(
     match.value.created_by === authStore.user?.id,
 );
 // Hosts and scorers can enter scores for any stage.
-const canScore = computed(() => isHost.value || isScorer.value);
+const canScore = computed(
+  () => isHost.value || (isScorer.value && match.value?.status !== 'final'),
+);
 // Per-stage scoring progress (scores entered vs shooters registered).
 const stageScoreCounts = ref<Record<string, number>>({});
 const registrationCount = ref(0);

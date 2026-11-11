@@ -7,7 +7,7 @@
 
     <template v-else-if="stage">
       <div class="row items-center q-mb-md">
-        <q-btn flat round icon="arrow_back" @click="$router.back()" />
+        <q-btn flat round icon="arrow_back" aria-label="Back" @click="goBack" />
         <div class="q-ml-sm">
           <div class="text-h5 text-weight-bold">
             Stage {{ stage.stage_number }}: {{ stage.name }}
@@ -207,6 +207,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, watchEffect, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
+import { useGoBack } from 'src/composables/useGoBack';
 import type { PowerSyncDatabase } from '@powersync/web';
 import { whenPowerSyncReady } from 'src/boot/powersync';
 import { api } from 'src/boot/axios';
@@ -225,6 +226,7 @@ const authStore = useAuthStore();
 
 const matchId = route.params.id as string;
 const stageId = route.params.stageId as string;
+const goBack = useGoBack(`/shooter/matches/${matchId}`);
 
 const loading = ref(true);
 const stage = ref<Stage | null>(null);

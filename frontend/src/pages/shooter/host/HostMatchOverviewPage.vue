@@ -5,6 +5,20 @@
     </div>
 
     <template v-else-if="match">
+      <!-- Finished: results are final until the host reopens the match -->
+      <q-banner
+        v-if="isFinished"
+        rounded
+        class="bg-purple-1 text-purple-10 q-mb-md"
+        style="max-width: 620px"
+      >
+        <template #avatar><q-icon name="flag" color="purple" /></template>
+        This match is finished. Reopen it to take sign-ups or change scores.
+        <template #action>
+          <q-btn flat no-caps color="purple" label="Reopen match" :loading="saving" @click="reopenMatch" />
+        </template>
+      </q-banner>
+
       <!-- Invite -->
       <q-card flat bordered class="q-mb-md" style="max-width: 620px">
         <q-card-section>
@@ -160,7 +174,17 @@
         </div>
       </div>
 
-      <div class="q-mt-lg">
+      <div class="q-mt-lg row items-center q-gutter-sm">
+        <q-btn
+          v-if="!isFinished"
+          outline
+          no-caps
+          color="purple"
+          icon="flag"
+          label="Finish match"
+          :loading="saving"
+          @click="confirmFinish"
+        />
         <q-btn flat dense no-caps color="negative" icon="delete" label="Delete match" @click="confirmDelete" />
       </div>
     </template>
@@ -181,6 +205,7 @@ interface MatchRow {
   name: string;
   join_token: string | null;
   registration_open: number | boolean;
+  status: string;
 }
 interface RegistrationRow {
   id: string;
@@ -281,6 +306,8 @@ async function removeScorer(userId: string) {
 
 onMounted(() => void loadScorers());
 
+const isFinished = computed(() => match.value?.status === 'final');
+
 const inviteUrl = computed(() =>
   match.value?.join_token
     ? `${window.location.origin}/join/${match.value.join_token}`
@@ -311,6 +338,31 @@ async function setRegistrationOpen(open: boolean) {
   } finally {
     saving.value = false;
   }
+}
+
+async function setStatus(body: { status: string; registration_open?: boolean }, done: string) {
+  saving.value = true;
+  try {
+    await api.patch(`/api/matches/${matchId}`, body);
+    $q.notify({ type: 'positive', message: done, timeout: 1500 });
+  } catch {
+    $q.notify({ type: 'negative', message: 'Could not update the match — check your connection' });
+  } finally {
+    saving.value = false;
+  }
+}
+
+function confirmFinish() {
+  $q.dialog({
+    title: 'Finish match',
+    message: 'Close sign-ups and mark this match finished? You can reopen it later to change scores.',
+    cancel: true,
+    ok: { label: 'Finish', color: 'purple', flat: true },
+  }).onOk(() => void setStatus({ status: 'final', registration_open: false }, 'Match finished'));
+}
+
+function reopenMatch() {
+  void setStatus({ status: 'active' }, 'Match reopened');
 }
 
 function confirmDelete() {

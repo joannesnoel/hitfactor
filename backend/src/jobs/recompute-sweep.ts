@@ -23,10 +23,15 @@ export async function recomputeDirtyMatches(): Promise<{
     .innerJoin(matches, eq(matches.id, matchRecomputeState.match_id))
     .where(
       and(
-        // Any match that isn't finalised/archived: scores can land while a match
-        // is still 'draft' (a host who never advanced the status) and shooters
-        // expect results to follow.
-        inArray(matches.status, ['draft', 'registration', 'active', 'scoring']),
+        or(
+          // Any match that isn't finalised/archived: scores can land while a match
+          // is still 'draft' (a host who never advanced the status) and shooters
+          // expect results to follow.
+          inArray(matches.status, ['draft', 'registration', 'active', 'scoring']),
+          // A hosted match marked Finished still gets its last scores (and any
+          // later revision) computed; the dirty check below keeps it cheap.
+          and(eq(matches.status, 'final'), eq(matches.is_private, true))
+        ),
         or(
           isNull(matchRecomputeState.results_computed_at),
           gt(
