@@ -16,7 +16,7 @@
         color="primary"
         icon="add"
         label="Host a match"
-        to="/shooter/host/create"
+        to="/host/create"
         no-caps
         unelevated
       />
@@ -48,7 +48,7 @@
           </div>
           <div class="row justify-center q-gutter-sm">
             <q-btn color="primary" icon="qr_code_scanner" label="Scan to join" no-caps unelevated @click="showScan = true" />
-            <q-btn color="primary" outline label="Host a match" to="/shooter/host/create" no-caps />
+            <q-btn color="primary" outline label="Host a match" to="/host/create" no-caps />
           </div>
         </q-card>
 
@@ -127,9 +127,9 @@ const findMatches = computed(() =>
 // Hosts land on their match's control page; everyone else on the match view.
 function open(m: Match) {
   if (rolesFor(m.id).includes('host')) {
-    void router.push(`/shooter/host/matches/${m.id}`);
+    void router.push(`/host/matches/${m.id}`);
   } else {
-    void router.push(`/shooter/matches/${m.id}`);
+    void router.push(`/matches/${m.id}`);
   }
 }
 </script>

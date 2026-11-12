@@ -62,19 +62,19 @@
           name="dashboard"
           icon="emoji_events"
           label="Matches"
-          :to="'/shooter/dashboard'"
+          :to="'/dashboard'"
         />
         <q-route-tab
           name="performance"
           icon="insights"
           label="Performance"
-          :to="'/shooter/performance'"
+          :to="'/performance'"
         />
         <q-route-tab
           name="profile"
           icon="person"
           label="Profile"
-          :to="'/shooter/profile'"
+          :to="'/profile'"
         />
       </q-tabs>
     </q-footer>

@@ -35,7 +35,7 @@ export default boot(({ router }) => {
     if (isPublic) {
       next();
     } else if (isAuthPage) {
-      next(authStore.isAuthenticated ? '/shooter/dashboard' : undefined);
+      next(authStore.isAuthenticated ? '/dashboard' : undefined);
     } else if (!authStore.isAuthenticated) {
       next('/auth/login');
     } else {

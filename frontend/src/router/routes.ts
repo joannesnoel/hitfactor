@@ -1,4 +1,5 @@
 import type { RouteRecordRaw } from 'vue-router';
+import { useAuthStore } from 'src/stores/auth.store';
 
 const routes: RouteRecordRaw[] = [
   // Auth routes (no layout)
@@ -131,11 +132,18 @@ const routes: RouteRecordRaw[] = [
     ],
   },
 
-  // Shooter routes
+  // Shooter routes — the default experience, so they live at the root
+  // (/dashboard, /matches/:id, …). Old /shooter/** links redirect (see below).
   {
-    path: '/shooter',
+    path: '/',
     component: () => import('src/layouts/ShooterLayout.vue'),
     children: [
+      // Bare root: signed-in users land on their dashboard; guests see the
+      // (public) matches list.
+      {
+        path: '',
+        redirect: () => (useAuthStore().isAuthenticated ? '/dashboard' : '/public/matches'),
+      },
       {
         path: 'dashboard',
         component: () => import('src/pages/shooter/DashboardPage.vue'),
@@ -165,7 +173,7 @@ const routes: RouteRecordRaw[] = [
       // dashboard's "Your matches". Kept as a redirect for old links/bookmarks.
       {
         path: 'host',
-        redirect: '/shooter/dashboard',
+        redirect: '/dashboard',
       },
       {
         path: 'host/create',
@@ -182,7 +190,7 @@ const routes: RouteRecordRaw[] = [
   // Deliberately separate from the admin match area — the host is the sole
   // authority (matches.created_by), with no admin/officer roles involved.
   {
-    path: '/shooter/host/matches/:id',
+    path: '/host/matches/:id',
     component: () => import('src/layouts/HostMatchLayout.vue'),
     children: [
       {
@@ -229,10 +237,15 @@ const routes: RouteRecordRaw[] = [
     ],
   },
 
-  // Root shows the (public) matches list for everyone
+  // Legacy: everything used to live under /shooter (bookmarks, installed PWAs,
+  // old invite/verify emails).
   {
-    path: '/',
-    redirect: '/public/matches',
+    path: '/shooter/:rest(.*)*',
+    redirect: (to) => ({
+      path: '/' + ([] as string[]).concat(to.params.rest ?? []).join('/'),
+      query: to.query,
+      hash: to.hash,
+    }),
   },
 
   // Catch-all 404

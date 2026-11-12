@@ -21,7 +21,7 @@
           no-caps
           icon="dashboard"
           label="Dashboard"
-          to="/shooter/dashboard"
+          to="/dashboard"
         />
         <q-btn v-else flat no-caps icon="login" label="Login" to="/auth/login" />
       </q-toolbar>

@@ -33,13 +33,13 @@ export function useAuth() {
     } else if (OFFICIAL_MATCHES_ENABLED && authStore.isOfficer) {
       router.push('/officer/dashboard');
     } else {
-      router.push('/shooter/dashboard');
+      router.push('/dashboard');
     }
   }
 
   async function register(input: RegisterInput, redirect?: string | null) {
     await authStore.register(input);
-    router.push(safeRedirect(redirect) ?? '/shooter/dashboard');
+    router.push(safeRedirect(redirect) ?? '/dashboard');
   }
 
   async function logout() {

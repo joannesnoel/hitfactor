@@ -70,7 +70,7 @@
         bordered
         class="q-mb-md cursor-pointer"
         style="max-width: 620px"
-        @click="$router.push({ path: `/shooter/matches/${matchId}`, query: { tab: 'analysis' } })"
+        @click="$router.push({ path: `/matches/${matchId}`, query: { tab: 'analysis' } })"
       >
         <q-card-section class="row items-center no-wrap">
           <q-icon name="insights" color="primary" size="28px" class="q-mr-md" />
@@ -250,7 +250,7 @@ const { match, stages, registrations, loading, matchId } = ctx;
 
 const $q = useQuasar();
 const router = useRouter();
-const base = `/shooter/host/matches/${matchId}`;
+const base = `/host/matches/${matchId}`;
 const saving = ref(false);
 const authStore = useAuthStore();
 
@@ -395,7 +395,7 @@ function confirmDelete() {
     try {
       await api.delete(`/api/matches/${matchId}`);
       $q.notify({ type: 'positive', message: 'Match deleted' });
-      await router.replace('/shooter/dashboard');
+      await router.replace('/dashboard');
     } catch {
       $q.notify({ type: 'negative', message: 'Could not delete the match' });
     }

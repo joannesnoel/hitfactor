@@ -37,7 +37,7 @@
                 color="teal"
                 icon="sports_score"
                 label="Score"
-                @click="router.push(`/shooter/host/matches/${matchId}/score/${s.id}`)"
+                @click="router.push(`/host/matches/${matchId}/score/${s.id}`)"
               />
               <q-btn flat color="primary" label="Edit" :disable="saving" @click="startEdit(s)" />
               <q-btn flat color="negative" label="Delete" :disable="saving" @click="confirmDelete(s)">
@@ -96,7 +96,7 @@ const router = useRouter();
 const $q = useQuasar();
 const matchId = route.params.id as string;
 // Reused by the shooter-host area — a private match has no stage-level officials.
-const isHost = route.path.startsWith('/shooter/host');
+const isHost = route.path.startsWith('/host');
 
 const { stages, loading, loadStages } = useMatch(matchId);
 

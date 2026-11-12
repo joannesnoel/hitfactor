@@ -35,7 +35,7 @@
           no-caps
           icon="tune"
           label="Manage match"
-          :to="`/shooter/host/matches/${match.id}`"
+          :to="`/host/matches/${match.id}`"
         />
       </div>
 
@@ -83,7 +83,7 @@
               flat
               bordered
               class="cursor-pointer"
-              @click="$router.push(`/shooter/matches/${match.id}/stages/${s.id}`)"
+              @click="$router.push(`/matches/${match.id}/stages/${s.id}`)"
             >
               <q-card-section>
                 <div class="row items-center justify-between">
@@ -126,7 +126,7 @@
                     no-caps
                     icon="sports_score"
                     label="Score"
-                    @click.stop="$router.push(`/shooter/matches/${match.id}/score/${s.id}`)"
+                    @click.stop="$router.push(`/matches/${match.id}/score/${s.id}`)"
                   />
                 </div>
               </q-card-section>
@@ -226,7 +226,7 @@ const $q = useQuasar();
 let db: PowerSyncDatabase | null = null;
 const authStore = useAuthStore();
 const matchId = route.params.id as string;
-const goBack = useGoBack('/shooter/dashboard');
+const goBack = useGoBack('/dashboard');
 
 const loading = ref(true);
 const match = ref<Match | null>(null);
@@ -257,7 +257,7 @@ async function loadStageResults(
     return [];
   }
 }
-// Deep link from My Performance: /shooter/matches/:id?tab=analysis
+// Deep link from My Performance: /matches/:id?tab=analysis
 const activeTab = ref(route.query.tab === 'analysis' ? 'analysis' : 'stages');
 const showRegisterDialog = ref(false);
 const isRegistered = ref(false);

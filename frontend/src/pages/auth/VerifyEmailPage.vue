@@ -36,7 +36,7 @@ const state = ref<'pending' | 'ok' | 'error'>('pending');
 const error = ref('');
 
 const ctaTo = computed(() =>
-  auth.isAuthenticated ? '/shooter/dashboard' : '/auth/login',
+  auth.isAuthenticated ? '/dashboard' : '/auth/login',
 );
 const ctaLabel = computed(() =>
   auth.isAuthenticated ? 'Go to dashboard' : 'Sign in',

@@ -20,8 +20,8 @@
         progress over time show up here. It all works offline.
       </div>
       <div class="row justify-center q-gutter-sm q-mt-md">
-        <q-btn color="primary" unelevated no-caps label="Find a match" to="/shooter/dashboard" />
-        <q-btn color="primary" outline no-caps label="Host a match" to="/shooter/host/create" />
+        <q-btn color="primary" unelevated no-caps label="Find a match" to="/dashboard" />
+        <q-btn color="primary" outline no-caps label="Host a match" to="/host/create" />
       </div>
     </q-card>
 
@@ -115,7 +115,7 @@
         flat
         bordered
         class="q-mb-sm cursor-pointer"
-        @click="$router.push({ path: `/shooter/matches/${m.match_id}`, query: { tab: 'analysis' } })"
+        @click="$router.push({ path: `/matches/${m.match_id}`, query: { tab: 'analysis' } })"
       >
         <q-card-section class="q-py-sm">
           <div class="row items-center no-wrap">

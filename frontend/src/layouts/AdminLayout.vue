@@ -157,7 +157,7 @@ function goBack() {
 }
 
 function goToProfile() {
-  router.push('/shooter/profile');
+  router.push('/profile');
 }
 
 async function handleLogout() {

@@ -13,7 +13,7 @@ describe('parseJoinToken', () => {
 
   it('rejects other URLs and non-invite paths', () => {
     expect(parseJoinToken('https://evil.example/login')).toBeNull();
-    expect(parseJoinToken('https://hitfactor.net/shooter/dashboard')).toBeNull();
+    expect(parseJoinToken('https://hitfactor.net/dashboard')).toBeNull();
     expect(parseJoinToken('https://hitfactor.net/join/')).toBeNull();
     expect(parseJoinToken('https://hitfactor.net/join/a/b')).toBeNull();
   });

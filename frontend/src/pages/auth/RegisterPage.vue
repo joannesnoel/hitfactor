@@ -312,7 +312,7 @@ async function handleSubmit() {
         password: form.password,
       });
       $q.notify({ type: 'positive', message: 'Record claimed — welcome!' });
-      await router.push(redirect.value ?? '/shooter/performance');
+      await router.push(redirect.value ?? '/performance');
       return;
     }
     const input: RegisterInput = {

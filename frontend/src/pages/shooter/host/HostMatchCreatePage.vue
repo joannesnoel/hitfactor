@@ -84,7 +84,7 @@ import {
 
 const $q = useQuasar();
 const router = useRouter();
-const goBack = useGoBack('/shooter/dashboard');
+const goBack = useGoBack('/dashboard');
 const loading = ref(false);
 
 const orgOptions = ORGANIZATIONS.map((o) => ({ label: o, value: o }));
@@ -111,7 +111,7 @@ async function submit() {
     if (form.max_shooters) payload.max_shooters = form.max_shooters;
     const { data } = await api.post<{ id: string }>('/api/matches', payload);
     $q.notify({ type: 'positive', message: 'Match created — invite your shooters!' });
-    await router.replace(`/shooter/host/matches/${data.id}`);
+    await router.replace(`/host/matches/${data.id}`);
   } catch (err: unknown) {
     const message =
       (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??

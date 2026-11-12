@@ -24,7 +24,7 @@ export function useRoleSwitch() {
   const currentArea = computed<RoleArea | null>(() => {
     if (route.path.startsWith('/admin')) return 'admin';
     if (route.path.startsWith('/officer')) return 'officer';
-    if (route.path.startsWith('/shooter')) return 'shooter';
+    if (/^\/(dashboard|performance|profile|matches|host)(\/|$)/.test(route.path)) return 'shooter';
     return null;
   });
 
@@ -35,7 +35,7 @@ export function useRoleSwitch() {
       t.push({ key: 'admin', label: 'Admin Dashboard', icon: 'shield', to: '/admin/dashboard' });
     if (OFFICIAL_MATCHES_ENABLED && auth.isOfficer)
       t.push({ key: 'officer', label: 'Officer Dashboard', icon: 'sports_score', to: '/officer/dashboard' });
-    t.push({ key: 'shooter', label: 'Shooter Dashboard', icon: 'emoji_events', to: '/shooter/dashboard' });
+    t.push({ key: 'shooter', label: 'Shooter Dashboard', icon: 'emoji_events', to: '/dashboard' });
     return t;
   });
 

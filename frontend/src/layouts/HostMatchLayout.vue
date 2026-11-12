@@ -37,7 +37,7 @@
       class="bg-grey-1"
     >
       <q-list>
-        <q-item clickable v-ripple to="/shooter/dashboard" class="text-grey-7">
+        <q-item clickable v-ripple to="/dashboard" class="text-grey-7">
           <q-item-section avatar><q-icon name="arrow_back" /></q-item-section>
           <q-item-section>Back to Matches</q-item-section>
         </q-item>
@@ -78,7 +78,7 @@
         <q-item
           clickable
           v-ripple
-          :to="{ path: `/shooter/matches/${matchId}`, query: { tab: 'analysis' } }"
+          :to="{ path: `/matches/${matchId}`, query: { tab: 'analysis' } }"
         >
           <q-item-section avatar><q-icon name="insights" /></q-item-section>
           <q-item-section>Analysis</q-item-section>
@@ -103,7 +103,7 @@ import SyncStatusIndicator from 'src/components/common/SyncStatusIndicator.vue';
 const route = useRoute();
 const router = useRouter();
 const matchId = route.params.id as string;
-const base = `/shooter/host/matches/${matchId}`;
+const base = `/host/matches/${matchId}`;
 const drawerOpen = ref(false);
 
 const { match, stages, registrations, loading } = useMatch(matchId);

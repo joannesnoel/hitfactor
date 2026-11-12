@@ -395,15 +395,15 @@ let db: PowerSyncDatabase | null = null;
 const authStore = useAuthStore();
 
 // Officer scoring passes :matchId; the shooter-host route nests scoring under
-// /shooter/host/matches/:id/score/:stageId, so accept either param name.
+// /host/matches/:id/score/:stageId, so accept either param name.
 const matchId = (route.params.matchId ?? route.params.id) as string;
 const stageId = route.params.stageId as string;
 // Where the header back-arrow returns to: the host's match, or the officer
 // dashboard for the officer flow.
-const scoringBackTo = route.path.startsWith('/shooter/host')
-  ? `/shooter/host/matches/${matchId}`
-  : route.path.startsWith('/shooter/matches')
-    ? `/shooter/matches/${matchId}`
+const scoringBackTo = route.path.startsWith('/host')
+  ? `/host/matches/${matchId}`
+  : route.path.startsWith('/matches')
+    ? `/matches/${matchId}`
     : '/officer/dashboard';
 
 const loading = ref(true);

@@ -226,7 +226,7 @@ const authStore = useAuthStore();
 
 const matchId = route.params.id as string;
 const stageId = route.params.stageId as string;
-const goBack = useGoBack(`/shooter/matches/${matchId}`);
+const goBack = useGoBack(`/matches/${matchId}`);
 
 const loading = ref(true);
 const stage = ref<Stage | null>(null);
