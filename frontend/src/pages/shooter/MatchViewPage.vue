@@ -501,6 +501,34 @@ onMounted(async () => {
     { signal: watchAbort.signal },
   );
 
+  // My own registration and scores, kept live so a score that syncs in while
+  // the page is open shows up (these were one-shot reads in loadDetails).
+  if (authStore.user) {
+    db.watch(
+      'SELECT id FROM registrations WHERE match_id = ? AND user_id = ?',
+      [matchId, authStore.user.id],
+      {
+        onResult: (res) => {
+          isRegistered.value = ((res.rows?._array as unknown[] | undefined) ?? []).length > 0;
+        },
+      },
+      { signal: watchAbort.signal },
+    );
+    db.watch(
+      `SELECT s.* FROM scores s
+         JOIN registrations r ON r.id = s.registration_id
+        WHERE s.match_id = ? AND r.user_id = ?
+        ORDER BY r.registered_at`,
+      [matchId, authStore.user.id],
+      {
+        onResult: (res) => {
+          myScores.value = (res.rows?._array as Score[] | undefined) ?? [];
+        },
+      },
+      { signal: watchAbort.signal },
+    );
+  }
+
   // Results are computed server-side after the match row last changed, so the
   // watch above never re-fires for them. Watch match_results directly so the
   // Results tab fills in as soon as standings sync down (no leave-and-return).

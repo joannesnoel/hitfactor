@@ -205,7 +205,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, watchEffect, onMounted } from 'vue';
+import { ref, computed, watch, watchEffect, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { useGoBack } from 'src/composables/useGoBack';
 import type { PowerSyncDatabase } from '@powersync/web';
@@ -222,6 +222,7 @@ import StageResultsTable from 'src/components/results/StageResultsTable.vue';
 
 const route = useRoute();
 let db: PowerSyncDatabase | null = null;
+const watchAbort = new AbortController();
 const authStore = useAuthStore();
 
 const matchId = route.params.id as string;
@@ -230,7 +231,7 @@ const goBack = useGoBack(`/matches/${matchId}`);
 
 const loading = ref(true);
 const stage = ref<Stage | null>(null);
-const myScore = ref<Score | null>(null);
+const myScores = ref<Score[]>([]); // my raw score(s) on this stage, kept live
 const myRegIds = ref<string[]>([]); // a shooter may have several entries (divisions / re-entries)
 const stageResults = ref<StageResultEntry[]>([]);
 const organization = ref<Organization>(DEFAULT_ORGANIZATION);
@@ -243,6 +244,12 @@ const myStageResult = computed(() => {
     (r) => !r.combined && myRegIds.value.includes(r.registration_id)
   );
   return mine.sort((a, b) => a.place - b.place)[0] ?? null;
+});
+
+// Raw score for the "Your Score" card — my best entry's.
+const myScore = computed<Score | null>(() => {
+  const id = myStageResult.value?.registration_id ?? myRegIds.value[0];
+  return myScores.value.find((sc) => sc.registration_id === id) ?? myScores.value[0] ?? null;
 });
 
 // The stage winner is division-specific, so the page carries a single division
@@ -417,17 +424,58 @@ onMounted(async () => {
     }
     stageResults.value = results;
 
-    // Raw score for the "Your Score" card — my best entry's (local only).
-    const myRegId = myStageResult.value?.registration_id ?? myRegIds.value[0];
-    if (db && myRegId) {
-      const scoreRows = await db.getAll<Score>(
-        'SELECT * FROM scores WHERE stage_id = ? AND registration_id = ?',
-        [stageId, myRegId],
-      );
-      myScore.value = scoreRows[0] ?? null;
-    }
   } finally {
     loading.value = false;
   }
+
+  // Keep the page live: a score or ranking that syncs in while it's open shows
+  // up without leaving and coming back. These read the local database only.
+  if (db) {
+    const opts = { signal: watchAbort.signal };
+    if (authStore.user) {
+      db.watch(
+        'SELECT id FROM registrations WHERE match_id = ? AND user_id = ?',
+        [matchId, authStore.user.id],
+        {
+          onResult: (res) => {
+            const rows = (res.rows?._array as Array<{ id: string }> | undefined) ?? [];
+            myRegIds.value = rows.map((r) => r.id);
+          },
+        },
+        opts,
+      );
+      db.watch(
+        `SELECT s.* FROM scores s
+           JOIN registrations r ON r.id = s.registration_id
+          WHERE s.stage_id = ? AND r.user_id = ?
+          ORDER BY r.registered_at`,
+        [stageId, authStore.user.id],
+        {
+          onResult: (res) => {
+            myScores.value = (res.rows?._array as Score[] | undefined) ?? [];
+          },
+        },
+        opts,
+      );
+    }
+    db.watch(
+      'SELECT results FROM stage_results WHERE stage_id = ?',
+      [stageId],
+      {
+        onResult: (res) => {
+          const rows = (res.rows?._array as Array<{ results: string }> | undefined) ?? [];
+          if (rows.length === 0) return; // keep any public-API fallback already loaded
+          try {
+            stageResults.value = rows.flatMap((r) => JSON.parse(r.results) as StageResultEntry[]);
+          } catch {
+            /* malformed row — leave current results */
+          }
+        },
+      },
+      opts,
+    );
+  }
 });
+
+onUnmounted(() => watchAbort.abort());
 </script>
