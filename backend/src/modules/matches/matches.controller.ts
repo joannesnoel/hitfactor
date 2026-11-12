@@ -138,11 +138,14 @@ export async function createMatch(
   //  - Shooter-created (private): a lightweight, self-hosted match. Always
   //    private, gets an invite token, and has NO admin/officer rows — the host's
   //    sole authority is matches.created_by (see isMatchHost).
-  if (!isGlobalAdmin) {
+  // The "Host a match" flow sends `hosted`, so an admin who hosts a casual match
+  // gets the same hosted behaviour (active, registration open) as anyone else.
+  const { hosted, ...matchInput } = parsed.data;
+  if (!isGlobalAdmin || hosted) {
     const [match] = await db
       .insert(matches)
       .values({
-        ...parsed.data,
+        ...matchInput,
         is_private: true,
         // Hosted matches are always Level I.
         level: 'I',
@@ -162,9 +165,9 @@ export async function createMatch(
   const [match] = await db
     .insert(matches)
     .values({
-      ...parsed.data,
+      ...matchInput,
       // A private admin match still gets an invite token so it can be shared.
-      join_token: parsed.data.is_private ? generateJoinToken() : null,
+      join_token: matchInput.is_private ? generateJoinToken() : null,
       created_by: request.user.id,
     })
     .returning();

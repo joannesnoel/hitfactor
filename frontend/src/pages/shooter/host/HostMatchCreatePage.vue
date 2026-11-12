@@ -107,6 +107,7 @@ async function submit() {
       level: 'I',
       organization: form.organization as CreateMatchInput['organization'],
       is_private: true,
+      hosted: true,
     };
     if (form.max_shooters) payload.max_shooters = form.max_shooters;
     const { data } = await api.post<{ id: string }>('/api/matches', payload);

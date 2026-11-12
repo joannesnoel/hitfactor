@@ -68,6 +68,9 @@ export const createMatchSchema = z.object({
   organization: z.enum(ORGANIZATIONS),
   max_shooters: z.number().int().min(1).max(500).optional(),
   is_private: z.boolean().optional(),
+  // Set by the shooter "Host a match" flow. Forces the lightweight hosted path
+  // even for a global admin (who would otherwise get an admin-managed draft).
+  hosted: z.boolean().optional(),
 });
 export type CreateMatchInput = z.infer<typeof createMatchSchema>;
 
