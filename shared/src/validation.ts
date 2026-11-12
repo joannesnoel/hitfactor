@@ -71,6 +71,14 @@ export const createMatchSchema = z.object({
   // Set by the shooter "Host a match" flow. Forces the lightweight hosted path
   // even for a global admin (who would otherwise get an admin-managed draft).
   hosted: z.boolean().optional(),
+  // The host also shoots: register them in the same request. Only honoured for
+  // hosted matches; division and power factor are both required.
+  participate: z
+    .object({
+      division: z.string().min(1).max(50),
+      power_factor: z.enum(POWER_FACTORS),
+    })
+    .optional(),
 });
 export type CreateMatchInput = z.infer<typeof createMatchSchema>;
 

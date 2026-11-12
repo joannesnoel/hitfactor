@@ -55,6 +55,43 @@
             max="500"
           />
 
+          <!-- The host usually shoots too: register them as part of creating. -->
+          <q-checkbox v-model="form.participating" label="I am participating" />
+          <div v-if="form.participating" class="q-gutter-y-md q-pl-md">
+            <q-select
+              v-model="form.division"
+              :options="divisionOptions"
+              emit-value
+              map-options
+              label="Your division"
+              outlined
+              :rules="[(v: string | null) => !!v || 'Pick your division']"
+            />
+            <div>
+              <div class="text-caption text-grey-7 q-mb-xs">Power factor</div>
+              <q-btn-toggle
+                v-if="allowsMajor"
+                v-model="form.power_factor"
+                spread
+                no-caps
+                unelevated
+                toggle-color="primary"
+                color="grey-3"
+                text-color="grey-9"
+                :options="[
+                  { label: 'Minor', value: 'Minor' },
+                  { label: 'Major', value: 'Major' },
+                ]"
+              />
+              <div v-else class="text-body2">
+                Minor
+                <span class="text-grey-6">
+                  {{ form.division ? '(this division is Minor only)' : '(pick a division first)' }}
+                </span>
+              </div>
+            </div>
+          </div>
+
           <q-btn
             type="submit"
             color="primary"
@@ -71,7 +108,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGoBack } from 'src/composables/useGoBack';
 import { useQuasar } from 'quasar';
@@ -79,7 +116,11 @@ import { api } from 'src/boot/axios';
 import {
   ORGANIZATIONS,
   DEFAULT_ORGANIZATION,
+  divisionAllowsMajor,
+  getDivisionsForOrg,
   type CreateMatchInput,
+  type Organization,
+  type PowerFactor,
 } from '@hitfactor/shared';
 
 const $q = useQuasar();
@@ -95,6 +136,29 @@ const form = reactive({
   start_date: new Date().toISOString().split('T')[0],
   organization: DEFAULT_ORGANIZATION as string,
   max_shooters: undefined as number | undefined,
+  participating: true,
+  division: null as string | null,
+  power_factor: 'Minor' as PowerFactor,
+});
+
+// Divisions depend on the organization; a pick that no longer exists is cleared.
+const divisionOptions = computed(() =>
+  getDivisionsForOrg(form.organization as Organization).map((d) => ({
+    label: d.label,
+    value: d.key as string,
+  })),
+);
+watch(
+  () => form.organization,
+  () => {
+    if (!divisionOptions.value.some((d) => d.value === form.division)) form.division = null;
+  },
+);
+
+// Only some divisions offer Major; the rest are fixed to Minor.
+const allowsMajor = computed(() => (form.division ? divisionAllowsMajor(form.division) : false));
+watch(allowsMajor, (ok) => {
+  if (!ok) form.power_factor = 'Minor';
 });
 
 async function submit() {
@@ -110,6 +174,9 @@ async function submit() {
       hosted: true,
     };
     if (form.max_shooters) payload.max_shooters = form.max_shooters;
+    if (form.participating && form.division) {
+      payload.participate = { division: form.division, power_factor: form.power_factor };
+    }
     const { data } = await api.post<{ id: string }>('/api/matches', payload);
     $q.notify({ type: 'positive', message: 'Match created — invite your shooters!' });
     await router.replace(`/host/matches/${data.id}`);

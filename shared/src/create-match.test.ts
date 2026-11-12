@@ -21,4 +21,19 @@ describe('createMatchSchema', () => {
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.hosted).toBeUndefined();
   });
+
+  it('requires both division and power factor when the host participates', () => {
+    const hosted = { ...base, is_private: true, hosted: true };
+    expect(
+      createMatchSchema.safeParse({
+        ...hosted,
+        participate: { division: 'production', power_factor: 'Minor' },
+      }).success,
+    ).toBe(true);
+    expect(createMatchSchema.safeParse({ ...hosted, participate: { division: 'production' } }).success).toBe(false);
+    expect(createMatchSchema.safeParse({ ...hosted, participate: { power_factor: 'Minor' } }).success).toBe(false);
+    expect(
+      createMatchSchema.safeParse({ ...hosted, participate: { division: '', power_factor: 'Minor' } }).success,
+    ).toBe(false);
+  });
 });

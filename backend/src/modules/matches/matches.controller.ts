@@ -140,25 +140,64 @@ export async function createMatch(
   //    sole authority is matches.created_by (see isMatchHost).
   // The "Host a match" flow sends `hosted`, so an admin who hosts a casual match
   // gets the same hosted behaviour (active, registration open) as anyone else.
-  const { hosted, ...matchInput } = parsed.data;
+  const { hosted, participate, ...matchInput } = parsed.data;
   if (!isGlobalAdmin || hosted) {
-    const [match] = await db
-      .insert(matches)
-      .values({
-        ...matchInput,
-        is_private: true,
-        // Hosted matches are always Level I.
-        level: 'I',
-        join_token: generateJoinToken(),
-        // A host wants their casual match open to invitees immediately.
-        registration_open: true,
-        // Live from creation so scores auto-recompute (the recompute sweep only
-        // sweeps 'active'/'scoring' matches) — casual matches have no draft
-        // lifecycle to step through.
-        status: 'active',
-        created_by: request.user.id,
-      })
-      .returning();
+    if (participate) {
+      const org = matchInput.organization as Organization;
+      if (!isValidDivisionForOrg(org, participate.division)) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: `Division "${participate.division}" is not valid for ${org}.`,
+        });
+      }
+      if (participate.power_factor === 'Major' && !divisionAllowsMajor(participate.division)) {
+        return reply.status(400).send({
+          statusCode: 400,
+          error: 'Bad Request',
+          message: `Division "${participate.division}" is Minor only.`,
+        });
+      }
+    }
+
+    const [me] = participate
+      ? await db
+          .select({ display_name: users.display_name })
+          .from(users)
+          .where(eq(users.id, request.user.id))
+          .limit(1)
+      : [];
+
+    // Match + the host's own entry land together or not at all.
+    const match = await db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(matches)
+        .values({
+          ...matchInput,
+          is_private: true,
+          // Hosted matches are always Level I.
+          level: 'I',
+          join_token: generateJoinToken(),
+          // A host wants their casual match open to invitees immediately.
+          registration_open: true,
+          // Live from creation so scores auto-recompute (the recompute sweep only
+          // sweeps 'active'/'scoring' matches) — casual matches have no draft
+          // lifecycle to step through.
+          status: 'active',
+          created_by: request.user.id,
+        })
+        .returning();
+      if (participate) {
+        await tx.insert(registrations).values({
+          match_id: created.id,
+          user_id: request.user.id,
+          shooter_name: me?.display_name ?? 'Shooter',
+          division: participate.division,
+          power_factor: participate.power_factor,
+        });
+      }
+      return created;
+    });
     return reply.status(201).send(match);
   }
 
